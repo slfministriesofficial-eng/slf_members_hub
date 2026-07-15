@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+/* Manual (class-based) dark mode — toggled by ThemeContext, not by OS preference alone. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/newsreader-500.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/newsreader-600.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/newsreader-700.woff2') format('woff2'); }
+@font-face { font-family: 'Public Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/publicsans-400.woff2') format('woff2'); }
+@font-face { font-family: 'Public Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/publicsans-500.woff2') format('woff2'); }
+@font-face { font-family: 'Public Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/publicsans-600.woff2') format('woff2'); }
+@font-face { font-family: 'Public Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/publicsans-700.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/plexmono-400.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/plexmono-500.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/archivo-700.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/archivo-800.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 900; font-display: swap; src: url('/fonts/archivo-900.woff2') format('woff2'); }
+
+@theme {
+  /* brand — fixed across both themes on purpose: these back the ID card, the
+     sidebar chrome, login/welcome, and primary buttons/active states, none of
+     which should re-theme when the app switches modes. */
+  --color-ink-deep: #1A2235;
+  --color-ink: #26314A;
+  --color-ink-soft: #3E4C6B;
+  --color-brass: #B8863A;
+  --color-brass-deep: #8E6526;
+
+  /* heading/high-contrast text — reactive (see .dark below). Split from `ink`
+     because `ink` also backs bg-ink buttons, which must NOT invert in dark mode. */
+  --color-heading: #26314A;
+
+  /* card/panel backgrounds — reactive. Replaces bare `bg-white` app-wide. */
+  --color-surface: #FFFFFF;
+
+  /* faint icons (chevrons, disabled glyphs) — reactive */
+  --color-faint: #B7BEC9;
+
+  /* neutrals */
+  --color-paper: #F2EEE4;
+  --color-paper-2: #E9E2D2;
+  --color-canvas: #ECE6D8;
+  --color-charcoal: #22262B;
+  --color-slate: #6E7688;
+  --color-hairline: rgba(34,38,43,0.10);
+
+  /* status (semantic, separate from brand) */
+  --color-status-regular-fg: #3F6B4C;
+  --color-status-regular-bg: #E3EDE6;
+  --color-status-visitor-fg: #3E6E8E;
+  --color-status-visitor-bg: #E3EDF2;
+  --color-status-alert-fg: #B1503F;
+  --color-status-alert-bg: #F5E3DF;
+  --color-status-leader-fg: #8A661E;
+  --color-status-leader-bg: #F1E3C8;
+  --color-status-inactive-fg: #6E7688;
+  --color-status-inactive-bg: #E7E4DA;
+
+  /* type */
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-body: 'Public Sans', -apple-system, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-heading: 'Archivo', -apple-system, system-ui, sans-serif;
+
+  --shadow-card: 0 1px 2px rgba(34,38,43,0.05), 0 10px 22px rgba(34,38,43,0.10);
+  --shadow-elev: 0 24px 54px rgba(20,24,33,0.32);
+
+  /* light, cool-toned surface — used by the member-registration form instead of the warm cream canvas */
+  --color-form-bg: #F5F7FA;
+  --color-form-line: rgba(30,41,59,0.08);
+
+  /* soft section tints — Review screen and other multi-section summaries */
+  --color-tint-blue-bg: #EAF2FB;
+  --color-tint-blue-fg: #2C5C8A;
+  --color-tint-green-bg: #EAF6EE;
+  --color-tint-green-fg: #2E7D4F;
+  --color-tint-amber-bg: #FDF3E3;
+  --color-tint-amber-fg: #A15E14;
+  --color-tint-purple-bg: #F1EAFB;
+  --color-tint-purple-fg: #6B3FA0;
+  --color-tint-pink-bg: #FCEAF1;
+  --color-tint-pink-fg: #B3467C;
+  --color-tint-slate-bg: #EEF1F4;
+  --color-tint-slate-fg: #46586E;
+}
+
+/* Premium dark theme — leans on the brand's existing navy (ink-deep) as the
+   base rather than pure black, so it reads as an intentional extension of the
+   brand instead of a bolted-on inversion. Card surfaces sit one step lighter
+   than the page for depth; text uses off-white (not pure white) for comfort. */
+.dark {
+  --color-heading: #F3F5F9;
+  --color-surface: #1B2130;
+  --color-faint: #5B6478;
+
+  --color-paper: #12151F;
+  --color-paper-2: #1B2130;
+  --color-canvas: #0E1119;
+  --color-charcoal: #E4E7EE;
+  --color-slate: #8B93A7;
+  --color-hairline: rgba(255,255,255,0.09);
+
+  --color-status-regular-fg: #7FD79A;
+  --color-status-regular-bg: rgba(63,145,66,0.16);
+  --color-status-visitor-fg: #86C0EA;
+  --color-status-visitor-bg: rgba(62,110,142,0.18);
+  --color-status-alert-fg: #EFA097;
+  --color-status-alert-bg: rgba(177,80,63,0.18);
+  --color-status-leader-fg: #E4C57E;
+  --color-status-leader-bg: rgba(184,134,58,0.18);
+  --color-status-inactive-fg: #9AA5B1;
+  --color-status-inactive-bg: rgba(122,130,148,0.16);
+
+  --color-form-bg: #0E1119;
+  --color-form-line: rgba(255,255,255,0.09);
+
+  --color-tint-blue-bg: rgba(44,92,138,0.18);
+  --color-tint-blue-fg: #86C0EA;
+  --color-tint-green-bg: rgba(46,125,79,0.18);
+  --color-tint-green-fg: #7FD79A;
+  --color-tint-amber-bg: rgba(161,94,20,0.2);
+  --color-tint-amber-fg: #E8BE85;
+  --color-tint-purple-bg: rgba(107,63,160,0.2);
+  --color-tint-purple-fg: #C7ACEA;
+  --color-tint-pink-bg: rgba(179,70,124,0.2);
+  --color-tint-pink-fg: #EAAAC9;
+  --color-tint-slate-bg: rgba(70,88,110,0.22);
+  --color-tint-slate-fg: #AAB6C7;
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.24), 0 10px 24px rgba(0,0,0,0.4);
+  --shadow-elev: 0 24px 60px rgba(0,0,0,0.6);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Anchor/programmatic scrolls ease instead of jumping — normal wheel/touch
+   scrolling is unaffected, so this can't make the page feel heavy. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-charcoal);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+/* Skeleton loading — a shimmer band sweeps across a flat reactive base color.
+   Base uses paper-2 (already reactive light/dark); shine opacity is lower in
+   dark mode since white-on-dark reads brighter at the same alpha. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-paper-2);
+  --skeleton-shine: rgba(255, 255, 255, 0.55);
+}
+
+.dark .skeleton {
+  --skeleton-shine: rgba(255, 255, 255, 0.07);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ray-drift {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes particle-float {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.35; }
+  100% { transform: translateY(-320px) scale(1); opacity: 0; }
+}
+
+@keyframes reveal-pop {
+  0% { transform: scale(0); opacity: 0.9; filter: blur(0px); }
+  15% { transform: scale(3); opacity: 1; filter: blur(2px); }
+  70% { transform: scale(300); opacity: 1; filter: blur(0px); }
+  100% { transform: scale(300); opacity: 1; filter: blur(0px); }
+}
+
+@keyframes gradient-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Slow, subtle bob — used on the digital membership card so it feels alive
+   without being distracting. */
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
