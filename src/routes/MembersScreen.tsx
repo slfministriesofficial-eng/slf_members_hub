@@ -14,21 +14,12 @@ import {
   openWhatsappWithText,
 } from '../features/members/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
+import { AddWhatsappModal } from '../features/members/AddWhatsappModal'
 import type { Member } from '../mock/types'
 
 type ViewMode = 'list' | 'grid'
-type SortKey = 'recent' | 'oldest' | 'name-asc' | 'name-desc' | 'member-id' | 'join-date'
 
 const VIEW_STORAGE_KEY = 'slf-members-view'
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'recent', label: 'Recently Added' },
-  { value: 'oldest', label: 'Oldest Members' },
-  { value: 'name-asc', label: 'Name (A–Z)' },
-  { value: 'name-desc', label: 'Name (Z–A)' },
-  { value: 'member-id', label: 'Member ID' },
-  { value: 'join-date', label: 'Join Date' },
-]
 
 // Strips punctuation/case so "SLF-0001", "slf0001", and "0001" all match the same member.
 function normalize(value: string): string {
@@ -39,41 +30,14 @@ function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
-function toTimestamp(value: string | undefined): number {
-  if (!value) return 0
-  const t = new Date(value).getTime()
-  return Number.isNaN(t) ? 0 : t
-}
-
 function isSameMonth(dateStr: string | undefined, ref: Date): boolean {
   if (!dateStr) return false
   const d = new Date(dateStr)
   return !Number.isNaN(d.getTime()) && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear()
 }
 
-function sortMembers(list: Member[], sortKey: SortKey): Member[] {
-  const sorted = [...list]
-  switch (sortKey) {
-    case 'recent':
-      sorted.sort((a, b) => toTimestamp(b.registrationDate) - toTimestamp(a.registrationDate))
-      break
-    case 'oldest':
-      sorted.sort((a, b) => toTimestamp(a.registrationDate) - toTimestamp(b.registrationDate))
-      break
-    case 'name-asc':
-      sorted.sort((a, b) => a.name.localeCompare(b.name))
-      break
-    case 'name-desc':
-      sorted.sort((a, b) => b.name.localeCompare(a.name))
-      break
-    case 'member-id':
-      sorted.sort((a, b) => a.memberId.localeCompare(b.memberId))
-      break
-    case 'join-date':
-      sorted.sort((a, b) => toTimestamp(a.joiningDateRaw) - toTimestamp(b.joiningDateRaw))
-      break
-  }
-  return sorted
+function sortByName(list: Member[]): Member[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function getInitialView(): ViewMode {
@@ -82,14 +46,14 @@ function getInitialView(): ViewMode {
 }
 
 export function MembersScreen() {
-  const { members, isLoading, isError, deleteMember, isDeleting } = useMembers()
+  const { members, isLoading, isError, deleteMember, isDeleting, updateWhatsapp, isUpdating } = useMembers()
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('name-asc')
   const [view, setView] = useState<ViewMode>(getInitialView)
   const [toast, setToast] = useState<{ icon: string; message: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Member | null>(null)
+  const [addingWhatsappFor, setAddingWhatsappFor] = useState<Member | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -132,6 +96,16 @@ export function MembersScreen() {
     }
   }
 
+  async function saveWhatsapp(member: Member, rawNumber: string) {
+    try {
+      await updateWhatsapp(member.memberId, rawNumber)
+      setAddingWhatsappFor(null)
+      setToast({ icon: 'chat', message: `WhatsApp number saved for ${member.name}.` })
+    } catch {
+      setToast({ icon: 'chat', message: `Could not save the number for ${member.name} — check your connection and try again.` })
+    }
+  }
+
   // Filtered by ministry interest rather than member/visitor/leader status —
   // every registered person is treated as a member, so that distinction isn't used here.
   const filters = useMemo(
@@ -162,7 +136,7 @@ export function MembersScreen() {
     })
   }, [members, filter, query])
 
-  const filteredSorted = useMemo(() => sortMembers(filtered, sortKey), [filtered, sortKey])
+  const filteredSorted = useMemo(() => sortByName(filtered), [filtered])
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -217,21 +191,11 @@ export function MembersScreen() {
         </div>
       </div>
 
-      <div className="mb-5 flex items-center justify-between gap-2 px-0.5">
+      <div className="mb-5 px-0.5">
         <span className="text-[11.5px] text-slate">
           <b className="font-mono font-semibold text-heading">{filteredSorted.length}</b>{' '}
           {filteredSorted.length === 1 ? 'member' : 'members'} found
         </span>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-slate">Sort:</span>
-          <Dropdown
-            value={sortKey}
-            onChange={(v) => setSortKey(v as SortKey)}
-            align="right"
-            options={SORT_OPTIONS}
-            triggerClassName="rounded-full bg-surface py-2 pl-3.5 pr-3 text-[11.5px] font-semibold text-heading shadow-card"
-          />
-        </div>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
@@ -282,6 +246,7 @@ export function MembersScreen() {
                 navigate={navigate}
                 onDelete={requestDelete}
                 deleting={isDeleting && deletingId === member.id}
+                onAddWhatsapp={setAddingWhatsappFor}
               />
             ))}
           </div>
@@ -300,6 +265,7 @@ export function MembersScreen() {
                   onDelete={requestDelete}
                   deleting={isDeleting && deletingId === member.id}
                   delayMs={Math.min(i, 8) * 40}
+                  onAddWhatsapp={setAddingWhatsappFor}
                 />
               ) : (
                 <MemberListRow
@@ -309,6 +275,7 @@ export function MembersScreen() {
                   onDelete={requestDelete}
                   deleting={isDeleting && deletingId === member.id}
                   delayMs={Math.min(i, 8) * 40}
+                  onAddWhatsapp={setAddingWhatsappFor}
                 />
               ),
             )}
@@ -330,6 +297,15 @@ export function MembersScreen() {
           member={pendingDelete}
           onCancel={() => setPendingDelete(null)}
           onConfirm={(reason) => runDelete(pendingDelete, reason)}
+        />
+      )}
+
+      {addingWhatsappFor && (
+        <AddWhatsappModal
+          member={addingWhatsappFor}
+          onCancel={() => setAddingWhatsappFor(null)}
+          onSave={(rawNumber) => saveWhatsapp(addingWhatsappFor, rawNumber)}
+          saving={isUpdating}
         />
       )}
     </div>
@@ -406,11 +382,13 @@ function RowActionButtons({
   navigate,
   onDelete,
   deleting,
+  onAddWhatsapp,
 }: {
   member: Member
   navigate: NavigateFunction
   onDelete: (member: Member) => void
   deleting: boolean
+  onAddWhatsapp: (member: Member) => void
 }) {
   const whatsappNumber = normalizeWhatsappNumber(member.whatsapp)
 
@@ -435,7 +413,7 @@ function RowActionButtons({
       >
         <Icon name="trash" className="icon !h-[15px] !w-[15px]" />
       </button>
-      {whatsappNumber && (
+      {whatsappNumber ? (
         <button
           type="button"
           onClick={() => openWhatsappChat(member, whatsappNumber)}
@@ -444,6 +422,16 @@ function RowActionButtons({
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#25D366] transition-colors hover:bg-[#25D366]/10"
         >
           <Icon name="chat" className="icon !h-[15px] !w-[15px]" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onAddWhatsapp(member)}
+          aria-label="Add WhatsApp number"
+          title="Add WhatsApp Number"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:bg-paper hover:text-heading"
+        >
+          <Icon name="plus" className="icon !h-[15px] !w-[15px]" />
         </button>
       )}
     </div>
@@ -455,13 +443,14 @@ type MemberCardProps = {
   navigate: NavigateFunction
   onDelete: (member: Member) => void
   deleting: boolean
+  onAddWhatsapp: (member: Member) => void
   delayMs?: number
 }
 
 // Mobile-only compact row — avatar, name, ID, ministry, status badge, the
 // quick action icon buttons (Edit / Delete / WhatsApp-if-available), and an
 // arrow — per the responsive spec.
-function CompactMemberRow({ member, navigate, onDelete, deleting }: MemberCardProps) {
+function CompactMemberRow({ member, navigate, onDelete, deleting, onAddWhatsapp }: MemberCardProps) {
   return (
     <div
       onClick={() => navigate(`/members/${member.id}`)}
@@ -480,7 +469,13 @@ function CompactMemberRow({ member, navigate, onDelete, deleting }: MemberCardPr
         </div>
       </div>
       <StatusPill status={member.status} label={member.statusLabel} size="sm" />
-      <RowActionButtons member={member} navigate={navigate} onDelete={onDelete} deleting={deleting} />
+      <RowActionButtons
+        member={member}
+        navigate={navigate}
+        onDelete={onDelete}
+        deleting={deleting}
+        onAddWhatsapp={onAddWhatsapp}
+      />
       <Icon name="chevron" className="icon !h-[15px] !w-[15px] shrink-0 text-faint" />
     </div>
   )
@@ -488,7 +483,7 @@ function CompactMemberRow({ member, navigate, onDelete, deleting }: MemberCardPr
 
 // Desktop list variant — a full-width premium row. Edit/Delete/WhatsApp sit
 // always-visible at the trailing end, before the chevron.
-function MemberListRow({ member, navigate, onDelete, deleting, delayMs = 0 }: MemberCardProps) {
+function MemberListRow({ member, navigate, onDelete, deleting, onAddWhatsapp, delayMs = 0 }: MemberCardProps) {
   const sinceYear = member.joinDate.slice(-4)
   return (
     <div
@@ -516,7 +511,13 @@ function MemberListRow({ member, navigate, onDelete, deleting, delayMs = 0 }: Me
           <span>Since {sinceYear}</span>
         </div>
       </div>
-      <RowActionButtons member={member} navigate={navigate} onDelete={onDelete} deleting={deleting} />
+      <RowActionButtons
+        member={member}
+        navigate={navigate}
+        onDelete={onDelete}
+        deleting={deleting}
+        onAddWhatsapp={onAddWhatsapp}
+      />
       <Icon name="chevron" className="icon !h-[16px] !w-[16px] shrink-0 text-faint" />
     </div>
   )
@@ -524,7 +525,7 @@ function MemberListRow({ member, navigate, onDelete, deleting, delayMs = 0 }: Me
 
 // Desktop grid variant — a vertical tile. Edit/Delete/WhatsApp sit
 // always-visible in the top-right corner instead of a trailing position.
-function MemberGridCard({ member, navigate, onDelete, deleting, delayMs = 0 }: MemberCardProps) {
+function MemberGridCard({ member, navigate, onDelete, deleting, onAddWhatsapp, delayMs = 0 }: MemberCardProps) {
   const sinceYear = member.joinDate.slice(-4)
   return (
     <div
@@ -538,7 +539,13 @@ function MemberGridCard({ member, navigate, onDelete, deleting, delayMs = 0 }: M
       className="motion-safe:animate-[fade-rise_0.35s_ease-out_both] relative flex cursor-pointer flex-col items-center rounded-2xl bg-surface p-5 text-center shadow-card transition-shadow hover:shadow-elev"
     >
       <div className="absolute right-2.5 top-2.5">
-        <RowActionButtons member={member} navigate={navigate} onDelete={onDelete} deleting={deleting} />
+        <RowActionButtons
+          member={member}
+          navigate={navigate}
+          onDelete={onDelete}
+          deleting={deleting}
+          onAddWhatsapp={onAddWhatsapp}
+        />
       </div>
 
       <Avatar initials={member.initials} color={member.color} size={56} />

@@ -127,6 +127,7 @@ type MembersState = {
   isAdding: boolean
   updateMember: (memberId: string, form: MemberFormData) => Promise<Member>
   isUpdating: boolean
+  updateWhatsapp: (memberId: string, whatsapp: string) => Promise<Member>
   deleteMember: (memberId: string) => Promise<void>
   isDeleting: boolean
   getNextMemberId: () => string
@@ -189,6 +190,13 @@ export function MembersProvider({ children }: PropsWithChildren) {
     return toMember(record, 0)
   }
 
+  // Partial update — Code.gs merges only the fields provided into the existing
+  // row, so this can't clobber the rest of the member's record.
+  async function updateWhatsapp(memberId: string, whatsapp: string): Promise<Member> {
+    const record = await updateMutation.mutateAsync({ memberId, whatsapp })
+    return toMember(record, 0)
+  }
+
   async function deleteMember(memberId: string): Promise<void> {
     await deleteMutation.mutateAsync(memberId)
   }
@@ -212,6 +220,7 @@ export function MembersProvider({ children }: PropsWithChildren) {
         isAdding: createMutation.isPending,
         updateMember,
         isUpdating: updateMutation.isPending,
+        updateWhatsapp,
         deleteMember,
         isDeleting: deleteMutation.isPending,
         getNextMemberId,
