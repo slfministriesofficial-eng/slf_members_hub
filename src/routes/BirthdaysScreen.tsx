@@ -172,7 +172,7 @@ export function BirthdaysScreen() {
                   </h2>
                   <button
                     onClick={() => navigate('/birthdays/birthdays')}
-                    className="text-[11.5px] font-bold text-brass-deep hover:underline"
+                    className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
                   >
                     View All
                   </button>

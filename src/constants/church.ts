@@ -55,7 +55,6 @@ export const CHURCH_INFO = {
     'https://www.google.com/maps?q=' +
     encodeURIComponent('SLF Ministries, Tadigadapa, Vijayawada, Andhra Pradesh 520007') +
     '&output=embed',
-  mapsLinkUrl:
-    'https://www.google.com/maps/search/?api=1&query=' +
-    encodeURIComponent('SLF Ministries, Tadigadapa, Vijayawada, Andhra Pradesh 520007'),
+  // Real Google Maps share link for the church's actual pinned location.
+  mapsLinkUrl: 'https://maps.app.goo.gl/Vn86Nrbk2NbsnyTh6',
 }

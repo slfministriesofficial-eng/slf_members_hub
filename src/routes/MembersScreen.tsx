@@ -7,12 +7,7 @@ import { StatusPill } from '../components/ui/StatusPill'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MINISTRY_OPTIONS } from '../features/members/types'
-import {
-  buildRemovalMessage,
-  normalizeWhatsappNumber,
-  openWhatsappChat,
-  openWhatsappWithText,
-} from '../features/members/whatsapp'
+import { buildRemovalMessage, normalizeWhatsappNumber, openWhatsappWithText } from '../features/members/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
 import { AddWhatsappModal } from '../features/members/AddWhatsappModal'
 import type { Member } from '../mock/types'
@@ -20,13 +15,14 @@ import type { Member } from '../mock/types'
 type ViewMode = 'list' | 'grid'
 
 const VIEW_STORAGE_KEY = 'slf-members-view'
+const PREVIEW_LIMIT = 5
 
 // Strips punctuation/case so "SLF-0001", "slf0001", and "0001" all match the same member.
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-function normalizeDigits(value: string): string {
+export function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
@@ -36,8 +32,28 @@ function isSameMonth(dateStr: string | undefined, ref: Date): boolean {
   return !Number.isNaN(d.getTime()) && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear()
 }
 
-function sortByName(list: Member[]): Member[] {
-  return [...list].sort((a, b) => a.name.localeCompare(b.name))
+export type SortKey = 'newest' | 'oldest' | 'name'
+
+export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'name', label: 'Name (A–Z)' },
+]
+
+// Registered-date isn't backfilled for every seed member, so joiningDateRaw
+// covers the rest; missing both sorts to the end rather than the (wrong) top.
+function registeredAt(member: Member): number {
+  const raw = member.registrationDate ?? member.joiningDateRaw
+  const t = raw ? new Date(raw).getTime() : NaN
+  return Number.isNaN(t) ? -Infinity : t
+}
+
+export function sortMembers(list: Member[], sortKey: SortKey): Member[] {
+  if (sortKey === 'name') {
+    return [...list].sort((a, b) => a.name.localeCompare(b.name))
+  }
+  const sorted = [...list].sort((a, b) => registeredAt(a) - registeredAt(b))
+  return sortKey === 'newest' ? sorted.reverse() : sorted
 }
 
 function getInitialView(): ViewMode {
@@ -49,6 +65,7 @@ export function MembersScreen() {
   const { members, isLoading, isError, deleteMember, isDeleting, updateWhatsapp, isUpdating } = useMembers()
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('newest')
   const [view, setView] = useState<ViewMode>(getInitialView)
   const [toast, setToast] = useState<{ icon: string; message: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -136,7 +153,8 @@ export function MembersScreen() {
     })
   }, [members, filter, query])
 
-  const filteredSorted = useMemo(() => sortByName(filtered), [filtered])
+  const filteredSorted = useMemo(() => sortMembers(filtered, sortKey), [filtered, sortKey])
+  const previewMembers = useMemo(() => filteredSorted.slice(0, PREVIEW_LIMIT), [filteredSorted])
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -150,9 +168,26 @@ export function MembersScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both]">
-      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      {/* Mobile-only header — title and the compact Add Member button share the
+          very top row, matching the small-screen layout spec; the subtitle sits
+          on its own line below, kept to one line rather than wrapping. */}
+      <div className="mb-1 flex items-center justify-between gap-3 md:hidden">
+        <h1 className="font-display text-[22px] font-bold text-heading">Members</h1>
+        <button onClick={() => navigate('/members/new')} className="flex shrink-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
+            <Icon name="plus" className="icon !h-[16px] !w-[16px] text-white" />
+          </span>
+          <span className="text-[13px] font-bold text-brass-deep">Add Member</span>
+        </button>
+      </div>
+      <p className="mb-3 overflow-hidden whitespace-nowrap text-[10px] text-slate md:hidden">
+        Manage, search, filter, and access all church members from one place.
+      </p>
+
+      {/* Desktop header — unchanged from before. */}
+      <div className="mb-5 hidden md:flex md:items-start md:justify-between md:gap-4">
         <div>
-          <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Members</h1>
+          <h1 className="font-display text-[26px] font-bold text-heading">Members</h1>
           <p className="mt-1 text-[12.5px] text-slate">
             Manage, search, filter, and access all church members from one place.
           </p>
@@ -170,7 +205,7 @@ export function MembersScreen() {
       </div>
 
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex flex-1 items-center gap-2 rounded-2xl bg-surface px-3.5 py-2.5 shadow-card transition-shadow focus-within:shadow-elev">
+        <div className="flex flex-1 items-center gap-2 rounded-2xl bg-surface px-3.5 py-2 shadow-card transition-shadow focus-within:shadow-elev">
           <Icon name="search" className="icon !h-[17px] !w-[17px] text-slate" />
           <input
             value={query}
@@ -186,24 +221,56 @@ export function MembersScreen() {
             onChange={setFilter}
             align="right"
             options={filters.map((f) => ({ value: f.key, label: `${f.label} · ${f.count}` }))}
-            triggerClassName="h-full rounded-2xl bg-surface py-2.5 pl-3.5 pr-3 text-[12.5px] font-semibold text-heading shadow-card"
+            triggerClassName="h-full rounded-2xl bg-surface py-2 pl-2.5 pr-2 text-[11px] font-semibold text-heading shadow-card"
           />
         </div>
       </div>
 
-      <div className="mb-5 px-0.5">
+      <div className="mb-5 hidden items-center justify-between gap-2 px-0.5 md:flex">
         <span className="text-[11.5px] text-slate">
           <b className="font-mono font-semibold text-heading">{filteredSorted.length}</b>{' '}
           {filteredSorted.length === 1 ? 'member' : 'members'} found
         </span>
+        <Dropdown
+          value={sortKey}
+          onChange={(v) => setSortKey(v as SortKey)}
+          align="right"
+          leadingIcon="sort"
+          options={SORT_OPTIONS}
+          triggerClassName="shrink-0 gap-1 rounded-full bg-surface/70 py-1 pl-2.5 pr-2 text-[10.5px] font-bold text-heading shadow-card md:gap-1.5 md:bg-surface md:py-2 md:pl-3.5 md:pr-3 md:text-[12px]"
+        />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
+      <div className="mb-6 grid grid-cols-4 gap-2 md:gap-3">
         <DirectoryStatCard icon="users" label="Total Members" value={stats.total} />
         <DirectoryStatCard icon="cal-check" label="New This Month" value={stats.newThisMonth} />
         <DirectoryStatCard icon="rings" label="Families" value={stats.families} />
         <DirectoryStatCard icon="cross" label="Baptized Members" value={stats.baptized} />
       </div>
+
+      {/* Mobile-only — a short preview (5) of the current search/filter results;
+          the full searchable/sortable directory lives on the dedicated "View All" page. */}
+      <div className="mb-2 flex items-center justify-between md:hidden">
+        <h2 className="font-display text-[15px] font-bold text-heading">Members ({filteredSorted.length})</h2>
+        <button
+          onClick={() => navigate('/members/all')}
+          className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
+        >
+          View All
+        </button>
+      </div>
+
+      {!isError && !isLoading && (
+        <div className="rounded-2xl bg-surface px-3.5 shadow-card md:hidden">
+          {previewMembers.length === 0 ? (
+            <p className="py-8 text-center text-[12.5px] text-slate">No members found.</p>
+          ) : (
+            previewMembers.map((member) => (
+              <PreviewMemberRow key={member.id} member={member} onOpen={() => navigate(`/members/${member.id}`)} />
+            ))
+          )}
+        </div>
+      )}
 
       {isError && (
         <p className="py-8 text-center text-[13px] text-slate">
@@ -212,45 +279,25 @@ export function MembersScreen() {
       )}
 
       {!isError && isLoading && (
-        <>
-          <div className="space-y-1.5 rounded-2xl bg-surface p-1.5 shadow-card md:hidden">
-            <MobileRowSkeleton />
-            <MobileRowSkeleton />
-            <MobileRowSkeleton />
-            <MobileRowSkeleton />
-            <MobileRowSkeleton />
-          </div>
-          <div
-            className={`hidden md:grid md:gap-3 ${
-              view === 'grid' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-1'
-            }`}
-          >
-            {Array.from({ length: 6 }).map((_, i) => (
-              <DirectoryCardSkeleton key={i} variant={view} />
-            ))}
-          </div>
-        </>
+        <div
+          className={`hidden md:grid md:gap-3 ${
+            view === 'grid' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-1'
+          }`}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <DirectoryCardSkeleton key={i} variant={view} />
+          ))}
+        </div>
       )}
 
       {!isError && !isLoading && filteredSorted.length === 0 && (
-        <EmptyDirectoryState onAdd={() => navigate('/members/new')} />
+        <div className="hidden md:block">
+          <EmptyDirectoryState onAdd={() => navigate('/members/new')} />
+        </div>
       )}
 
       {!isError && !isLoading && filteredSorted.length > 0 && (
         <>
-          <div className="rounded-2xl bg-surface px-3.5 shadow-card md:hidden">
-            {filteredSorted.map((member) => (
-              <CompactMemberRow
-                key={member.id}
-                member={member}
-                navigate={navigate}
-                onDelete={requestDelete}
-                deleting={isDeleting && deletingId === member.id}
-                onAddWhatsapp={setAddingWhatsappFor}
-              />
-            ))}
-          </div>
-
           <div
             className={`hidden md:grid md:gap-3 ${
               view === 'grid' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-1'
@@ -339,15 +386,51 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   )
 }
 
+// Dashboard's own lightweight preview row — same info as the full directory's
+// CompactMemberRow (avatar, ID + status, name, phone) but without the
+// edit/delete/WhatsApp action icons, since this is just a glance; the full
+// row with those actions lives on the dedicated "View All" page.
+function PreviewMemberRow({ member, onOpen }: { member: Member; onOpen: () => void }) {
+  const sinceYear = member.joinDate.slice(-4)
+  return (
+    <div
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onOpen()
+      }}
+      className="flex cursor-pointer items-center gap-2 border-b border-hairline py-3.5 last:border-0 active:bg-paper/60"
+    >
+      <Avatar initials={member.initials} color={member.color} size={44} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate font-mono text-[12.5px] font-bold text-heading">{member.memberId}</span>
+          <StatusPill status={member.status} label={member.statusLabel} size="sm" />
+        </div>
+        <div className="mt-0.5 truncate text-[13px] text-heading">{member.name}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-slate">
+          <span className="truncate">{member.phone}</span>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-faint" />
+          <span className="shrink-0">Since {sinceYear}</span>
+        </div>
+      </div>
+      <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />
+    </div>
+  )
+}
+
 function DirectoryStatCard({ icon, label, value }: { icon: string; label: string; value: number }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-surface p-3.5 shadow-card transition-transform hover:-translate-y-0.5 hover:shadow-elev">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep">
-        <Icon name={icon} className="icon !h-[17px] !w-[17px] text-white" />
+    <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface p-2.5 text-center shadow-card transition-transform hover:-translate-y-0.5 hover:shadow-elev md:flex-row md:items-center md:gap-3 md:p-3.5 md:text-left">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep md:h-10 md:w-10">
+        <Icon name={icon} className="icon !h-[14px] !w-[14px] text-white md:!h-[17px] md:!w-[17px]" />
       </span>
       <div className="min-w-0">
-        <div className="font-display text-[19px] font-bold leading-none text-heading">{value}</div>
-        <div className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-slate">{label}</div>
+        <div className="font-display text-[16px] font-bold leading-none text-heading md:text-[19px]">{value}</div>
+        <div className="mt-1 line-clamp-2 text-[8.5px] font-semibold uppercase leading-tight tracking-wide text-slate md:truncate md:text-[10px]">
+          {label}
+        </div>
       </div>
     </div>
   )
@@ -377,7 +460,7 @@ function ActiveBadge() {
 // these three (plus the chevron) cover everything admins reach for on this
 // list. Stops propagation on its own root so tapping any of them never also
 // fires the card's own "navigate to profile" handler.
-function RowActionButtons({
+export function RowActionButtons({
   member,
   navigate,
   onDelete,
@@ -416,12 +499,12 @@ function RowActionButtons({
       {whatsappNumber ? (
         <button
           type="button"
-          onClick={() => openWhatsappChat(member, whatsappNumber)}
-          aria-label="Send WhatsApp"
-          title="Send WhatsApp"
+          onClick={() => navigate(`/send-wish/custom/${member.id}`)}
+          aria-label="Send WhatsApp message"
+          title="Send WhatsApp Message"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#25D366] transition-colors hover:bg-[#25D366]/10"
         >
-          <Icon name="chat" className="icon !h-[15px] !w-[15px]" />
+          <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
         </button>
       ) : (
         <button
@@ -438,47 +521,13 @@ function RowActionButtons({
   )
 }
 
-type MemberCardProps = {
+export type MemberCardProps = {
   member: Member
   navigate: NavigateFunction
   onDelete: (member: Member) => void
   deleting: boolean
   onAddWhatsapp: (member: Member) => void
   delayMs?: number
-}
-
-// Mobile-only compact row — avatar, name, ID, ministry, status badge, the
-// quick action icon buttons (Edit / Delete / WhatsApp-if-available), and an
-// arrow — per the responsive spec.
-function CompactMemberRow({ member, navigate, onDelete, deleting, onAddWhatsapp }: MemberCardProps) {
-  return (
-    <div
-      onClick={() => navigate(`/members/${member.id}`)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') navigate(`/members/${member.id}`)
-      }}
-      className="flex cursor-pointer items-center gap-1.5 border-b border-hairline py-3.5 last:border-0 active:bg-paper/60"
-    >
-      <Avatar initials={member.initials} color={member.color} size={42} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13.5px] font-bold text-heading">{member.name}</div>
-        <div className="mt-0.5 truncate font-mono text-[11px] text-slate">
-          {member.memberId} · {member.ministry}
-        </div>
-      </div>
-      <StatusPill status={member.status} label={member.statusLabel} size="sm" />
-      <RowActionButtons
-        member={member}
-        navigate={navigate}
-        onDelete={onDelete}
-        deleting={deleting}
-        onAddWhatsapp={onAddWhatsapp}
-      />
-      <Icon name="chevron" className="icon !h-[15px] !w-[15px] shrink-0 text-faint" />
-    </div>
-  )
 }
 
 // Desktop list variant — a full-width premium row. Edit/Delete/WhatsApp sit
@@ -563,19 +612,6 @@ function MemberGridCard({ member, navigate, onDelete, deleting, onAddWhatsapp, d
   )
 }
 
-function MobileRowSkeleton() {
-  return (
-    <div className="flex items-center gap-2.5 border-b border-hairline py-3.5 last:border-0">
-      <Skeleton className="h-[42px] w-[42px] shrink-0 rounded-full" />
-      <div className="min-w-0 flex-1">
-        <Skeleton className="h-[13px] w-[55%] rounded" />
-        <Skeleton className="mt-1.5 h-[11px] w-[40%] rounded" />
-      </div>
-      <Skeleton className="h-[22px] w-16 shrink-0 rounded-full" />
-    </div>
-  )
-}
-
 function DirectoryCardSkeleton({ variant }: { variant: ViewMode }) {
   if (variant === 'grid') {
     return (
@@ -598,7 +634,7 @@ function DirectoryCardSkeleton({ variant }: { variant: ViewMode }) {
   )
 }
 
-function EmptyDirectoryState({ onAdd }: { onAdd: () => void }) {
+export function EmptyDirectoryState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] flex flex-col items-center gap-3 rounded-2xl bg-surface px-6 py-14 text-center shadow-card">
       <span className="flex h-16 w-16 items-center justify-center rounded-full bg-paper-2">

@@ -1,167 +1,540 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
-import { Card } from '../components/ui/Card'
-import { useAuth } from '../auth/AuthContext'
-import { openWhatsappBroadcast } from '../features/members/whatsapp'
+import { useMembers } from '../features/members/MembersContext'
+import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../features/members/whatsapp'
+import { CHURCH_INFO } from '../constants/church'
 
-type Announcement = {
-  id: string
-  title: string
-  message: string
-  sentBy: string
-  sentAt: string
-  status: 'Sent' | 'Draft'
+const MAX_MESSAGE_LENGTH = 1000
+
+type Template = { key: string; label: string; title: string; message: string }
+type LinkEntry = { label: string; url: string }
+
+function defaultLinkLabel(index: number): string {
+  return index === 0 ? 'Join Here' : `Link ${index + 1}`
 }
 
-type FilterKey = 'All' | 'Sent' | 'Draft'
+const VENUE_LINE = CHURCH_INFO.addressLines[0]?.replace(/,\s*$/, '') ?? CHURCH_INFO.shortName
+const SIGN_OFF = `— ${CHURCH_INFO.shortName}`
 
-const FILTERS: FilterKey[] = ['All', 'Sent', 'Draft']
+// Plain bold labels (WhatsApp's own *text* markdown) instead of pictograph
+// emoji for Date/Time/Venue — confirmed on a real device that calendar/clock/
+// pin glyphs (📅⏰📍) render as broken "�" tofu on some WhatsApp clients/fonts,
+// while plain bold text is guaranteed to render everywhere.
+const TEMPLATES: Template[] = [
+  {
+    key: 'sunday-service',
+    label: 'Sunday Service',
+    title: 'Sunday Service Reminder',
+    message: [
+      'Dear Church Family,',
+      '',
+      "We warmly invite you and your family to join us for this Sunday's worship service.",
+      '',
+      '*Date:*',
+      `*Time:* ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'}`,
+      `*Venue:* ${VENUE_LINE}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      "Come together in worship, prayer, and fellowship as we grow in God's presence.",
+      '',
+      'God bless you and your family.',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'prayer-meeting',
+    label: 'Prayer Meeting',
+    title: 'Prayer Meeting Reminder',
+    message: [
+      'Dear Church Family,',
+      '',
+      "Join us for our Prayer Meeting as we gather together to seek God's guidance and blessings.",
+      '',
+      '*Date:*',
+      '*Time:*',
+      `*Venue:* ${CHURCH_INFO.shortName}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      '"Prayer changes everything."',
+      '',
+      'We look forward to praying with you.',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'youth-meeting',
+    label: 'Youth Meeting',
+    title: 'Youth Fellowship',
+    message: [
+      'Dear Youth,',
+      '',
+      'You are invited to our Youth Fellowship.',
+      '',
+      '*Date:*',
+      '*Time:*',
+      `*Venue:* ${CHURCH_INFO.shortName}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      'Come with your friends for worship, Bible study, fellowship and fun.',
+      '',
+      'See you there!',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'choir-practice',
+    label: 'Choir Practice',
+    title: 'Choir Practice Reminder',
+    message: [
+      'Dear Choir Members,',
+      '',
+      'This is a reminder about our upcoming choir practice.',
+      '',
+      '*Date:*',
+      '*Time:*',
+      `*Venue:* ${CHURCH_INFO.shortName}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      'Please arrive a few minutes early and be prepared for worship practice.',
+      '',
+      'Thank you for serving God through music.',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'bible-study',
+    label: 'Bible Study',
+    title: 'Bible Study Invitation',
+    message: [
+      'Dear Church Family,',
+      '',
+      "Join us for this week's Bible Study.",
+      '',
+      '*Date:*',
+      '*Time:*',
+      `*Venue:* ${CHURCH_INFO.shortName}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      "Come and grow deeper in God's Word together.",
+      '',
+      'We look forward to seeing you.',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'special-event',
+    label: 'Special Event',
+    title: 'Special Church Event',
+    message: [
+      'Dear Church Family,',
+      '',
+      'You are warmly invited to our special church event.',
+      '',
+      '*Date:*',
+      '*Time:*',
+      `*Venue:* ${CHURCH_INFO.shortName}`,
+      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
+      '',
+      'Bring your family and friends as we celebrate together.',
+      '',
+      'God Bless!',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+  {
+    key: 'emergency-update',
+    label: 'Emergency Update',
+    title: 'Important Church Notice',
+    message: [
+      'Dear Church Family,',
+      '',
+      'Please note the following important update.',
+      '',
+      '[Enter announcement details here]',
+      '',
+      'Thank you for your understanding.',
+      '',
+      'God bless you.',
+      '',
+      SIGN_OFF,
+    ].join('\n'),
+  },
+]
+
+// *word* is WhatsApp's own bold markdown, applied by the WhatsApp client
+// itself once the message is opened there — not styled by us. Template
+// messages already carry their own greeting/signature, so this only adds
+// the bold title on top and, if given, a link block at the bottom. Built
+// from an array of lines joined with "\n" and run through the shared
+// sanitizer so the preview is always exactly what gets sent.
+function buildAnnouncementMessage(title: string, message: string, links: LinkEntry[]): string {
+  const validLinks = links.filter((l) => l.url.trim())
+  const lines: string[] = []
+  if (title.trim()) {
+    lines.push(`*${title.trim()}*`, '')
+  }
+  lines.push(message.trim() || 'Your announcement message will appear here.')
+  validLinks.forEach((l, i) => {
+    const label = l.label.trim() || defaultLinkLabel(i)
+    lines.push('', `*${label}:*`, l.url.trim())
+  })
+  return sanitizeWhatsappMessage(lines.join('\n'))
+}
 
 export function AnnouncementsScreen() {
-  const { adminName } = useAuth()
+  const navigate = useNavigate()
+  const { members, isLoading } = useMembers()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('All')
+  const [links, setLinks] = useState<LinkEntry[]>([{ label: '', url: '' }])
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  // Once the admin edits the preview directly, it stops following title/message/link
+  // changes and becomes the source of truth for what actually gets sent.
+  const [previewOverride, setPreviewOverride] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const previewRef = useRef<HTMLTextAreaElement>(null)
 
-  const canSubmit = title.trim().length > 0 && message.trim().length > 0
+  // Auto-resizes so the box always matches the actual message length —
+  // recalculates on every change, including template picks, not just typing.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [message])
 
-  const filtered = useMemo(() => {
-    return announcements.filter((a) => {
-      if (filter !== 'All' && a.status !== filter) return false
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        if (!a.title.toLowerCase().includes(q) && !a.message.toLowerCase().includes(q)) return false
-      }
-      return true
-    })
-  }, [announcements, search, filter])
+  const preview = previewOverride ?? buildAnnouncementMessage(title, message, links)
 
-  function handleSubmit(status: 'Draft' | 'Sent') {
-    if (!canSubmit) return
-    const entry: Announcement = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      message: message.trim(),
-      sentBy: adminName || 'Admin',
-      sentAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
-      status,
-    }
-    setAnnouncements((prev) => [entry, ...prev])
-    if (status === 'Sent') {
-      openWhatsappBroadcast(`*${entry.title}*\n\n${entry.message}`)
-    }
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [preview])
+
+  const canSend = preview.trim().length > 0
+  const memberCount = isLoading ? 0 : members.length
+
+  function applyTemplate(template: Template) {
+    setTitle(template.title)
+    setMessage(template.message)
+    setPreviewOverride(null)
+  }
+
+  function clearForm() {
     setTitle('')
     setMessage('')
+    setLinks([{ label: '', url: '' }])
+    setPreviewOverride(null)
+  }
+
+  function updateLink(index: number, field: keyof LinkEntry, value: string) {
+    setLinks((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)))
+  }
+
+  function addLink() {
+    setLinks((prev) => [...prev, { label: '', url: '' }])
+  }
+
+  function removeLink(index: number) {
+    setLinks((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
+  }
+
+  function confirmSend() {
+    setShowConfirm(false)
+    openWhatsappBroadcast(preview)
+    setShowSuccess(true)
   }
 
   return (
-    <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      <div className="mb-5">
-        <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Announcements</h1>
-        <p className="mt-1 text-[12.5px] text-slate">Compose and send updates to your members.</p>
-      </div>
-
-      <Card className="p-4 md:p-5">
-        <label className="mb-3 block">
-          <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">Title</span>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Announcement title"
-            className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-          />
-        </label>
-        <label className="mb-4 block">
-          <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">Message</span>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={5}
-            placeholder="Write your announcement…"
-            className="w-full resize-none rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-          />
-        </label>
-        <div className="flex gap-2.5">
-          <button
-            onClick={() => handleSubmit('Draft')}
-            disabled={!canSubmit}
-            className="flex-1 rounded-xl border border-hairline bg-surface py-3 text-[13px] font-bold text-heading transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save as Draft
-          </button>
-          <button
-            onClick={() => handleSubmit('Sent')}
-            disabled={!canSubmit}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-ink py-3 text-[13px] font-bold text-white transition-colors hover:bg-ink-deep disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon name="chat" className="icon !h-[15px] !w-[15px]" />
-            Send Announcement
-          </button>
-        </div>
-      </Card>
-
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative">
-          <Icon
-            name="search"
-            className="icon !h-[14px] !w-[14px] pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate"
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search announcements…"
-            className="w-full rounded-full border border-hairline bg-surface py-2.5 pl-9 pr-4 text-[13px] text-heading outline-none placeholder:text-slate focus:border-ink sm:w-64"
-          />
-        </div>
-        <div className="flex gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-full px-3.5 py-2 text-[12px] font-bold transition-colors ${
-                filter === f ? 'bg-ink-deep text-white' : 'bg-paper text-heading hover:bg-paper-2'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {filtered.length === 0 ? (
-          <Card className="p-8 text-center">
-            <Icon name="megaphone" className="icon !h-6 !w-6 mx-auto mb-2 text-slate" />
-            <p className="text-[13px] text-slate">
-              {announcements.length === 0
-                ? 'No announcements yet. Compose one above to get started.'
-                : 'No announcements match your search.'}
+    <>
+      <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-32 md:pb-24">
+        {/* HEADER */}
+        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Announcements</h1>
+            <p className="mt-1 max-w-[420px] text-[12.5px] text-slate">
+              Send updates and important information to your members.
             </p>
-          </Card>
-        ) : (
-          filtered.map((a) => (
-            <Card key={a.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-[14.5px] font-bold text-heading">{a.title}</h3>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                    a.status === 'Sent'
-                      ? 'bg-status-regular-bg text-status-regular-fg'
-                      : 'bg-status-inactive-bg text-status-inactive-fg'
-                  }`}
+          </div>
+          <div className="flex gap-2.5">
+            <HeaderStat
+              icon="cal-check"
+              label="Today"
+              value={new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+            />
+            <HeaderStat icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} tone="brass" />
+          </div>
+        </div>
+
+        <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
+          {/* ANNOUNCEMENT COMPOSER */}
+          <div className="motion-safe:animate-[fade-rise_0.35s_ease-out_both] rounded-2xl bg-surface p-4 shadow-card md:p-5">
+            <div className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate">
+              <Icon name="megaphone" className="icon !h-[13px] !w-[13px] text-brass-deep" />
+              Compose Announcement
+            </div>
+
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.key}
+                  onClick={() => applyTemplate(tpl)}
+                  className="shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 py-2 text-[12px] font-bold text-heading transition-colors hover:bg-paper-2"
                 >
-                  {a.status}
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="mb-3 block">
+              <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
+                Announcement Title
+              </span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Sunday Service Time Change"
+                className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
+              />
+            </label>
+
+            <label className="mb-3 block">
+              <span className="mb-1.5 flex items-center justify-between text-[11.5px] font-bold uppercase tracking-wide text-slate">
+                Message
+                <span className={message.length > MAX_MESSAGE_LENGTH ? 'text-status-alert-fg' : 'text-faint'}>
+                  {message.length} / {MAX_MESSAGE_LENGTH}
                 </span>
+              </span>
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={1}
+                placeholder="Write your announcement…"
+                className="w-full resize-none overflow-hidden rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
+              />
+            </label>
+
+            <div>
+              <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-slate">
+                <Icon name="link" className="icon !h-[11px] !w-[11px]" />
+                Links{' '}
+                <span className="font-normal capitalize text-faint">
+                  (optional — YouTube, Facebook Live, Meet, Zoom, etc.)
+                </span>
+              </span>
+              <div className="space-y-2.5">
+                {links.map((l, i) => (
+                  <div key={i} className="rounded-xl border border-hairline bg-paper p-2.5">
+                    <div className="mb-2 flex items-center gap-2">
+                      <input
+                        value={l.label}
+                        onChange={(e) => updateLink(i, 'label', e.target.value)}
+                        placeholder={`Heading — e.g. ${defaultLinkLabel(i)}`}
+                        className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] font-bold text-heading outline-none transition-colors placeholder:font-normal placeholder:text-slate focus:border-ink"
+                      />
+                      {links.length > 1 && (
+                        <button
+                          onClick={() => removeLink(i)}
+                          aria-label="Remove link"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-status-alert-fg"
+                        >
+                          <Icon name="x" className="icon !h-[13px] !w-[13px]" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      value={l.url}
+                      onChange={(e) => updateLink(i, 'url', e.target.value)}
+                      placeholder="https://…"
+                      className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
+                    />
+                  </div>
+                ))}
               </div>
-              <p className="mt-1.5 whitespace-pre-line text-[13px] text-charcoal">{a.message}</p>
+              <button
+                onClick={addLink}
+                className="mt-2 flex items-center gap-1.5 rounded-full bg-paper px-3.5 py-2 text-[12px] font-bold text-heading transition-colors hover:bg-paper-2"
+              >
+                <Icon name="plus" className="icon !h-[11px] !w-[11px]" />
+                Add Link
+              </button>
+            </div>
+          </div>
+
+          {/* MESSAGE PREVIEW */}
+          <div className="mt-5 lg:sticky lg:top-6 lg:mt-0">
+            <div className="motion-safe:animate-[fade-rise_0.35s_ease-out_both] rounded-2xl bg-surface p-4 shadow-card md:p-5">
+              <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate">
+                <Icon name="whatsapp" className="icon !h-[13px] !w-[13px] text-[#25D366]" />
+                Message Preview
+                <span className="font-normal capitalize text-faint">(editable)</span>
+              </h2>
+              <textarea
+                ref={previewRef}
+                value={preview}
+                onChange={(e) => setPreviewOverride(e.target.value)}
+                rows={1}
+                className="w-full resize-none overflow-hidden whitespace-pre-line rounded-2xl border border-hairline bg-paper p-4 text-[13px] leading-relaxed text-charcoal outline-none transition-colors focus:border-ink"
+              />
               <p className="mt-2.5 text-[11px] text-slate">
-                {a.status === 'Sent' ? 'Sent' : 'Saved'} by {a.sentBy} · {a.sentAt}
+                Exactly how members will receive this on WhatsApp — edit it here to fine-tune before sending.
               </p>
-            </Card>
-          ))
+            </div>
+          </div>
+        </div>
+
+        {showConfirm && (
+          <ConfirmSendModal count={memberCount} onCancel={() => setShowConfirm(false)} onConfirm={confirmSend} />
         )}
+
+        {showSuccess && (
+          <SuccessModal
+            onSendAnother={() => {
+              setShowSuccess(false)
+              clearForm()
+            }}
+            onBackToDashboard={() => navigate('/')}
+          />
+        )}
+      </div>
+
+      {/* Rendered as a sibling of the animated wrapper above, not a descendant —
+          a `transform` on an ancestor (even a finished fade-rise animation
+          sitting at translateY(0)) creates its own containing block for
+          position:fixed children, which would make this scroll with the
+          page instead of staying pinned to the viewport. */}
+      <div className="fixed inset-x-4 bottom-20 z-40 md:inset-x-auto md:bottom-6 md:left-1/2 md:w-[420px] md:-translate-x-1/2">
+        <button
+          onClick={() => canSend && setShowConfirm(true)}
+          disabled={!canSend}
+          className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-[#1FAF57] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
+          Send Announcement to {memberCount} Member{memberCount === 1 ? '' : 's'}
+        </button>
+      </div>
+    </>
+  )
+}
+
+function HeaderStat({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: string
+  label: string
+  value: string
+  tone?: 'brass'
+}) {
+  return (
+    <div className="flex min-w-[86px] flex-col items-center gap-1 rounded-2xl bg-surface px-3 py-2.5 text-center shadow-card">
+      <span
+        className={`flex h-7 w-7 items-center justify-center rounded-full ${
+          tone === 'brass' ? 'bg-gradient-to-br from-brass to-brass-deep text-white' : 'bg-paper-2 text-brass-deep'
+        }`}
+      >
+        <Icon name={icon} className="icon !h-[13px] !w-[13px]" />
+      </span>
+      <span className="font-mono text-[13px] font-bold text-heading">{value}</span>
+      <span className="text-[8.5px] font-semibold uppercase tracking-wide text-slate">{label}</span>
+    </div>
+  )
+}
+
+function ConfirmSendModal({
+  count,
+  onCancel,
+  onConfirm,
+}: {
+  count: number
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div
+        className="motion-safe:animate-[scale-in_0.25s_ease-out_both] w-full max-w-[380px] rounded-[26px] bg-paper p-5 shadow-elev"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#25D366]/15">
+          <Icon name="whatsapp" className="icon !h-[19px] !w-[19px] text-[#1FAF57]" />
+        </span>
+        <h3 className="font-display text-[16.5px] font-bold text-heading">
+          Send this announcement to {count} member{count === 1 ? '' : 's'}?
+        </h3>
+        <p className="mt-1.5 text-[13px] text-slate">
+          WhatsApp will open with your message pre-filled — send it to your Broadcast Group (or any contact) once it opens.
+        </p>
+        <div className="mt-4 flex gap-2.5">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-hairline bg-surface py-3 text-[13px] font-bold text-heading transition-colors hover:bg-paper-2"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-xl bg-[#25D366] py-3 text-[13px] font-bold text-white transition-colors hover:bg-[#1FAF57]"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SuccessModal({
+  onSendAnother,
+  onBackToDashboard,
+}: {
+  onSendAnother: () => void
+  onBackToDashboard: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+      <div className="motion-safe:animate-[scale-in_0.3s_ease-out_both] w-full max-w-[380px] rounded-[26px] bg-paper p-6 text-center shadow-elev">
+        <span className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-status-regular-bg">
+          <Icon name="check" className="icon !h-[28px] !w-[28px] text-status-regular-fg" />
+        </span>
+        <h3 className="font-display text-[19px] font-bold text-heading">Announcement Ready</h3>
+        <p className="mt-1.5 text-[13px] text-slate">WhatsApp has been opened with your announcement.</p>
+        <div className="mt-5 flex flex-col gap-2.5">
+          <button
+            onClick={onSendAnother}
+            className="flex items-center justify-center gap-1.5 rounded-full bg-ink py-3 text-[13.5px] font-bold text-white transition-colors hover:bg-ink-deep"
+          >
+            <Icon name="megaphone" className="icon !h-[14px] !w-[14px]" />
+            Send Another
+          </button>
+          <button
+            onClick={onBackToDashboard}
+            className="flex items-center justify-center gap-1.5 rounded-full border border-hairline bg-surface py-3 text-[13.5px] font-bold text-heading transition-colors hover:bg-paper-2"
+          >
+            <Icon name="home" className="icon !h-[14px] !w-[14px]" />
+            Back to Dashboard
+          </button>
+        </div>
       </div>
     </div>
   )

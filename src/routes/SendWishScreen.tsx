@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
 import { Card } from '../components/ui/Card'
+import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
 import {
   normalizeWhatsappNumber,
@@ -10,32 +11,54 @@ import {
   buildBirthdayMessage,
   buildAnniversaryMessage,
   buildNewMemberWelcomeMessage,
+  buildCustomMessage,
   BIRTHDAY_TEMPLATES,
   ANNIVERSARY_TEMPLATES,
   NEW_MEMBER_TEMPLATES,
+  CUSTOM_MESSAGE_TEMPLATES,
 } from '../features/members/whatsapp'
 import { markCompleted } from '../utils/completedWishes'
 
-type WishKind = 'birthday' | 'anniversary' | 'welcome'
+type WishKind = 'birthday' | 'anniversary' | 'welcome' | 'custom'
 
-const KIND_META: Record<WishKind, { title: string; icon: string }> = {
-  birthday: { title: 'Send Birthday Wish', icon: 'cake' },
-  anniversary: { title: 'Send Anniversary Wish', icon: 'rings' },
-  welcome: { title: 'Send Welcome Message', icon: 'heart' },
+// backTo mirrors MemberQuickProfileScreen's per-kind back destination — each
+// wish kind returns to the specific list it's reached from (Birthdays,
+// Anniversaries, Follow-ups), rather than a generic history-back. "custom"
+// (from the Members directory) has no single origin list, so it falls back
+// to plain back-navigation.
+const KIND_META: Record<WishKind, { title: string; backTo?: string }> = {
+  birthday: { title: 'Send Birthday Wish', backTo: '/birthdays/birthdays' },
+  anniversary: { title: 'Send Anniversary Wish', backTo: '/birthdays/anniversaries' },
+  welcome: { title: 'Send Welcome Message', backTo: '/follow-ups' },
+  custom: { title: 'Send Message' },
 }
 
 export function SendWishScreen() {
   const { kind: rawKind, memberId } = useParams<{ kind: string; memberId: string }>()
-  const kind: WishKind = rawKind === 'anniversary' || rawKind === 'welcome' ? rawKind : 'birthday'
+  const kind: WishKind =
+    rawKind === 'anniversary' || rawKind === 'welcome' || rawKind === 'custom' ? rawKind : 'birthday'
   const navigate = useNavigate()
   const { getMember } = useMembers()
   const member = memberId ? getMember(memberId) : undefined
 
   const templates =
-    kind === 'birthday' ? BIRTHDAY_TEMPLATES : kind === 'anniversary' ? ANNIVERSARY_TEMPLATES : NEW_MEMBER_TEMPLATES
+    kind === 'birthday'
+      ? BIRTHDAY_TEMPLATES
+      : kind === 'anniversary'
+        ? ANNIVERSARY_TEMPLATES
+        : kind === 'welcome'
+          ? NEW_MEMBER_TEMPLATES
+          : CUSTOM_MESSAGE_TEMPLATES
   const buildMessage =
-    kind === 'birthday' ? buildBirthdayMessage : kind === 'anniversary' ? buildAnniversaryMessage : buildNewMemberWelcomeMessage
+    kind === 'birthday'
+      ? buildBirthdayMessage
+      : kind === 'anniversary'
+        ? buildAnniversaryMessage
+        : kind === 'welcome'
+          ? buildNewMemberWelcomeMessage
+          : buildCustomMessage
   const meta = KIND_META[kind]
+  const goBack = () => (meta.backTo ? navigate(meta.backTo) : navigate(-1))
 
   const [templateKey, setTemplateKey] = useState<string>(templates[0].key)
   const [message, setMessage] = useState(() => (member ? buildMessage(templates[0].key as never, member) : ''))
@@ -54,7 +77,7 @@ export function SendWishScreen() {
   if (!member) {
     return (
       <div className="pb-10">
-        <BackHeader title={meta.title} icon={meta.icon} onBack={() => navigate(-1)} />
+        <PageBackHeader title={meta.title} onBack={goBack} />
         <Card className="p-8 text-center">
           <p className="text-[12.5px] text-slate">Member not found.</p>
         </Card>
@@ -73,14 +96,16 @@ export function SendWishScreen() {
   function sendWish() {
     if (!validNumber) return
     openWhatsappWithText(validNumber, message)
-    markCompleted(member!.id)
-    navigate(-1)
+    // Custom messages aren't tied to any pending birthday/anniversary/welcome
+    // list, so they shouldn't mark the member "completed" on one.
+    if (kind !== 'custom') markCompleted(member!.id)
+    goBack()
   }
 
   return (
     <>
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-32 md:pb-24">
-      <BackHeader title={meta.title} icon={meta.icon} onBack={() => navigate(-1)} />
+      <PageBackHeader title={meta.title} onBack={goBack} />
 
       <div className="mb-5 flex items-center gap-3 rounded-2xl bg-surface p-3.5 shadow-card">
         <Avatar initials={member.initials} color={member.color} size={44} />
@@ -151,29 +176,10 @@ export function SendWishScreen() {
         className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-[#1FAF57] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
-        Send Wishes
+        {kind === 'custom' ? 'Send Message' : 'Send Wishes'}
       </button>
     </div>
     </>
   )
 }
 
-function BackHeader({ title, icon, onBack }: { title: string; icon: string; onBack: () => void }) {
-  return (
-    <div className="relative mb-4 flex items-center justify-center px-9">
-      <h1 className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-        <Icon name={icon} className="icon !h-[16px] !w-[16px] shrink-0 text-[#1FAF57] sm:!h-[20px] sm:!w-[20px]" />
-        <span className="truncate font-display text-[17px] italic font-bold text-ink-deep sm:text-[24px] md:text-[28px]">
-          {title}
-        </span>
-      </h1>
-      <button
-        onClick={onBack}
-        aria-label="Close"
-        className="absolute right-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
-      >
-        <Icon name="x" className="icon !h-[17px] !w-[17px]" />
-      </button>
-    </div>
-  )
-}

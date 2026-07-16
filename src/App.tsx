@@ -7,10 +7,12 @@ import { WelcomeTransition } from './routes/WelcomeTransition'
 import { PublicMemberProfileScreen } from './routes/PublicMemberProfileScreen'
 import { HomeScreen } from './routes/HomeScreen'
 import { MembersScreen } from './routes/MembersScreen'
+import { MembersAllScreen } from './routes/MembersAllScreen'
 import { MemberProfileScreen } from './routes/MemberProfileScreen'
 import { AddMemberScreen } from './routes/AddMemberScreen'
 import { IdCardPreviewScreen } from './routes/IdCardPreviewScreen'
 import { AttendanceScreen } from './routes/AttendanceScreen'
+import { AttendanceMarkAllScreen } from './routes/AttendanceMarkAllScreen'
 import { FollowUpsScreen } from './routes/FollowUpsScreen'
 import { BirthdaysScreen } from './routes/BirthdaysScreen'
 import { CelebrationListScreen } from './routes/CelebrationListScreen'
@@ -46,8 +48,10 @@ function App() {
             <Route element={<AppShell />}>
               <Route path="/" element={<HomeScreen />} />
               <Route path="/members" element={<MembersScreen />} />
+              <Route path="/members/all" element={<MembersAllScreen />} />
               <Route path="/members/:id" element={<MemberProfileScreen />} />
               <Route path="/attendance" element={<AttendanceScreen />} />
+              <Route path="/attendance/all" element={<AttendanceMarkAllScreen />} />
               <Route path="/follow-ups" element={<FollowUpsScreen />} />
               <Route path="/birthdays" element={<BirthdaysScreen />} />
               <Route path="/birthdays/:type" element={<CelebrationListScreen />} />

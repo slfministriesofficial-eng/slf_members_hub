@@ -5,11 +5,11 @@ import { Avatar } from '../components/ui/Avatar'
 import { useMembers } from '../features/members/MembersContext'
 import { calculateAge, calculateYearsMarried, dateParts } from '../utils/celebrations'
 
-type ProfileType = 'birthday' | 'anniversary' | 'new-member'
+type ProfileType = 'birthday' | 'anniversary' | 'new-member' | 'attendance'
 
 const TYPE_META: Record<
   ProfileType,
-  { title: string; icon: string; accent: string; wishKind: string; wishLabel: string; backTo: string; backLabel: string }
+  { title: string; icon: string; accent: string; wishKind: string; wishLabel: string; backTo: string }
 > = {
   birthday: {
     title: 'Birthday Details',
@@ -18,7 +18,6 @@ const TYPE_META: Record<
     wishKind: 'birthday',
     wishLabel: 'Send Birthday Wish',
     backTo: '/birthdays/birthdays',
-    backLabel: 'Back to Birthdays',
   },
   anniversary: {
     title: 'Anniversary Details',
@@ -27,7 +26,6 @@ const TYPE_META: Record<
     wishKind: 'anniversary',
     wishLabel: 'Send Anniversary Wish',
     backTo: '/birthdays/anniversaries',
-    backLabel: 'Back to Anniversaries',
   },
   'new-member': {
     title: 'Member Details',
@@ -36,7 +34,14 @@ const TYPE_META: Record<
     wishKind: 'welcome',
     wishLabel: 'Send Welcome Message',
     backTo: '/follow-ups',
-    backLabel: 'Back to Follow-ups',
+  },
+  attendance: {
+    title: 'Member Details',
+    icon: 'cal-check',
+    accent: 'text-brass-deep',
+    wishKind: 'custom',
+    wishLabel: 'Send Message',
+    backTo: '/attendance',
   },
 }
 
@@ -46,7 +51,8 @@ const TYPE_META: Record<
 // component, reused for all three, since the fields shown never change.
 export function MemberQuickProfileScreen() {
   const { type: rawType, memberId } = useParams<{ type: string; memberId: string }>()
-  const type: ProfileType = rawType === 'anniversary' || rawType === 'new-member' ? rawType : 'birthday'
+  const type: ProfileType =
+    rawType === 'anniversary' || rawType === 'new-member' || rawType === 'attendance' ? rawType : 'birthday'
   const navigate = useNavigate()
   const { getMember } = useMembers()
   const member = memberId ? getMember(memberId) : undefined
@@ -137,13 +143,6 @@ export function MemberQuickProfileScreen() {
         >
           <Icon name="eye" className="icon !h-[15px] !w-[15px]" />
           View Full Profile
-        </button>
-        <button
-          onClick={() => navigate(meta.backTo)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-hairline bg-surface py-3.5 text-[13.5px] font-bold text-slate transition-colors hover:bg-paper"
-        >
-          <Icon name="chevron" className="icon !h-[13px] !w-[13px] rotate-180" />
-          {meta.backLabel}
         </button>
       </div>
     </div>

@@ -11,6 +11,7 @@ type DropdownProps = {
   triggerClassName?: string
   panelClassName?: string
   align?: 'left' | 'right'
+  leadingIcon?: string
 }
 
 // A native <select>'s open option list is drawn by the OS/browser, not by our
@@ -25,6 +26,7 @@ export function Dropdown({
   triggerClassName = '',
   panelClassName = '',
   align = 'left',
+  leadingIcon,
 }: DropdownProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -55,6 +57,7 @@ export function Dropdown({
         aria-expanded={open}
         className={`flex items-center justify-between gap-2 ${triggerClassName}`}
       >
+        {leadingIcon && <Icon name={leadingIcon} className="icon !h-[11px] !w-[11px] shrink-0 text-slate" />}
         <span className="min-w-0 flex-1 truncate text-left">
           {selected ? selected.label : <span className="text-slate">{placeholder}</span>}
         </span>

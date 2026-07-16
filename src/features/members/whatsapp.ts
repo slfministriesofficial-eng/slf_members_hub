@@ -35,30 +35,47 @@ export function buildMemberProfileUrl(memberId: string): string {
   return `${window.location.origin}/member?id=${encodeURIComponent(memberId)}`
 }
 
+// Strips any stray U+FFFD replacement characters (a sign a string round-tripped
+// through the wrong encoding somewhere), drops trailing spaces before line
+// breaks, and collapses 3+ consecutive newlines down to a single blank line —
+// applied once inside every builder below so the preview shown in the app is
+// always byte-for-byte what gets sent to WhatsApp.
+export function sanitizeWhatsappMessage(text: string): string {
+  return text
+    .replace(/�/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // *word* is WhatsApp's own bold markdown — rendered bold by the WhatsApp
-// client itself, not by us. Sections are separated by a single blank line;
-// related sentences share a line so the message doesn't read as one word
-// per line once WhatsApp renders it.
+// client itself, not by us. Built from an array of lines joined with "\n"
+// (rather than a multiline template string) so spacing is explicit and
+// consistent, then run through sanitizeWhatsappMessage as a final safety net.
 export function buildWelcomeMessage(member: Member): string {
   const profileUrl = buildMemberProfileUrl(member.memberId)
-  return `🙏 Greetings from *SLF Ministries*!
-
-Dear *${member.name}*,
-Welcome to the SLF Ministries family. Your *Digital Membership Card* is now available.
-
-You can view your verified digital membership profile using the link below:
-${profileUrl}
-
-Please save this link for future reference — it will always show your latest membership information.
-
-📺 Stay connected on YouTube: ${CHURCH_INFO.social.youtube}
-📷 Follow us on Instagram: ${CHURCH_INFO.social.instagram}
-
-May God bless you and your family abundantly.
-
-With love in Christ,
-*SLF Ministries*
-Sarah Living Faith Ministries`
+  return sanitizeWhatsappMessage(
+    [
+      '🙏 Greetings from *SLF Ministries*!',
+      '',
+      `Dear *${member.name}*,`,
+      'Welcome to the SLF Ministries family. Your *Digital Membership Card* is now available.',
+      '',
+      'You can view your verified digital membership profile using the link below:',
+      profileUrl,
+      '',
+      'Please save this link for future reference — it will always show your latest membership information.',
+      '',
+      `📺 Stay connected on YouTube: ${CHURCH_INFO.social.youtube}`,
+      `📷 Follow us on Instagram: ${CHURCH_INFO.social.instagram}`,
+      '',
+      'May God bless you and your family abundantly.',
+      '',
+      'With love in Christ,',
+      '*SLF Ministries*',
+      'Sarah Living Faith Ministries',
+    ].join('\n'),
+  )
 }
 
 export function openWhatsappWithText(number: string, message: string): void {
@@ -88,6 +105,7 @@ function honorific(gender: Member['gender']): string {
 export type BirthdayTemplateKey = 'blessing' | 'prayer' | 'greeting'
 export type AnniversaryTemplateKey = 'blessing' | 'prayer' | 'family'
 export type NewMemberTemplateKey = 'welcome' | 'family' | 'invitation'
+export type CustomMessageTemplateKey = 'blank' | 'checkIn' | 'invitation'
 
 export const BIRTHDAY_TEMPLATES: { key: BirthdayTemplateKey; label: string }[] = [
   { key: 'blessing', label: 'Birthday Blessing' },
@@ -107,6 +125,12 @@ export const NEW_MEMBER_TEMPLATES: { key: NewMemberTemplateKey; label: string }[
   { key: 'invitation', label: 'Sunday Service Invitation' },
 ]
 
+export const CUSTOM_MESSAGE_TEMPLATES: { key: CustomMessageTemplateKey; label: string }[] = [
+  { key: 'blank', label: 'Blank Message' },
+  { key: 'checkIn', label: 'Pastoral Check-In' },
+  { key: 'invitation', label: 'Sunday Service Invitation' },
+]
+
 export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): string {
   const name = `${honorific(member.gender)}${member.name}`
   // Omitted (not "Happy Birthday" with no number guessed) when dob isn't on file.
@@ -114,41 +138,50 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
   const nth = age !== null ? `${ordinal(age)} ` : ''
 
   if (key === 'prayer') {
-    return `🙏 Happy ${nth}Birthday ${name}!
-
-On your special day, we lift you up in prayer, asking God to fill your new year with His presence, provision, and perfect peace.
-
-We're grateful to have you as part of the SLF Ministries family.
-
-God bless you abundantly.
-
-With prayers,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `🙏 Happy ${nth}Birthday ${name}!`,
+        '',
+        'On your special day, we lift you up in prayer, asking God to fill your new year with His presence, provision, and perfect peace.',
+        '',
+        "We're grateful to have you as part of the SLF Ministries family.",
+        '',
+        'God bless you abundantly.',
+        '',
+        'With prayers,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
   if (key === 'greeting') {
-    return `🎂 Happy ${nth}Birthday, ${name}!
-
-Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.
-
-With love,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `🎂 Happy ${nth}Birthday, ${name}!`,
+        '',
+        "Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.",
+        '',
+        'With love,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
-  return `🎉 Happy ${nth}Birthday ${name}!
-
-Wishing you a joyful birthday. May our Lord Jesus Christ bless you with good health, peace, wisdom, and abundant grace throughout the coming year.
-
-Thank you for being a valued member of the SLF Ministries family.
-
-May God richly bless you and your family.
-
-With love and prayers,
-
-SLF Ministries
-Tadigadapa`
+  return sanitizeWhatsappMessage(
+    [
+      `🎉 Happy ${nth}Birthday ${name}!`,
+      '',
+      'Wishing you a joyful birthday. May our Lord Jesus Christ bless you with good health, peace, wisdom, and abundant grace throughout the coming year.',
+      '',
+      'Thank you for being a valued member of the SLF Ministries family.',
+      '',
+      'May God richly bless you and your family.',
+      '',
+      'With love and prayers,',
+      '*SLF Ministries*',
+      'Tadigadapa',
+    ].join('\n'),
+  )
 }
 
 export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Member): string {
@@ -163,83 +196,139 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
   const yearsLine = years !== null ? `${years} wonderful years` : 'the years'
 
   if (key === 'prayer') {
-    return `🙏 Happy ${nth}Wedding Anniversary!
-
-Dear ${couple},
-
-We praise God for ${yearsLine} of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.
-
-With prayers,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `🙏 Happy ${nth}Wedding Anniversary!`,
+        '',
+        `Dear ${couple},`,
+        '',
+        `We praise God for ${yearsLine} of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.`,
+        '',
+        'With prayers,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
   if (key === 'family') {
-    return `💐 Happy ${nth}Anniversary, ${couple}!
-
-May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.
-
-With love and prayers,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `💐 Happy ${nth}Anniversary, ${couple}!`,
+        '',
+        "May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.",
+        '',
+        'With love and prayers,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
-  return `💐 Happy ${nth}Wedding Anniversary!
-
-Dear ${couple},
-
-May God continue to strengthen your marriage with His love, peace, and abundant blessings.
-
-Wishing you many more joyful years together.
-
-With prayers,
-
-SLF Ministries
-Tadigadapa`
+  return sanitizeWhatsappMessage(
+    [
+      `💐 Happy ${nth}Wedding Anniversary!`,
+      '',
+      `Dear ${couple},`,
+      '',
+      'May God continue to strengthen your marriage with His love, peace, and abundant blessings.',
+      '',
+      'Wishing you many more joyful years together.',
+      '',
+      'With prayers,',
+      '*SLF Ministries*',
+      'Tadigadapa',
+    ].join('\n'),
+  )
 }
 
 export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: Member): string {
   const name = `${honorific(member.gender)}${member.name}`
   if (key === 'family') {
-    return `❤️ Dear ${name},
-
-Welcome to the SLF Ministries family! We're so glad God brought you to us, and we look forward to growing together in faith and fellowship.
-
-With love,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `❤️ Dear ${name},`,
+        '',
+        "Welcome to the SLF Ministries family! We're so glad God brought you to us, and we look forward to growing together in faith and fellowship.",
+        '',
+        'With love,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
   if (key === 'invitation') {
-    return `📢 Dear ${name},
-
-We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are, and let's grow in faith together.
-
-God bless you,
-
-SLF Ministries
-Tadigadapa`
+    return sanitizeWhatsappMessage(
+      [
+        `📢 Dear ${name},`,
+        '',
+        `We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are, and let's grow in faith together.`,
+        '',
+        'God bless you,',
+        '*SLF Ministries*',
+        'Tadigadapa',
+      ].join('\n'),
+    )
   }
-  return `🙏 Welcome to SLF Ministries, ${name}!
+  return sanitizeWhatsappMessage(
+    [
+      `🙏 Welcome to SLF Ministries, ${name}!`,
+      '',
+      'We are overjoyed to have you as part of our church family. May God bless this new chapter of your journey with us.',
+      '',
+      'With love in Christ,',
+      '*SLF Ministries*',
+      'Tadigadapa',
+    ].join('\n'),
+  )
+}
 
-We are overjoyed to have you as part of our church family. May God bless this new chapter of your journey with us.
-
-With love in Christ,
-
-SLF Ministries
-Tadigadapa`
+// General-purpose starter templates for messaging any member directly from
+// the Members directory — left short and easy to personalize, rather than a
+// fixed canned message, since the admin/pastor is expected to edit before sending.
+export function buildCustomMessage(key: CustomMessageTemplateKey, member: Member): string {
+  const name = `${honorific(member.gender)}${member.name}`
+  if (key === 'checkIn') {
+    return sanitizeWhatsappMessage(
+      [
+        `Dear ${name},`,
+        '',
+        "It's been a while since we last connected, and we wanted to check in on you and your family.",
+        '',
+        'How have you been doing? We are praying for you and would love to hear from you.',
+        '',
+        'With love in Christ,',
+        '*SLF Ministries*',
+      ].join('\n'),
+    )
+  }
+  if (key === 'invitation') {
+    return sanitizeWhatsappMessage(
+      [
+        `Dear ${name},`,
+        '',
+        `We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are.`,
+        '',
+        'God bless you,',
+        '*SLF Ministries*',
+      ].join('\n'),
+    )
+  }
+  return sanitizeWhatsappMessage([`Dear ${name},`, '', '', 'God bless you,', '*SLF Ministries*'].join('\n'))
 }
 
 export function buildRemovalMessage(member: Member, reason: string): string {
-  return `Dear *${member.name}*,
-
-We would like to inform you that your membership record with *SLF Ministries* has been removed from our system.
-
-Reason: ${reason}
-
-If you believe this was a mistake or have any questions, please feel free to reach out to us.
-
-With love in Christ,
-*SLF Ministries*
-Sarah Living Faith Ministries`
+  return sanitizeWhatsappMessage(
+    [
+      `Dear *${member.name}*,`,
+      '',
+      'We would like to inform you that your membership record with *SLF Ministries* has been removed from our system.',
+      '',
+      `Reason: ${reason}`,
+      '',
+      'If you believe this was a mistake or have any questions, please feel free to reach out to us.',
+      '',
+      'With love in Christ,',
+      '*SLF Ministries*',
+      'Sarah Living Faith Ministries',
+    ].join('\n'),
+  )
 }

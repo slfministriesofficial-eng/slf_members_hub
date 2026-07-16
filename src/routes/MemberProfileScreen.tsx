@@ -4,6 +4,7 @@ import logo from '../assets/slf_logo_cropped.png'
 import { Icon } from '../components/ui/Icon'
 import { Reveal } from '../components/ui/Reveal'
 import { Skeleton, SkeletonIdCard } from '../components/ui/Skeleton'
+import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
 import { IdCardFlipper } from '../features/members/IdCardFlipper'
 import {
@@ -134,18 +135,11 @@ export function MemberProfileScreen() {
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-24 md:pb-8">
       {/* HEADER */}
-      <button
-        onClick={() => navigate('/members')}
-        className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-slate transition-colors hover:text-heading"
-      >
-        <Icon name="chevron" className="icon !h-[14px] !w-[14px] rotate-180" />
-        Back to Members
-      </button>
+      <PageBackHeader title="Member Profile" onBack={() => navigate('/members')} />
 
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Member Profile</h1>
-          <p className="mt-1 max-w-[520px] text-[12.5px] text-slate">
+          <p className="max-w-[520px] text-[12.5px] text-slate">
             View complete member information, digital membership card, ministry involvement, family details, and
             church engagement.
           </p>
