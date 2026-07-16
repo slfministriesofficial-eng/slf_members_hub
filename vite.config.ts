@@ -13,6 +13,10 @@ export default defineConfig({
       includeAssets: ['icons.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: '/index.html',
+        // The PDF-export libraries (html2canvas/jspdf) are dynamically imported
+        // only when a user actually clicks "Download PDF" — excluding them from
+        // the precache keeps that ~250KB out of every install's upfront download.
+        globIgnores: ['**/html2canvas-*.js', '**/jspdf*.js', '**/purify.es-*.js', '**/index.es-*.js'],
       },
       manifest: {
         name: 'SLF Members Hub',
