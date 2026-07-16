@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons.svg'],
+      includeAssets: ['icons.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: '/index.html',
       },
