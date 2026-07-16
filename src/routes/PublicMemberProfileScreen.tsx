@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import logo from '../assets/logo.jpeg'
+import logo from '../assets/slf_logo_cropped.png'
 import { Icon } from '../components/ui/Icon'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Reveal } from '../components/ui/Reveal'
@@ -61,7 +61,7 @@ export function PublicMemberProfileScreen() {
 
         <div className="motion-safe:animate-[fade-rise_0.6s_ease-out_both] relative">
           <div className="motion-safe:animate-[scale-in_0.7s_ease-out_both] mx-auto mb-4 h-20 w-20 overflow-hidden rounded-full shadow-elev ring-4 ring-brass/70">
-            <img src={logo} alt="" className="h-full w-full scale-[1.9] object-cover" />
+            <img src={logo} alt="" className="h-full w-full object-cover" />
           </div>
           <div className="bg-gradient-to-b from-[#F6E3A8] via-[#D4A94C] to-[#8E6526] bg-clip-text font-display text-[26px] font-black leading-none text-transparent sm:text-[32px]">
             SLF MINISTRIES
@@ -164,8 +164,12 @@ export function PublicMemberProfileScreen() {
                 key={leader.name}
                 className="flex flex-col items-center rounded-2xl bg-surface p-6 text-center shadow-card transition-transform hover:-translate-y-1 hover:shadow-elev"
               >
-                <span className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-md ring-4 ring-brass/20">
-                  <Icon name="user" className="icon !h-9 !w-9 text-white" />
+                <span className="mb-3 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-md ring-4 ring-brass/20">
+                  {leader.photo ? (
+                    <img src={leader.photo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Icon name="user" className="icon !h-9 !w-9 text-white" />
+                  )}
                 </span>
                 <h3 className="font-display text-[15.5px] font-bold text-heading">{leader.name}</h3>
                 <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-brass-deep">

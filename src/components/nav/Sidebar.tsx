@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
-import logo from '../../assets/logo.jpeg'
+import logo from '../../assets/slf_logo_cropped.png'
 
 const LINKS = [
   { to: '/', label: 'Dashboard', icon: 'home', end: true },
@@ -41,7 +41,7 @@ export function Sidebar() {
     <aside className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-56 md:shrink-0 md:flex-col md:overflow-y-auto md:bg-ink-deep md:px-4 md:py-6 print:hidden">
       <div className="mb-8 flex items-center gap-2.5 px-2 text-white">
         <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full ring-2 ring-brass/70">
-          <img src={logo} alt="" className="h-full w-full scale-[1.9] object-cover" />
+          <img src={logo} alt="" className="h-full w-full object-cover" />
         </span>
         <span className="font-display text-[15px] font-bold leading-tight">SLF Members Hub</span>
       </div>

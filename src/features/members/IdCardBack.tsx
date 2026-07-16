@@ -4,13 +4,15 @@ import { CHURCH_INFO } from '../../constants/church'
 // Static organization-info side of the membership card — no per-member data,
 // so unlike IdCard (front) this takes no props.
 export function IdCardBack() {
+  const founder = CHURCH_INFO.leadership[0]
   return (
     <div className="relative aspect-[8/5] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-[#FBF8F1] to-[#F1EAD8] shadow-elev">
-      {/* corner wave accents */}
-      <div className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rotate-45 rounded-[42%] bg-gradient-to-br from-ink-deep to-ink" />
-      <div className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rotate-45 rounded-[42%] ring-4 ring-brass/60" />
-      <div className="pointer-events-none absolute -right-16 -bottom-20 h-56 w-56 rotate-45 rounded-[42%] bg-gradient-to-br from-ink-deep to-ink" />
-      <div className="pointer-events-none absolute -right-16 -bottom-20 h-56 w-56 rotate-45 rounded-[42%] ring-4 ring-brass/60" />
+      {/* corner wave accents — kept small and pushed outside the card so they
+          read as a folded-corner ribbon instead of covering the content grid */}
+      <div className="pointer-events-none absolute -left-24 -top-28 h-32 w-32 rotate-45 rounded-[42%] bg-gradient-to-br from-ink-deep to-ink" />
+      <div className="pointer-events-none absolute -left-24 -top-28 h-32 w-32 rotate-45 rounded-[42%] ring-4 ring-brass/60" />
+      <div className="pointer-events-none absolute -right-24 -bottom-28 h-32 w-32 rotate-45 rounded-[42%] bg-gradient-to-br from-ink-deep to-ink" />
+      <div className="pointer-events-none absolute -right-24 -bottom-28 h-32 w-32 rotate-45 rounded-[42%] ring-4 ring-brass/60" />
 
       {/* watermark */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.05]">
@@ -67,15 +69,15 @@ export function IdCardBack() {
 
           <div className="mt-auto flex items-end justify-between gap-2">
             <div className="flex flex-col items-center gap-0.5">
-              <span className="font-display text-[16px] italic text-ink">Benjamin</span>
+              <span className="font-display text-[16px] italic text-ink">V. Narayana Rao</span>
               <span className="h-px w-14 bg-brass/40" />
-              <span className="text-[5.5px] font-bold uppercase tracking-wide text-slate">Pastor Signature</span>
+              <span className="text-[5.5px] font-bold uppercase tracking-wide text-brass-deep">Founder Signature</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-ink text-ink">
-                <Icon name="cross" className="icon !h-3.5 !w-3.5" />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-ink">
+                <img src={founder.photo} alt="" className="h-full w-full object-cover" />
               </span>
-              <span className="text-[5.5px] font-bold uppercase tracking-wide text-slate">Church Seal</span>
+              <span className="text-[5.5px] font-bold uppercase tracking-wide text-brass-deep">Founder</span>
             </div>
           </div>
         </div>

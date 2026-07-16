@@ -1,4 +1,4 @@
-import logo from '../../assets/logo.jpeg'
+import logo from '../../assets/slf_logo_cropped.png'
 import { Icon } from '../../components/ui/Icon'
 import type { MemberStatus } from '../../components/ui/StatusPill'
 import { toTitleCase } from '../../utils/initials'
@@ -52,7 +52,7 @@ export function IdCard({
         {/* header: logo · wordmark · QR */}
         <div className="flex items-start justify-between gap-3">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full shadow-md ring-[3px] ring-brass/70">
-            <img src={logo} alt="" className="h-full w-full scale-[1.9] object-cover" />
+            <img src={logo} alt="" className="h-full w-full object-cover" />
           </div>
 
           <div className="min-w-0 flex-1 pt-0.5 text-center">

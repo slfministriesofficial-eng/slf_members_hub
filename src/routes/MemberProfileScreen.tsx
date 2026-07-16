@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import logo from '../assets/logo.jpeg'
+import logo from '../assets/slf_logo_cropped.png'
 import { Icon } from '../components/ui/Icon'
 import { Reveal } from '../components/ui/Reveal'
 import { Skeleton, SkeletonIdCard } from '../components/ui/Skeleton'
@@ -410,7 +410,7 @@ export function MemberProfileScreen() {
             <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-ink-deep via-ink to-ink-soft p-5 text-white shadow-card md:p-6">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-brass/70">
-                  <img src={logo} alt="" className="h-full w-full scale-[1.9] object-cover" />
+                  <img src={logo} alt="" className="h-full w-full object-cover" />
                 </div>
                 <div>
                   <div className="font-display text-[16px] font-bold">{CHURCH_INFO.shortName}</div>
