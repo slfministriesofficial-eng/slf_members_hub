@@ -78,6 +78,11 @@ export function isSameCalendarMonth(date: Date, now: Date): boolean {
   return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
 }
 
+// Split day/month for the two-line date box on member cards, e.g. "16" / "JUL".
+export function dateParts(d: Date): { day: string; month: string } {
+  return { day: String(d.getDate()), month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase() }
+}
+
 export type BirthdayEntry = {
   member: Member
   nextDate: Date

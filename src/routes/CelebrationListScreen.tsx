@@ -1,34 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
-import { SendWishModal } from '../features/members/SendWishModal'
 import {
   deriveBirthdays,
   deriveAnniversaries,
-  deriveNewMembers,
-  isSameCalendarMonth,
   formatUpcomingLabel,
-  formatPastLabel,
+  dateParts,
+  type BirthdayEntry,
+  type AnniversaryEntry,
 } from '../utils/celebrations'
-import {
-  openWhatsappWithText,
-  buildBirthdayMessage,
-  buildAnniversaryMessage,
-  buildNewMemberWelcomeMessage,
-  BIRTHDAY_TEMPLATES,
-  ANNIVERSARY_TEMPLATES,
-  NEW_MEMBER_TEMPLATES,
-} from '../features/members/whatsapp'
+import { getCompletedIds } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
-type ListType = 'birthdays' | 'anniversaries' | 'new-members'
-type FilterKey = 'today' | 'week' | 'month' | 'completed' | 'all'
+type ListType = 'birthdays' | 'anniversaries'
+type FilterKey = 'all' | 'week' | 'month' | 'completed'
 type ViewMode = 'list' | 'grid'
-type Wish = { kind: 'birthday'; member: Member } | { kind: 'anniversary'; member: Member } | { kind: 'welcome'; member: Member }
 
 const VIEW_STORAGE_KEY = 'slf-celebrations-view'
 
@@ -37,19 +27,36 @@ function getInitialView(): ViewMode {
   return window.sessionStorage.getItem(VIEW_STORAGE_KEY) === 'grid' ? 'grid' : 'list'
 }
 
-const PAGE_META: Record<ListType, { title: string; icon: string; emptyText: string }> = {
-  birthdays: { title: 'Birthdays', icon: 'cake', emptyText: 'No birthdays match.' },
-  anniversaries: { title: 'Anniversaries', icon: 'rings', emptyText: 'No anniversaries match.' },
-  'new-members': { title: 'New Members', icon: 'users', emptyText: 'No new members match.' },
+const PAGE_META: Record<ListType, { title: string; icon: string; accent: string; noun: string; emptyText: string }> = {
+  birthdays: { title: 'Birthdays', icon: 'cake', accent: 'text-tint-amber-fg', noun: 'Birthdays', emptyText: 'No birthdays match.' },
+  anniversaries: {
+    title: 'Anniversaries',
+    icon: 'rings',
+    accent: 'text-tint-pink-fg',
+    noun: 'Anniversaries',
+    emptyText: 'No anniversaries match.',
+  },
 }
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'today', label: 'Today' },
+  { key: 'all', label: 'All' },
   { key: 'week', label: 'This Week' },
   { key: 'month', label: 'This Month' },
   { key: 'completed', label: 'Completed' },
-  { key: 'all', label: 'All' },
 ]
+
+function topTitleFor(filter: FilterKey, noun: string): string {
+  switch (filter) {
+    case 'week':
+      return `This Week's ${noun}`
+    case 'month':
+      return `This Month's ${noun}`
+    case 'completed':
+      return 'Completed'
+    default:
+      return `Today's ${noun}`
+  }
+}
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -61,127 +68,133 @@ function matchesSearch(member: Member, query: string): boolean {
   return member.name.toLowerCase().includes(q) || normalize(member.memberId).includes(normalize(query))
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
 export function CelebrationListScreen() {
   const { type: rawType } = useParams<{ type: string }>()
-  const type: ListType = rawType === 'anniversaries' || rawType === 'new-members' ? rawType : 'birthdays'
+  const type: ListType = rawType === 'anniversaries' ? 'anniversaries' : 'birthdays'
   const navigate = useNavigate()
   const { members, isLoading, isError } = useMembers()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [view, setView] = useState<ViewMode>(getInitialView)
-  const [wish, setWish] = useState<Wish | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  // Tracks who's already been wished this visit — no backend field for it,
-  // so it's a same-session "done" marker rather than a persisted record.
-  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
+  // Tracks who's already been wished — persisted in sessionStorage (no
+  // backend field for this) so it survives navigating to the Send Wish page
+  // and back, not just local state that would reset on remount.
+  const [completedIds] = useState<Set<string>>(getCompletedIds)
 
   function changeView(next: ViewMode) {
     setView(next)
     window.sessionStorage.setItem(VIEW_STORAGE_KEY, next)
   }
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3500)
-    return () => clearTimeout(t)
-  }, [toast])
-
   const meta = PAGE_META[type]
   const now = useMemo(() => new Date(), [])
 
   const birthdays = useMemo(() => deriveBirthdays(members), [members])
   const anniversaries = useMemo(() => deriveAnniversaries(members), [members])
-  const newMembers = useMemo(() => deriveNewMembers(members), [members])
 
-  const filteredBirthdays = useMemo(() => {
-    if (type !== 'birthdays') return []
-    return birthdays.filter((e) => matchesSearch(e.member, query)).filter((e) => {
-      switch (filter) {
-        case 'today':
-          return e.daysAway === 0
-        case 'week':
-          return e.daysAway >= 0 && e.daysAway <= 7
-        case 'month':
-          return e.isThisMonth
-        case 'completed':
-          return completedIds.has(e.member.id)
-        default:
-          return true
-      }
-    })
-  }, [type, birthdays, query, filter, completedIds])
+  // Once wished, someone drops off every filter except "Completed" itself —
+  // reviewing who's done lives there instead of a badge on the pending view.
+  function matchesFilter<T extends { daysAway: number; isThisMonth: boolean; member: Member }>(e: T): boolean {
+    if (filter === 'completed') return completedIds.has(e.member.id)
+    if (completedIds.has(e.member.id)) return false
+    switch (filter) {
+      case 'week':
+        return e.daysAway >= 0 && e.daysAway <= 7
+      case 'month':
+        return e.isThisMonth
+      default:
+        return e.daysAway === 0
+    }
+  }
 
-  const filteredAnniversaries = useMemo(() => {
-    if (type !== 'anniversaries') return []
-    return anniversaries.filter((e) => matchesSearch(e.member, query)).filter((e) => {
-      switch (filter) {
-        case 'today':
-          return e.daysAway === 0
-        case 'week':
-          return e.daysAway >= 0 && e.daysAway <= 7
-        case 'month':
-          return e.isThisMonth
-        case 'completed':
-          return completedIds.has(e.member.id)
-        default:
-          return true
-      }
-    })
-  }, [type, anniversaries, query, filter, completedIds])
+  const topBirthdays = useMemo(
+    () => birthdays.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
+    [birthdays, query, filter, completedIds],
+  )
+  const topAnniversaries = useMemo(
+    () => anniversaries.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
+    [anniversaries, query, filter, completedIds],
+  )
 
-  const filteredNewMembers = useMemo(() => {
-    if (type !== 'new-members') return []
-    return newMembers.filter((e) => matchesSearch(e.member, query)).filter((e) => {
-      switch (filter) {
-        case 'today':
-          return e.daysAgo === 0
-        case 'week':
-          return e.daysAgo <= 7
-        case 'month':
-          return isSameCalendarMonth(e.joinedDate, now)
-        case 'completed':
-          return completedIds.has(e.member.id)
-        default:
-          return true
-      }
-    })
-  }, [type, newMembers, query, filter, now, completedIds])
+  // Always-visible forward-looking section — everyone within 60 days who
+  // isn't already shown in the top (filtered) section above, so nobody
+  // appears twice regardless of which chip is active.
+  const upcomingBirthdays = useMemo(() => {
+    if (filter === 'completed') return []
+    const topIds = new Set(topBirthdays.map((e) => e.member.id))
+    return birthdays
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
+  }, [birthdays, query, filter, topBirthdays, completedIds])
+
+  const upcomingAnniversaries = useMemo(() => {
+    if (filter === 'completed') return []
+    const topIds = new Set(topAnniversaries.map((e) => e.member.id))
+    return anniversaries
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
+  }, [anniversaries, query, filter, topAnniversaries, completedIds])
 
   const isEmpty =
-    (type === 'birthdays' && filteredBirthdays.length === 0) ||
-    (type === 'anniversaries' && filteredAnniversaries.length === 0) ||
-    (type === 'new-members' && filteredNewMembers.length === 0)
+    (type === 'birthdays' && topBirthdays.length === 0 && upcomingBirthdays.length === 0) ||
+    (type === 'anniversaries' && topAnniversaries.length === 0 && upcomingAnniversaries.length === 0)
 
-  function sendWish(kind: Wish['kind'], member: Member, number: string, message: string) {
-    openWhatsappWithText(number, message)
-    setWish(null)
-    setCompletedIds((prev) => new Set(prev).add(member.id))
-    const label = kind === 'birthday' ? 'Birthday wish' : kind === 'anniversary' ? 'Anniversary wish' : 'Welcome message'
-    setToast(`${label} opened in WhatsApp for ${member.name}.`)
+  function renderBirthdayCard(e: BirthdayEntry) {
+    const { day, month } = dateParts(e.nextDate)
+    return (
+      <MemberCard
+        key={e.member.id}
+        member={e.member}
+        type="birthday"
+        dateDay={day}
+        dateMonth={month}
+        subLabel={e.age !== null ? `${e.age} yrs` : undefined}
+        countdownLabel={formatUpcomingLabel(e.nextDate, now)}
+        completed={completedIds.has(e.member.id)}
+        onView={() => navigate(`/celebration-profile/birthday/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/birthday/${e.member.id}`)}
+        sendLabel="Send Wishes"
+      />
+    )
   }
+
+  function renderAnniversaryCard(e: AnniversaryEntry) {
+    const { day, month } = dateParts(e.nextDate)
+    return (
+      <MemberCard
+        key={e.member.id}
+        member={e.member}
+        type="anniversary"
+        dateDay={day}
+        dateMonth={month}
+        subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
+        coupleName={e.member.spouse}
+        countdownLabel={formatUpcomingLabel(e.nextDate, now)}
+        completed={completedIds.has(e.member.id)}
+        onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
+        sendLabel="Send Wishes"
+      />
+    )
+  }
+
+  const listClass = view === 'grid' ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-3'
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      {/* HEADER + BACK */}
-      <div className="mb-5 flex items-center gap-3">
+      {/* HEADER + CLOSE */}
+      <div className="relative mb-5 flex items-center justify-center px-9">
+        <h1 className="flex items-center gap-2 font-display text-[19px] font-bold text-heading md:text-[24px]">
+          <Icon name={meta.icon} className={`icon !h-[18px] !w-[18px] shrink-0 ${meta.accent}`} />
+          {meta.title}
+        </h1>
         <button
           onClick={() => navigate('/birthdays')}
-          aria-label="Back to Birthdays & Anniversaries"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface shadow-card transition-colors hover:bg-paper"
+          aria-label="Close"
+          className="absolute right-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
         >
-          <Icon name="chevron" className="icon !h-[15px] !w-[15px] rotate-180 text-heading" />
+          <Icon name="x" className="icon !h-[17px] !w-[17px]" />
         </button>
-        <div>
-          <h1 className="flex items-center gap-2 font-display text-[20px] font-bold text-heading md:text-[24px]">
-            <Icon name={meta.icon} className="icon !h-[18px] !w-[18px] text-brass-deep" />
-            {meta.title}
-          </h1>
-          <p className="mt-0.5 text-[11.5px] text-slate">Birthdays &amp; Anniversaries</p>
-        </div>
       </div>
 
       {isError && (
@@ -235,111 +248,66 @@ export function CelebrationListScreen() {
               <p className="text-[12.5px] text-slate">{meta.emptyText}</p>
             </Card>
           ) : (
-            <div className={view === 'grid' ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-3'}>
-              {type === 'birthdays' &&
-                filteredBirthdays.map((e) => (
-                  <MemberCard
-                    key={e.member.id}
-                    member={e.member}
-                    type="birthday"
-                    dateLabel="Birthday"
-                    dateValue={formatDate(e.nextDate)}
-                    subLabel={e.age !== null ? `${e.age} yrs` : undefined}
-                    countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-                    completed={completedIds.has(e.member.id)}
-                    onView={() => navigate(`/members/${e.member.id}`)}
-                    onSend={() => setWish({ kind: 'birthday', member: e.member })}
-                    sendLabel="Send Birthday Wish"
-                  />
-                ))}
+            <div className="space-y-7">
+              {type === 'birthdays' && (
+                <>
+                  <section>
+                    <h2 className="mb-3 text-[13px] font-bold text-heading">
+                      {topTitleFor(filter, 'Birthdays')} ({topBirthdays.length})
+                    </h2>
+                    {topBirthdays.length === 0 ? (
+                      <Card className="p-6 text-center">
+                        <p className="text-[12px] text-slate">Nobody matches this filter.</p>
+                      </Card>
+                    ) : (
+                      <div className={listClass}>{topBirthdays.map((e) => renderBirthdayCard(e))}</div>
+                    )}
+                  </section>
 
-              {type === 'anniversaries' &&
-                filteredAnniversaries.map((e) => (
-                  <MemberCard
-                    key={e.member.id}
-                    member={e.member}
-                    type="anniversary"
-                    dateLabel="Anniversary"
-                    dateValue={formatDate(e.nextDate)}
-                    subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
-                    coupleName={e.member.spouse}
-                    countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-                    completed={completedIds.has(e.member.id)}
-                    onView={() => navigate(`/members/${e.member.id}`)}
-                    onSend={() => setWish({ kind: 'anniversary', member: e.member })}
-                    sendLabel="Send Anniversary Wish"
-                  />
-                ))}
+                  {filter !== 'completed' && upcomingBirthdays.length > 0 && (
+                    <section>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming Birthdays</h2>
+                      <div className={listClass}>{upcomingBirthdays.map((e) => renderBirthdayCard(e))}</div>
+                    </section>
+                  )}
+                </>
+              )}
 
-              {type === 'new-members' &&
-                filteredNewMembers.map((e) => (
-                  <MemberCard
-                    key={e.member.id}
-                    member={e.member}
-                    type="new-member"
-                    dateLabel="Joined"
-                    dateValue={formatDate(e.joinedDate)}
-                    countdownLabel={formatPastLabel(e.joinedDate, now)}
-                    completed={completedIds.has(e.member.id)}
-                    onView={() => navigate(`/members/${e.member.id}`)}
-                    onSend={() => setWish({ kind: 'welcome', member: e.member })}
-                    sendLabel="Send Welcome Message"
-                  />
-                ))}
+              {type === 'anniversaries' && (
+                <>
+                  <section>
+                    <h2 className="mb-3 text-[13px] font-bold text-heading">
+                      {topTitleFor(filter, 'Anniversaries')} ({topAnniversaries.length})
+                    </h2>
+                    {topAnniversaries.length === 0 ? (
+                      <Card className="p-6 text-center">
+                        <p className="text-[12px] text-slate">Nobody matches this filter.</p>
+                      </Card>
+                    ) : (
+                      <div className={listClass}>{topAnniversaries.map((e) => renderAnniversaryCard(e))}</div>
+                    )}
+                  </section>
+
+                  {filter !== 'completed' && upcomingAnniversaries.length > 0 && (
+                    <section>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming Anniversaries</h2>
+                      <div className={listClass}>{upcomingAnniversaries.map((e) => renderAnniversaryCard(e))}</div>
+                    </section>
+                  )}
+                </>
+              )}
             </div>
           )}
         </>
       )}
 
-      {toast && (
-        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-8 motion-safe:animate-[fade-rise_0.3s_ease-out]">
-          <div className="flex max-w-[92vw] items-center gap-2 rounded-full bg-ink-deep px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-elev">
-            <Icon name="chat" className="icon !h-[14px] !w-[14px] shrink-0 text-white" />
-            <span className="truncate">{toast}</span>
-          </div>
-        </div>
-      )}
-
-      {wish?.kind === 'birthday' && (
-        <SendWishModal
-          member={wish.member}
-          icon="cake"
-          title="Send Birthday Wish"
-          templates={BIRTHDAY_TEMPLATES}
-          buildMessage={buildBirthdayMessage}
-          onCancel={() => setWish(null)}
-          onSend={(message, number) => sendWish('birthday', wish.member, number, message)}
-        />
-      )}
-      {wish?.kind === 'anniversary' && (
-        <SendWishModal
-          member={wish.member}
-          icon="rings"
-          title="Send Anniversary Wish"
-          templates={ANNIVERSARY_TEMPLATES}
-          buildMessage={buildAnniversaryMessage}
-          onCancel={() => setWish(null)}
-          onSend={(message, number) => sendWish('anniversary', wish.member, number, message)}
-        />
-      )}
-      {wish?.kind === 'welcome' && (
-        <SendWishModal
-          member={wish.member}
-          icon="heart"
-          title="Send Welcome Message"
-          templates={NEW_MEMBER_TEMPLATES}
-          buildMessage={buildNewMemberWelcomeMessage}
-          onCancel={() => setWish(null)}
-          onSend={(message, number) => sendWish('welcome', wish.member, number, message)}
-        />
-      )}
     </div>
   )
 }
 
 function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-1 rounded-full bg-surface p-1 shadow-card">
+    <div className="hidden shrink-0 items-center gap-1 rounded-full bg-surface p-1 shadow-card md:flex">
       <button
         onClick={() => onChange('list')}
         aria-label="List view"

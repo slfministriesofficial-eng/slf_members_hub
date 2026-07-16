@@ -1,8 +1,65 @@
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Icon } from '../components/ui/Icon'
+import { Card } from '../components/ui/Card'
+import { Skeleton } from '../components/ui/Skeleton'
 import { IconButton } from '../components/ui/IconButton'
 import { StatusPill } from '../components/ui/StatusPill'
 import { CARE_ITEMS } from '../mock/data'
+import { useMembers } from '../features/members/MembersContext'
+import { MemberCard } from '../features/members/MemberCard'
+import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } from '../utils/celebrations'
+import { getCompletedIds } from '../utils/completedWishes'
+import type { Member } from '../mock/types'
+
+type FilterKey = 'all' | 'today' | 'week' | 'month' | 'completed'
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'completed', label: 'Completed' },
+]
+
+function normalize(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function matchesSearch(member: Member, query: string): boolean {
+  if (!query.trim()) return true
+  const q = query.trim().toLowerCase()
+  return member.name.toLowerCase().includes(q) || normalize(member.memberId).includes(normalize(query))
+}
 
 export function FollowUpsScreen() {
+  const navigate = useNavigate()
+  const { members, isLoading, isError } = useMembers()
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<FilterKey>('all')
+  const [completedIds] = useState<Set<string>>(getCompletedIds)
+
+  const now = useMemo(() => new Date(), [])
+  const newMembers = useMemo(() => deriveNewMembers(members), [members])
+
+  // Once welcomed, someone drops off every filter except "Completed" itself.
+  const filteredNewMembers = useMemo(() => {
+    return newMembers.filter((e) => matchesSearch(e.member, query)).filter((e) => {
+      if (filter === 'completed') return completedIds.has(e.member.id)
+      if (completedIds.has(e.member.id)) return false
+      switch (filter) {
+        case 'today':
+          return e.daysAgo === 0
+        case 'week':
+          return e.daysAgo <= 7
+        case 'month':
+          return isSameCalendarMonth(e.joinedDate, now)
+        default:
+          return true
+      }
+    })
+  }, [newMembers, query, filter, now, completedIds])
+
   return (
     <div>
       <div className="mb-4 flex items-start justify-between">
@@ -37,6 +94,78 @@ export function FollowUpsScreen() {
           </div>
         ))}
       </div>
+
+      {/* NEW MEMBER WELCOME */}
+      <section className="mt-8 motion-safe:animate-[fade-rise_0.4s_ease-out_both]">
+        <h2 className="mb-3 flex items-center gap-1.5 text-[15px] font-bold text-heading">
+          <Icon name="heart" className="icon !h-[15px] !w-[15px] text-brass-deep" />
+          New Members
+        </h2>
+        <p className="mb-4 text-[12.5px] text-slate">Welcome newly registered members with a personal message.</p>
+
+        {isError && (
+          <p className="py-6 text-center text-[13px] text-slate">Could not load members — check your connection.</p>
+        )}
+
+        {!isError && isLoading && <Skeleton className="h-16 w-full rounded-2xl" />}
+
+        {!isError && !isLoading && (
+          <>
+            <div className="relative mb-3">
+              <Icon
+                name="search"
+                className="icon !h-[14px] !w-[14px] pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate"
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name or member ID…"
+                className="w-full rounded-full border border-hairline bg-surface py-3 pl-10 pr-4 text-[13px] text-heading outline-none placeholder:text-slate focus:border-ink"
+              />
+            </div>
+
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[12px] font-bold transition-colors ${
+                    filter === f.key ? 'bg-ink-deep text-white' : 'bg-surface text-heading shadow-card hover:bg-paper'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {filteredNewMembers.length === 0 ? (
+              <Card className="p-6 text-center">
+                <p className="text-[12.5px] text-slate">No new members to show.</p>
+              </Card>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {filteredNewMembers.map((e) => {
+                  const { day, month } = dateParts(e.joinedDate)
+                  return (
+                    <MemberCard
+                      key={e.member.id}
+                      member={e.member}
+                      type="new-member"
+                      dateDay={day}
+                      dateMonth={month}
+                      countdownLabel={formatPastLabel(e.joinedDate, now)}
+                      completed={completedIds.has(e.member.id)}
+                      onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
+                      onSend={() => navigate(`/send-wish/welcome/${e.member.id}`)}
+                      sendLabel="Send Wishes"
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   )
 }

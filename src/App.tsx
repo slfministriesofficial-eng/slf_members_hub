@@ -14,6 +14,8 @@ import { AttendanceScreen } from './routes/AttendanceScreen'
 import { FollowUpsScreen } from './routes/FollowUpsScreen'
 import { BirthdaysScreen } from './routes/BirthdaysScreen'
 import { CelebrationListScreen } from './routes/CelebrationListScreen'
+import { SendWishScreen } from './routes/SendWishScreen'
+import { MemberQuickProfileScreen } from './routes/MemberQuickProfileScreen'
 import { AnnouncementsScreen } from './routes/AnnouncementsScreen'
 import { MembershipCardsScreen } from './routes/MembershipCardsScreen'
 import { MoreScreen } from './routes/MoreScreen'
@@ -49,6 +51,8 @@ function App() {
               <Route path="/follow-ups" element={<FollowUpsScreen />} />
               <Route path="/birthdays" element={<BirthdaysScreen />} />
               <Route path="/birthdays/:type" element={<CelebrationListScreen />} />
+              <Route path="/send-wish/:kind/:memberId" element={<SendWishScreen />} />
+              <Route path="/celebration-profile/:type/:memberId" element={<MemberQuickProfileScreen />} />
               <Route path="/announcements" element={<AnnouncementsScreen />} />
               <Route path="/membership-cards" element={<MembershipCardsScreen />} />
               <Route path="/more" element={<MoreScreen />} />
