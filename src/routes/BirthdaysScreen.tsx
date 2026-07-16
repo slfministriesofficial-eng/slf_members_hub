@@ -1,62 +1,100 @@
 import { useMemo } from 'react'
-import { IconButton } from '../components/ui/IconButton'
+import { useNavigate } from 'react-router-dom'
+import { Icon } from '../components/ui/Icon'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
-import { getUpcomingDates } from '../utils/upcomingDates'
+import { deriveBirthdays, deriveAnniversaries, deriveNewMembers } from '../utils/celebrations'
 
-function SkeletonBirthdayRow() {
+// A simple 3-card navigation dashboard — the actual member lists (with search
+// and filters) live on their own dedicated pages at /birthdays/:type.
+export function BirthdaysScreen() {
+  const { members, isLoading, isError } = useMembers()
+  const navigate = useNavigate()
+
+  const birthdays = useMemo(() => deriveBirthdays(members), [members])
+  const anniversaries = useMemo(() => deriveAnniversaries(members), [members])
+  const newMembers = useMemo(() => deriveNewMembers(members), [members])
+
+  const upcomingBirthdays = birthdays.filter((e) => e.daysAway <= 30).length
+  const upcomingAnniversaries = anniversaries.filter((e) => e.daysAway <= 30).length
+  const recentNewMembers = newMembers.filter((e) => e.daysAgo <= 30).length
+
   return (
-    <div className="mb-2 flex items-center justify-between rounded-2xl bg-surface px-3.5 py-3 shadow-card">
-      <div>
-        <Skeleton className="h-[13px] w-32 rounded" />
-        <Skeleton className="mt-1.5 h-[11.5px] w-20 rounded" />
+    <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
+      <div className="mb-6">
+        <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">
+          Birthdays &amp; Anniversaries
+        </h1>
+        <p className="mt-1 text-[12.5px] text-slate">
+          Celebrate and bless our church family on their special occasions.
+        </p>
       </div>
-      <Skeleton className="h-[12px] w-14 rounded" />
+
+      {isError && (
+        <p className="py-8 text-center text-[13px] text-slate">Could not load members — check your connection.</p>
+      )}
+
+      {!isError && isLoading && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      )}
+
+      {!isError && !isLoading && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <NavCard
+            icon="cake"
+            title="Birthdays"
+            count={upcomingBirthdays}
+            caption="Upcoming — Next 30 Days"
+            onClick={() => navigate('/birthdays/birthdays')}
+          />
+          <NavCard
+            icon="rings"
+            title="Anniversaries"
+            count={upcomingAnniversaries}
+            caption="Upcoming — Next 30 Days"
+            onClick={() => navigate('/birthdays/anniversaries')}
+          />
+          <NavCard
+            icon="users"
+            title="New Members"
+            count={recentNewMembers}
+            caption="Joined — Last 30 Days"
+            onClick={() => navigate('/birthdays/new-members')}
+          />
+        </div>
+      )}
     </div>
   )
 }
 
-export function BirthdaysScreen() {
-  const { members, isLoading, isError } = useMembers()
-  const upcoming = useMemo(() => getUpcomingDates(members, 30), [members])
-
+function NavCard({
+  icon,
+  title,
+  count,
+  caption,
+  onClick,
+}: {
+  icon: string
+  title: string
+  count: number
+  caption: string
+  onClick: () => void
+}) {
   return (
-    <div>
-      <div className="mb-4 flex items-start justify-between">
-        <h1 className="font-display text-[20px] font-bold text-heading">Birthdays &amp; Anniversaries</h1>
-        <IconButton icon="cake" />
-      </div>
-
-      {isLoading ? (
-        <>
-          <SkeletonBirthdayRow />
-          <SkeletonBirthdayRow />
-          <SkeletonBirthdayRow />
-        </>
-      ) : isError ? (
-        <p className="py-4 text-center text-[12.5px] text-slate">
-          Could not load — check your connection.
-        </p>
-      ) : upcoming.length === 0 ? (
-        <p className="py-4 text-center text-[12.5px] text-slate">
-          Nothing coming up in the next 30 days.
-        </p>
-      ) : (
-        upcoming.map((item) => (
-          <div
-            key={item.id}
-            className="mb-2 flex items-center justify-between rounded-2xl bg-surface px-3.5 py-3 shadow-card"
-          >
-            <div>
-              <div className="text-[13px] font-bold text-heading">{item.who}</div>
-              <div className="text-[11.5px] text-slate">{item.what}</div>
-            </div>
-            <span className="font-mono text-[12px] font-bold text-brass-deep">
-              {item.day} {item.month}
-            </span>
-          </div>
-        ))
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className="motion-safe:animate-[fade-rise_0.3s_ease-out_both] flex flex-col items-center rounded-2xl bg-surface p-6 text-center shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elev"
+    >
+      <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep text-white shadow-md">
+        <Icon name={icon} className="icon !h-6 !w-6" />
+      </span>
+      <h2 className="font-display text-[16px] font-bold text-heading">{title}</h2>
+      <div className="mt-1 font-display text-[28px] font-bold text-brass-deep">{count}</div>
+      <p className="mt-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-slate">{caption}</p>
+    </button>
   )
 }

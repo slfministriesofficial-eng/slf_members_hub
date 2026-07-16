@@ -61,6 +61,149 @@ export function openWhatsappChat(member: Member, number: string): void {
   openWhatsappWithText(number, buildWelcomeMessage(member))
 }
 
+// "Bro./Sis." only when gender is on file — omitted rather than guessed.
+function honorific(gender: Member['gender']): string {
+  if (gender === 'Male') return 'Bro. '
+  if (gender === 'Female') return 'Sis. '
+  return ''
+}
+
+export type BirthdayTemplateKey = 'blessing' | 'prayer' | 'greeting'
+export type AnniversaryTemplateKey = 'blessing' | 'prayer' | 'family'
+export type NewMemberTemplateKey = 'welcome' | 'family' | 'invitation'
+
+export const BIRTHDAY_TEMPLATES: { key: BirthdayTemplateKey; label: string }[] = [
+  { key: 'blessing', label: 'Birthday Blessing' },
+  { key: 'prayer', label: 'Birthday Prayer' },
+  { key: 'greeting', label: 'Birthday Greeting' },
+]
+
+export const ANNIVERSARY_TEMPLATES: { key: AnniversaryTemplateKey; label: string }[] = [
+  { key: 'blessing', label: 'Anniversary Blessing' },
+  { key: 'prayer', label: 'Anniversary Prayer' },
+  { key: 'family', label: 'Family Blessing' },
+]
+
+export const NEW_MEMBER_TEMPLATES: { key: NewMemberTemplateKey; label: string }[] = [
+  { key: 'welcome', label: 'Welcome to SLF Ministries' },
+  { key: 'family', label: 'Church Family Welcome' },
+  { key: 'invitation', label: 'Sunday Service Invitation' },
+]
+
+export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): string {
+  const name = `${honorific(member.gender)}${member.name}`
+  if (key === 'prayer') {
+    return `🙏 Happy Birthday ${name}!
+
+On your special day, we lift you up in prayer, asking God to fill your new year with His presence, provision, and perfect peace.
+
+We're grateful to have you as part of the SLF Ministries family.
+
+God bless you abundantly.
+
+With prayers,
+
+SLF Ministries
+Tadigadapa`
+  }
+  if (key === 'greeting') {
+    return `🎂 Happy Birthday, ${name}!
+
+Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.
+
+With love,
+
+SLF Ministries
+Tadigadapa`
+  }
+  return `🎉 Happy Birthday ${name}!
+
+Wishing you a joyful birthday. May our Lord Jesus Christ bless you with good health, peace, wisdom, and abundant grace throughout the coming year.
+
+Thank you for being a valued member of the SLF Ministries family.
+
+May God richly bless you and your family.
+
+With love and prayers,
+
+SLF Ministries
+Tadigadapa`
+}
+
+export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Member): string {
+  const name = `${honorific(member.gender)}${member.name}`
+  const spouseGender = member.gender === 'Male' ? 'Female' : member.gender === 'Female' ? 'Male' : undefined
+  const spouseName = member.spouse ? `${honorific(spouseGender as Member['gender'])}${member.spouse}` : ''
+  const couple = spouseName ? `${name} & ${spouseName}` : name
+
+  if (key === 'prayer') {
+    return `🙏 Happy Wedding Anniversary!
+
+Dear ${couple},
+
+We praise God for your marriage and pray He continues to bind you together in love, faith, and unwavering commitment.
+
+With prayers,
+
+SLF Ministries
+Tadigadapa`
+  }
+  if (key === 'family') {
+    return `💐 Happy Anniversary, ${couple}!
+
+May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.
+
+With love and prayers,
+
+SLF Ministries
+Tadigadapa`
+  }
+  return `💐 Happy Wedding Anniversary!
+
+Dear ${couple},
+
+May God continue to strengthen your marriage with His love, peace, and abundant blessings.
+
+Wishing you many more joyful years together.
+
+With prayers,
+
+SLF Ministries
+Tadigadapa`
+}
+
+export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: Member): string {
+  const name = `${honorific(member.gender)}${member.name}`
+  if (key === 'family') {
+    return `❤️ Dear ${name},
+
+Welcome to the SLF Ministries family! We're so glad God brought you to us, and we look forward to growing together in faith and fellowship.
+
+With love,
+
+SLF Ministries
+Tadigadapa`
+  }
+  if (key === 'invitation') {
+    return `📢 Dear ${name},
+
+We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are, and let's grow in faith together.
+
+God bless you,
+
+SLF Ministries
+Tadigadapa`
+  }
+  return `🙏 Welcome to SLF Ministries, ${name}!
+
+We are overjoyed to have you as part of our church family. May God bless this new chapter of your journey with us.
+
+With love in Christ,
+
+SLF Ministries
+Tadigadapa`
+}
+
 export function buildRemovalMessage(member: Member, reason: string): string {
   return `Dear *${member.name}*,
 

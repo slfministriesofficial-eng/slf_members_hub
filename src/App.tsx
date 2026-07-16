@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
+import { SplashScreen } from './components/layout/SplashScreen'
 import { useAuth } from './auth/AuthContext'
 import { LoginScreen } from './routes/LoginScreen'
 import { WelcomeTransition } from './routes/WelcomeTransition'
@@ -12,6 +13,7 @@ import { IdCardPreviewScreen } from './routes/IdCardPreviewScreen'
 import { AttendanceScreen } from './routes/AttendanceScreen'
 import { FollowUpsScreen } from './routes/FollowUpsScreen'
 import { BirthdaysScreen } from './routes/BirthdaysScreen'
+import { CelebrationListScreen } from './routes/CelebrationListScreen'
 import { AnnouncementsScreen } from './routes/AnnouncementsScreen'
 import { MembershipCardsScreen } from './routes/MembershipCardsScreen'
 import { MoreScreen } from './routes/MoreScreen'
@@ -46,6 +48,7 @@ function App() {
               <Route path="/attendance" element={<AttendanceScreen />} />
               <Route path="/follow-ups" element={<FollowUpsScreen />} />
               <Route path="/birthdays" element={<BirthdaysScreen />} />
+              <Route path="/birthdays/:type" element={<CelebrationListScreen />} />
               <Route path="/announcements" element={<AnnouncementsScreen />} />
               <Route path="/membership-cards" element={<MembershipCardsScreen />} />
               <Route path="/more" element={<MoreScreen />} />
@@ -56,6 +59,7 @@ function App() {
         )}
       </Routes>
       {isAuthenticated && showWelcome && <WelcomeTransition />}
+      <SplashScreen />
     </>
   )
 }
