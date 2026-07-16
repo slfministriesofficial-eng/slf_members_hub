@@ -27,8 +27,14 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Android otherwise auto-generates its own adaptive-icon mask by
+          // shrinking the full-bleed icon above into a smaller safe zone and
+          // rescaling — that extra resampling is what was causing the blur.
+          // This one already has the safe-zone padding baked in, so Android
+          // uses it directly instead of computing its own.
+          { src: '/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
