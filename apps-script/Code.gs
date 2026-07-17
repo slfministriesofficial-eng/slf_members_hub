@@ -827,6 +827,7 @@ const SCHEDULE = [
     title: '🔴 Sunday Worship is LIVE',
     body: 'Our Sunday Worship has begun — join us live now as we worship the Lord together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
+    live: true,
   },
 
   // Bible Study — Wednesday 8:00 PM
@@ -853,6 +854,7 @@ const SCHEDULE = [
     title: '🔴 Bible Study is LIVE',
     body: 'Bible Study has begun — join us now as we open God’s Word together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
+    live: true,
   },
 
   // Saturday Evening Service — in-person, Saturday 8:00 PM
@@ -879,6 +881,7 @@ const SCHEDULE = [
     title: '🔴 Saturday Service is LIVE',
     body: 'Saturday Evening Service has begun — join us now for worship and God’s Word.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
+    live: true,
   },
 
   // SLF Family Online Prayer — online, every day 6:30 PM
@@ -905,6 +908,7 @@ const SCHEDULE = [
     title: '🔴 Family Prayer is LIVE',
     body: 'Our Family Online Prayer has begun — join us now as we seek the Lord together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
+    live: true,
   },
 ]
 
@@ -1320,7 +1324,7 @@ function getUpcomingSchedule() {
   const daily = SCHEDULE.filter(function (entry) {
     return entry.day === '*' && disabled.indexOf(entry.key) === -1
   }).map(function (entry) {
-    return { key: entry.key, time: entry.time, title: entry.title, live: Boolean(entry.url) }
+    return { key: entry.key, time: entry.time, title: entry.title, live: Boolean(entry.live) }
   })
 
   const events = []
@@ -1340,7 +1344,7 @@ function getUpcomingSchedule() {
         time: entry.time,
         kind: 'church',
         title: entry.title,
-        live: Boolean(entry.url),
+        live: Boolean(entry.live),
       })
     })
   }

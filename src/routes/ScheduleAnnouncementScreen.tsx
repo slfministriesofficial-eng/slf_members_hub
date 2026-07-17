@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
@@ -26,6 +27,7 @@ function formatScheduleLabel(value: string): string {
  */
 export function ScheduleAnnouncementScreen() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
@@ -73,6 +75,10 @@ export function ScheduleAnnouncementScreen() {
     setScheduling(true)
     try {
       await schedulePushBroadcast({ ...buildPushContent(), sendAt: new Date(sendAt).toISOString() })
+      // Refresh the shared schedule so the new entry shows up immediately in
+      // the Next Notification hero and Upcoming lists (instead of after the
+      // 5-minute cache window).
+      queryClient.invalidateQueries({ queryKey: ['upcoming-schedule'] })
       setScheduledFor(sendAt)
     } catch (err) {
       console.error('[Schedule] Failed:', err)
