@@ -5,7 +5,15 @@ import { Card } from '../components/ui/Card'
 import { CountBadge } from '../components/ui/CountBadge'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAlertCounts } from '../hooks/useAlertCounts'
-import { findNextTrigger, NextNotificationCard, useTokenCount, useUpcomingSchedule } from '../notifications/scheduleView'
+import {
+  cleanTitle,
+  findNextTrigger,
+  KIND_META,
+  NextNotificationCard,
+  useNotificationHistory,
+  useTokenCount,
+  useUpcomingSchedule,
+} from '../notifications/scheduleView'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
@@ -28,6 +36,26 @@ const QUICK_ACTIONS = [
   { icon: 'id', label: 'ID Cards', to: '/membership-cards' },
 ]
 
+/** How many history rows the dashboard card shows. */
+const HISTORY_PREVIEW_LIMIT = 6
+
+/** Icon/label for a history row's kind — falls back for kinds KIND_META lacks. */
+function historyMeta(kind: string): { icon: string; accent: string; label: string } {
+  if (kind in KIND_META) return KIND_META[kind as keyof typeof KIND_META]
+  if (kind === 'announcement') return { icon: 'megaphone', accent: 'text-brass-deep', label: 'Announcement' }
+  if (kind === 'visitor-welcome') return { icon: 'heart', accent: 'text-brass-deep', label: 'Welcome' }
+  return { icon: 'bell', accent: 'text-heading', label: 'Notification' }
+}
+
+/** "Today · 6:32 PM" for same-day sends, "15 Jul · 8:00 AM" otherwise. */
+function historyTimeLabel(iso: string, now: Date): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Today · ${time}`
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ` · ${time}`
+}
+
 export function HomeScreen() {
   const { adminName } = useAuth()
   const navigate = useNavigate()
@@ -44,6 +72,9 @@ export function HomeScreen() {
   const { data: deviceCount } = useTokenCount()
   const { data: notificationStatuses } = useMemberNotificationStatuses()
   const { data: notificationSettings } = useNotificationSettings()
+  // This month's completed sends; hidden entirely when the endpoint is
+  // unavailable (old Apps Script deployment) so the dashboard never breaks.
+  const { data: sendHistory } = useNotificationHistory()
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   const pendingMemberCount =
@@ -238,6 +269,54 @@ export function HomeScreen() {
         </div>
 
         <div>
+          {/* NOTIFICATIONS SENT — this month's delivered pushes with a tick +
+              reached-device count. The backing sheet keeps only the current
+              month, so this list resets naturally on the 1st. */}
+          {sendHistory && (
+            <>
+              <div className="mb-3 mt-6 flex items-baseline justify-between">
+                <h2 className="font-display text-[15.5px] font-bold text-heading">Notifications sent</h2>
+                <span className="text-[11px] font-semibold text-slate">
+                  This month · {sendHistory.length}
+                </span>
+              </div>
+              {sendHistory.length === 0 ? (
+                <p className="mb-2 text-[12px] text-slate">Nothing sent yet this month.</p>
+              ) : (
+                <Card className="mb-2">
+                  {sendHistory.slice(0, HISTORY_PREVIEW_LIMIT).map((item, i) => {
+                    const meta = historyMeta(item.kind)
+                    return (
+                      <div
+                        key={`${item.sentAt}-${i}`}
+                        className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+                      >
+                        <Icon name={meta.icon} className={`icon !h-[14px] !w-[14px] shrink-0 ${meta.accent}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12px] font-semibold text-heading">
+                            {cleanTitle(item.title) || meta.label}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-slate">
+                            {historyTimeLabel(item.sentAt, now)}
+                            {item.failed > 0 && (
+                              <span className="ml-1.5 font-sans font-semibold text-status-alert-fg">
+                                {item.failed} failed
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-regular-bg px-2 py-1 text-[10.5px] font-bold text-status-regular-fg">
+                          <Icon name="check" className="icon !h-[10px] !w-[10px]" />
+                          {item.sent} device{item.sent === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </Card>
+              )}
+            </>
+          )}
+
           <div className="mb-3 mt-6 md:mt-6">
             <h2 className="font-display text-[15.5px] font-bold text-heading">Recent activity</h2>
           </div>

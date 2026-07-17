@@ -121,6 +121,11 @@ function doGet(e) {
     return jsonResponse(getNotificationSettings())
   }
 
+  // This month's send log for the dashboard's "Notifications sent" card.
+  if (e.parameter && e.parameter.history === 'notifications') {
+    return jsonResponse(getNotificationHistory())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -630,12 +635,14 @@ function getFcmTokens(audience) {
  */
 function sendPushBroadcast(body) {
   if (!body.title && !body.body) throw new Error('Missing notification content')
-  return sendPushToTokens(getFcmTokens(), {
+  const result = sendPushToTokens(getFcmTokens(), {
     title: body.title,
     body: body.body,
     url: body.url,
     tag: 'slf-announcement-' + new Date().getTime(),
   })
+  logNotificationHistory('announcement', body.title || body.body, result)
+  return result
 }
 
 /**
@@ -644,10 +651,96 @@ function sendPushBroadcast(body) {
  * @returns {{sent: number, failed: number}} delivery counts
  */
 function sendTestPush() {
-  return sendPushToTokens(getFcmTokens(), {
+  const result = sendPushToTokens(getFcmTokens(), {
     title: 'SLF Members Hub',
     body: 'Test notification from Google Apps Script!',
   })
+  logNotificationHistory('announcement', 'Test notification', result)
+  return result
+}
+
+// ============================== NOTIFICATION HISTORY ==============================
+// One row per completed send — powers the dashboard's "Notifications sent"
+// card. The sheet keeps the CURRENT MONTH ONLY: rows from previous months are
+// deleted automatically on every write and read.
+
+const HISTORY_SHEET_NAME = 'Notification History'
+const HISTORY_HEADERS = ['Sent At', 'Title', 'Kind', 'Sent', 'Failed']
+
+/**
+ * Get (or create on first use) the send-history sheet.
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the sheet
+ */
+function getHistorySheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = spreadsheet.getSheetByName(HISTORY_SHEET_NAME)
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(HISTORY_SHEET_NAME)
+    sheet.appendRow(HISTORY_HEADERS)
+  }
+  return sheet
+}
+
+/**
+ * Delete every history row that is not from the current month (bottom-up so
+ * row indices stay valid while deleting).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet the history sheet
+ */
+function pruneHistoryToCurrentMonth(sheet) {
+  const tz = Session.getScriptTimeZone()
+  const monthKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM')
+  const rows = sheet.getDataRange().getValues()
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const sentAt = parseSheetDate(rows[i][0])
+    if (sentAt && Utilities.formatDate(sentAt, tz, 'yyyy-MM') !== monthKey) {
+      sheet.deleteRow(i + 1)
+    }
+  }
+}
+
+/**
+ * Record one completed send. Best-effort — a history failure must never
+ * break the send that just succeeded.
+ * @param {string} kind 'announcement' | 'scheduled' | 'church' | a greeting key
+ * @param {string} title what was sent (notification title)
+ * @param {{sent: number, failed: number}} result delivery counts
+ */
+function logNotificationHistory(kind, title, result) {
+  try {
+    const sheet = getHistorySheet()
+    sheet.appendRow([new Date().toISOString(), title || '', kind || 'other', result.sent, result.failed])
+    pruneHistoryToCurrentMonth(sheet)
+  } catch (err) {
+    // ignore — the push itself already went out
+  }
+}
+
+/**
+ * "history=notifications" endpoint — this month's sends, newest first.
+ * @returns {{items: Array<{sentAt: string, title: string, kind: string, sent: number, failed: number}>}}
+ */
+function getNotificationHistory() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HISTORY_SHEET_NAME)
+  if (!sheet) return { items: [] }
+  pruneHistoryToCurrentMonth(sheet)
+
+  const rows = sheet.getDataRange().getValues()
+  const items = []
+  for (let i = 1; i < rows.length; i++) {
+    const sentAt = parseSheetDate(rows[i][0])
+    if (!sentAt) continue
+    items.push({
+      sentAt: sentAt.toISOString(),
+      title: rows[i][1] ? String(rows[i][1]) : '',
+      kind: rows[i][2] ? String(rows[i][2]) : 'other',
+      sent: Number(rows[i][3]) || 0,
+      failed: Number(rows[i][4]) || 0,
+    })
+  }
+  items.sort(function (a, b) {
+    return a.sentAt < b.sentAt ? 1 : a.sentAt > b.sentAt ? -1 : 0
+  })
+  return { items: items }
 }
 
 // ============================== SCHEDULED NOTIFICATIONS ==============================
@@ -793,12 +886,13 @@ function runScheduledNotifications() {
         const dedupeKey = 'push-' + dateKey + '-' + slot + '-' + entry.key
         if (cache.get(dedupeKey)) return
         cache.put(dedupeKey, '1', 21600) // 6h — far longer than any trigger drift
-        sendPushToTokens(tokens, {
+        const result = sendPushToTokens(tokens, {
           title: entry.title,
           body: entry.body,
           url: entry.url,
           tag: 'slf-' + entry.key,
         })
+        logNotificationHistory('church', entry.title, result)
       })
     }
   }
@@ -888,12 +982,13 @@ function processScheduledPushes(now) {
 
     if (tokens === null) tokens = getFcmTokens()
     if (tokens.length === 0) continue
-    sendPushToTokens(tokens, {
+    const result = sendPushToTokens(tokens, {
       title: rows[i][1],
       body: rows[i][2],
       url: rows[i][3] || undefined,
       tag: 'slf-scheduled-' + rows[i][0],
     })
+    logNotificationHistory('scheduled', rows[i][1], result)
   }
 }
 
@@ -1023,7 +1118,8 @@ function sendPersonalOnce(cache, dateKey, eventKey, memberId, tokens, msg) {
   const dedupeKey = 'personal-' + dateKey + '-' + eventKey + '-' + memberId
   if (cache.get(dedupeKey)) return
   cache.put(dedupeKey, '1', 21600)
-  sendPushToTokens(tokens, { title: msg.title, body: msg.body, tag: 'slf-' + eventKey })
+  const result = sendPushToTokens(tokens, { title: msg.title, body: msg.body, tag: 'slf-' + eventKey })
+  logNotificationHistory(eventKey, msg.title, result)
 }
 
 /**

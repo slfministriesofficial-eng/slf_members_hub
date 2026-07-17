@@ -99,6 +99,32 @@ export async function fetchTokenCount(): Promise<number> {
 /** Result of a broadcast push send. */
 export type PushBroadcastResult = { sent: number; failed: number }
 
+/** One completed send from the current month's history log. */
+export type NotificationHistoryItem = {
+  sentAt: string
+  title: string
+  kind: string
+  sent: number
+  failed: number
+}
+
+/**
+ * This month's completed sends, newest first (the backend keeps only the
+ * current month — older rows are pruned from the sheet automatically).
+ * Validates the shape so an old Apps Script deployment surfaces as an error.
+ * @returns {Promise<NotificationHistoryItem[]>} completed sends
+ */
+export async function fetchNotificationHistory(): Promise<NotificationHistoryItem[]> {
+  const res = await fetch(`${BASE_URL}?history=notifications`)
+  if (!res.ok) throw new Error('Failed to load notification history')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (!data || !Array.isArray(data.items)) {
+    throw new Error('History endpoint not available — deploy the latest Apps Script version')
+  }
+  return data.items as NotificationHistoryItem[]
+}
+
 /**
  * Admin notification controls: the master automation switch, the list of
  * individually paused members (who receive nothing until resumed), and the

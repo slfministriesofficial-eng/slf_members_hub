@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '../components/ui/Icon'
-import { fetchTokenCount, fetchUpcomingSchedule, type UpcomingSchedule, type UpcomingScheduleEvent } from './api'
+import {
+  fetchNotificationHistory,
+  fetchTokenCount,
+  fetchUpcomingSchedule,
+  type UpcomingSchedule,
+  type UpcomingScheduleEvent,
+} from './api'
 
 /**
  * Cached upcoming-schedule fetch, shared by every surface that shows the
@@ -26,6 +32,20 @@ export function useTokenCount() {
     queryKey: ['fcm-token-count'],
     queryFn: fetchTokenCount,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+}
+
+/**
+ * This month's completed sends for the dashboard's "Notifications sent" card.
+ * Short staleTime so a send that just finished shows up quickly.
+ * @returns react-query result whose data is NotificationHistoryItem[]
+ */
+export function useNotificationHistory() {
+  return useQuery({
+    queryKey: ['notification-history'],
+    queryFn: fetchNotificationHistory,
+    staleTime: 60 * 1000,
     retry: 1,
   })
 }
