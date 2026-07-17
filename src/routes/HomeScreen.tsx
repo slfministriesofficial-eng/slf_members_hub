@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { CountBadge } from '../components/ui/CountBadge'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAlertCounts } from '../hooks/useAlertCounts'
-import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
-import { findNextTrigger, NextNotificationCard, useTokenCount } from '../notifications/scheduleView'
+import { findNextTrigger, NextNotificationCard, useTokenCount, useUpcomingSchedule } from '../notifications/scheduleView'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
@@ -38,26 +37,13 @@ export function HomeScreen() {
 
   // Next-notification hero — same shared card as the Follow-ups page, with
   // "Reaches N devices" and "Pending N members" (not yet enabled) chips.
-  const [schedule, setSchedule] = useState<UpcomingSchedule | null>(null)
-  const [scheduleFailed, setScheduleFailed] = useState(false)
+  // Shared cached query: flipping a switch on the Access page invalidates it,
+  // so this hero updates immediately instead of after the 5-minute staleTime.
+  const { data: schedule, isError: scheduleFailed } = useUpcomingSchedule()
   const now = useMemo(() => new Date(), [])
   const { data: deviceCount } = useTokenCount()
   const { data: notificationStatuses } = useMemberNotificationStatuses()
   const { data: notificationSettings } = useNotificationSettings()
-
-  useEffect(() => {
-    let cancelled = false
-    fetchUpcomingSchedule()
-      .then((data) => {
-        if (!cancelled) setSchedule(data)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   const pendingMemberCount =

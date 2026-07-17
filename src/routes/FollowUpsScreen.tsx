@@ -7,8 +7,13 @@ import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
 import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } from '../utils/celebrations'
 import { getCompletedIds } from '../utils/completedWishes'
-import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
-import { findNextTrigger, NextNotificationCard, ScheduleEventRow, useTokenCount } from '../notifications/scheduleView'
+import {
+  findNextTrigger,
+  NextNotificationCard,
+  ScheduleEventRow,
+  useTokenCount,
+  useUpcomingSchedule,
+} from '../notifications/scheduleView'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { markFollowUpsSeen } from '../hooks/useAlertCounts'
 import type { Member } from '../mock/types'
@@ -42,8 +47,9 @@ export function FollowUpsScreen() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [completedIds] = useState<Set<string>>(getCompletedIds)
-  const [schedule, setSchedule] = useState<UpcomingSchedule | null>(null)
-  const [scheduleError, setScheduleError] = useState(false)
+  // Shared cached query — the Access page's switches invalidate it, so this
+  // page reflects a flipped switch immediately.
+  const { data: schedule, isError: scheduleError } = useUpcomingSchedule()
 
   const now = useMemo(() => new Date(), [])
   const newMembers = useMemo(() => deriveNewMembers(members), [members])
@@ -54,20 +60,6 @@ export function FollowUpsScreen() {
     if (isLoading || isError) return
     markFollowUpsSeen(newMembers.map((e) => e.member.id))
   }, [isLoading, isError, newMembers])
-
-  useEffect(() => {
-    let cancelled = false
-    fetchUpcomingSchedule()
-      .then((data) => {
-        if (!cancelled) setSchedule(data)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleError(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   const previewEvents = schedule ? schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT) : []

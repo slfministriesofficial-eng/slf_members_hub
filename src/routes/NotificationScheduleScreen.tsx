@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
-import { fetchUpcomingSchedule, type UpcomingSchedule, type UpcomingScheduleEvent } from '../notifications/api'
+import type { UpcomingScheduleEvent } from '../notifications/api'
 import {
   cleanTitle,
   formatTime12,
@@ -15,6 +15,7 @@ import {
   NextNotificationCard,
   ScheduleEventRow,
   useTokenCount,
+  useUpcomingSchedule,
 } from '../notifications/scheduleView'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 
@@ -34,24 +35,11 @@ const FILTERS: { key: FilterKey; label: string }[] = [
  */
 export function NotificationScheduleScreen() {
   const navigate = useNavigate()
-  const [schedule, setSchedule] = useState<UpcomingSchedule | null>(null)
-  const [error, setError] = useState(false)
+  // Shared cached query — the Access page's switches invalidate it, so this
+  // page reflects a flipped switch immediately.
+  const { data: schedule, isError: error } = useUpcomingSchedule()
   const [filter, setFilter] = useState<FilterKey>('all')
   const now = useMemo(() => new Date(), [])
-
-  useEffect(() => {
-    let cancelled = false
-    fetchUpcomingSchedule()
-      .then((data) => {
-        if (!cancelled) setSchedule(data)
-      })
-      .catch(() => {
-        if (!cancelled) setError(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const filteredEvents = useMemo(() => {
     if (!schedule) return []
