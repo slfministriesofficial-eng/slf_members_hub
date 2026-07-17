@@ -73,17 +73,21 @@ export function NotificationStatusBell({ memberId, className = '' }: { memberId:
 
   return (
     <span ref={rootRef} className={`relative inline-flex shrink-0 ${className}`} onClick={(e) => e.stopPropagation()}>
+      {/* Filled circles so the state reads at a glance — a solid green dot
+          for enabled (a green stroke alone was too faint to notice). */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={stateLabel}
         title={stateLabel}
-        className="flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
+        className={`flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95 ${
+          muted ? 'bg-tint-amber-bg' : enabled ? 'bg-status-regular-fg' : 'bg-paper-2'
+        }`}
       >
         <Icon
           name={muted ? 'bell-off' : 'bell'}
-          className={`icon !h-[13px] !w-[13px] ${
-            muted ? 'text-tint-amber-fg' : enabled ? 'text-status-regular-fg' : 'text-faint'
+          className={`icon !h-[11px] !w-[11px] ${
+            muted ? 'text-tint-amber-fg' : enabled ? 'text-white' : 'text-faint'
           }`}
         />
       </button>
