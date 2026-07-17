@@ -50,7 +50,9 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(title, {
     body,
     icon: '/pwa-192.png',
-    badge: '/pwa-192.png',
+    // No badge on purpose: Android renders the badge as a monochrome alpha
+    // silhouette, which turned the round full-color logo into a black blob.
+    // Without one, Android shows a clean default glyph instead.
     // Unique tag per message kind so two notifications arriving at the same
     // time (e.g. Saturday 8 PM live + tomorrow's-service reminder) don't
     // replace each other.

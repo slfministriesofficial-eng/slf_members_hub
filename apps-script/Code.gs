@@ -557,6 +557,7 @@ function sendPushToTokens(tokens, msg) {
   const url = 'https://fcm.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID + '/messages:send'
   let sent = 0
   let failed = 0
+  let lastError = null // first FCM rejection — surfaced for diagnosis
   const deadTokens = []
 
   tokens.forEach(function (token) {
@@ -590,9 +591,17 @@ function sendPushToTokens(tokens, msg) {
         // Collect it so the row gets pruned — otherwise dead rows pile up and
         // inflate the device counts shown in the app.
         if (code === 404) deadTokens.push(token)
+        if (!lastError) {
+          lastError = code + ': ' + String(response.getContentText()).slice(0, 400)
+          Logger.log('FCM send failed — ' + lastError)
+        }
       }
     } catch (err) {
       failed++
+      if (!lastError) {
+        lastError = String(err)
+        Logger.log('FCM send threw — ' + lastError)
+      }
     }
   })
 
@@ -604,7 +613,7 @@ function sendPushToTokens(tokens, msg) {
     }
   })
 
-  return { sent: sent, failed: failed }
+  return { sent: sent, failed: failed, lastError: lastError }
 }
 
 /**
