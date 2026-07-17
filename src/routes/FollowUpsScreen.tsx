@@ -9,6 +9,7 @@ import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } fro
 import { getCompletedIds } from '../utils/completedWishes'
 import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
 import { findNextTrigger, NextNotificationCard, ScheduleEventRow, useTokenCount } from '../notifications/scheduleView'
+import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { markFollowUpsSeen } from '../hooks/useAlertCounts'
 import type { Member } from '../mock/types'
 
@@ -71,6 +72,8 @@ export function FollowUpsScreen() {
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   const previewEvents = schedule ? schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT) : []
   const { data: deviceCount } = useTokenCount()
+  const { data: settings } = useNotificationSettings()
+  const automationPaused = settings ? !settings.enabled : false
 
   // Once welcomed, someone drops off every filter except "Completed" itself.
   const filteredNewMembers = useMemo(() => {
@@ -118,7 +121,41 @@ export function FollowUpsScreen() {
 
       {!scheduleError && schedule && (
         <>
-          {nextTrigger && <NextNotificationCard trigger={nextTrigger} now={now} deviceCount={deviceCount ?? null} />}
+          {nextTrigger && (
+            <NextNotificationCard
+              trigger={nextTrigger}
+              now={now}
+              deviceCount={deviceCount ?? null}
+              paused={automationPaused}
+            />
+          )}
+
+          {/* Notification on/off switches live on the Access Settings page —
+              this is just the signpost (plus the paused warning when off). */}
+          {settings && (
+            <button
+              onClick={() => navigate('/access')}
+              className="mt-3 flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition-colors hover:bg-paper"
+            >
+              <Icon
+                name={settings.enabled ? 'bell' : 'bell-off'}
+                className={`icon !h-[15px] !w-[15px] shrink-0 ${
+                  settings.enabled ? 'text-status-regular-fg' : 'text-status-alert-fg'
+                }`}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12.5px] font-bold text-heading">Notification Access</span>
+                <span className="block text-[11px] text-slate">
+                  {settings.enabled
+                    ? settings.disabled.length > 0
+                      ? `${settings.disabled.length} of 18 notifications switched off`
+                      : 'All notifications active — switch any on or off'
+                    : 'All notifications deactivated'}
+                </span>
+              </span>
+              <Icon name="chevron" className="icon !h-[13px] !w-[13px] shrink-0 text-slate" />
+            </button>
+          )}
 
           <div className="mb-2 mt-5 flex items-center justify-between">
             <h2 className="font-display text-[15px] font-bold text-heading">

@@ -115,6 +115,12 @@ function doGet(e) {
     return jsonResponse(getUpcomingSchedule())
   }
 
+  // Master automation state + individually paused members, for the admin's
+  // notification controls on the Follow-ups page.
+  if (e.parameter && e.parameter.settings === 'notifications') {
+    return jsonResponse(getNotificationSettings())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -151,6 +157,9 @@ function doPost(e) {
     if (body.action === 'deleteFcmToken') return jsonResponse(deleteFCMToken(body))
     if (body.action === 'sendPush') return jsonResponse(sendPushBroadcast(body))
     if (body.action === 'schedulePush') return jsonResponse(schedulePush(body))
+    if (body.action === 'setNotificationsEnabled') return jsonResponse(setNotificationsEnabled(body))
+    if (body.action === 'setMemberMuted') return jsonResponse(setMemberMuted(body))
+    if (body.action === 'setNotificationKeyEnabled') return jsonResponse(setNotificationKeyEnabled(body))
 
     return jsonResponse({ error: 'Unknown action: ' + body.action })
   } catch (err) {
@@ -347,12 +356,13 @@ function getFcmSheet() {
 }
 
 /**
- * How many devices are registered for push notifications.
- * @returns {number} token row count (excluding the header)
+ * How many devices a church-wide send will actually reach right now —
+ * registered tokens minus any belonging to muted members, so the counts the
+ * app shows always match what a real send would do.
+ * @returns {number} reachable device count
  */
 function countFcmTokens() {
-  const sheet = getFcmSheet()
-  return Math.max(sheet.getLastRow() - 1, 0)
+  return getFcmTokens().length
 }
 
 /**
@@ -405,6 +415,123 @@ function deleteFCMToken(body) {
     }
   }
   return { deleted: false }
+}
+
+// ============================== NOTIFICATION CONTROLS ==============================
+// Admin on/off switches, stored in Script Properties (no sheet needed):
+//   - a master pause that stops the ENTIRE automatic dispatcher (church
+//     calendar, personal greetings, visitor welcomes, scheduled announcements)
+//   - a per-member mute list — muted members receive NOTHING (automatic or
+//     manual) on any of their devices until unmuted.
+// Manual "Send Notification" from the Announcements page still works while
+// the master switch is off — pressing Send is an explicit admin action.
+
+const PAUSE_PROPERTY_KEY = 'notificationsPaused'
+const MUTED_PROPERTY_KEY = 'mutedMemberIds'
+const DISABLED_PROPERTY_KEY = 'disabledNotificationKeys'
+
+// Per-type keys for the personal/announcement notifications (church-calendar
+// entries use their own SCHEDULE keys, e.g. 'sun-worship-live').
+const EXTRA_NOTIFICATION_KEYS = [
+  'birthday',
+  'wedding-anniversary',
+  'membership-anniversary',
+  'baptism-anniversary',
+  'visitor-welcome',
+  'scheduled-announcements',
+]
+
+/**
+ * Current notification-control state for the admin UI.
+ * @returns {{enabled: boolean, muted: string[], disabled: string[]}}
+ *   master switch + muted member IDs + individually switched-off notification keys
+ */
+function getNotificationSettings() {
+  return {
+    enabled: PropertiesService.getScriptProperties().getProperty(PAUSE_PROPERTY_KEY) !== '1',
+    muted: getMutedMemberIds(),
+    disabled: getDisabledNotificationKeys(),
+  }
+}
+
+/**
+ * Notification keys the admin has switched off individually.
+ * @returns {string[]} disabled keys (empty when everything is on)
+ */
+function getDisabledNotificationKeys() {
+  const raw = PropertiesService.getScriptProperties().getProperty(DISABLED_PROPERTY_KEY)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (err) {
+    return []
+  }
+}
+
+/**
+ * "setNotificationKeyEnabled" web-app action — switch ONE automatic
+ * notification on or off (a SCHEDULE entry key or one of the personal/
+ * announcement keys). Rejects unknown keys so a typo can't silently create
+ * a switch that controls nothing.
+ * @param {{key: string, enabled: boolean}} body
+ * @returns {{enabled: boolean, muted: string[], disabled: string[]}} the updated settings
+ */
+function setNotificationKeyEnabled(body) {
+  if (!body.key) throw new Error('Missing key')
+  const validKeys = SCHEDULE.map(function (entry) {
+    return entry.key
+  }).concat(EXTRA_NOTIFICATION_KEYS)
+  if (validKeys.indexOf(body.key) === -1) throw new Error('Unknown notification key: ' + body.key)
+
+  const disabled = getDisabledNotificationKeys().filter(function (key) {
+    return key !== body.key
+  })
+  if (!body.enabled) disabled.push(body.key)
+  PropertiesService.getScriptProperties().setProperty(DISABLED_PROPERTY_KEY, JSON.stringify(disabled))
+  return getNotificationSettings()
+}
+
+/**
+ * Member IDs the admin has individually paused.
+ * @returns {string[]} muted member IDs (empty when none)
+ */
+function getMutedMemberIds() {
+  const raw = PropertiesService.getScriptProperties().getProperty(MUTED_PROPERTY_KEY)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (err) {
+    return []
+  }
+}
+
+/**
+ * "setNotificationsEnabled" web-app action — flip the master automation switch.
+ * @param {{enabled: boolean}} body
+ * @returns {{enabled: boolean, muted: string[]}} the updated settings
+ */
+function setNotificationsEnabled(body) {
+  const props = PropertiesService.getScriptProperties()
+  if (body.enabled) props.deleteProperty(PAUSE_PROPERTY_KEY)
+  else props.setProperty(PAUSE_PROPERTY_KEY, '1')
+  return getNotificationSettings()
+}
+
+/**
+ * "setMemberMuted" web-app action — pause or resume ALL notifications for one member.
+ * @param {{memberId: string, muted: boolean}} body
+ * @returns {{enabled: boolean, muted: string[]}} the updated settings
+ */
+function setMemberMuted(body) {
+  if (!body.memberId) throw new Error('Missing memberId')
+  const muted = getMutedMemberIds().filter(function (id) {
+    return id !== body.memberId
+  })
+  if (body.muted) muted.push(body.memberId)
+  PropertiesService.getScriptProperties().setProperty(MUTED_PROPERTY_KEY, JSON.stringify(muted))
+  return getNotificationSettings()
 }
 
 // ============================== PUSH SENDING ==============================
@@ -477,15 +604,19 @@ function sendPushToTokens(tokens, msg) {
 
 /**
  * All registered tokens, optionally filtered by audience ('member'/'admin').
+ * Devices belonging to a muted member are excluded from EVERY send —
+ * automatic and manual alike.
  * @param {string} [audience] omit for every token
  * @returns {string[]} FCM tokens
  */
 function getFcmTokens(audience) {
   const rows = getFcmSheet().getDataRange().getValues()
+  const muted = getMutedMemberIds()
   const tokens = []
   for (let i = 1; i < rows.length; i++) {
     if (!rows[i][1]) continue
     if (audience && rows[i][5] !== audience) continue
+    if (muted.indexOf(rows[i][0]) !== -1) continue
     tokens.push(rows[i][1])
   }
   return tokens
@@ -634,6 +765,10 @@ const SCHEDULE = [
  * (CacheService guards against double-fires).
  */
 function runScheduledNotifications() {
+  // Master switch — while paused, NOTHING automatic goes out. Scheduled
+  // announcements stay pending and deliver after automation is resumed.
+  if (getNotificationSettings().enabled === false) return
+
   const now = new Date()
   const tz = Session.getScriptTimeZone()
   let hour = now.getHours()
@@ -648,8 +783,11 @@ function runScheduledNotifications() {
   const dateKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd')
   const cache = CacheService.getScriptCache()
 
-  // Church-wide calendar entries due in this slot (services, prayer, live alerts)
+  // Church-wide calendar entries due in this slot (services, prayer, live
+  // alerts) — skipping any the admin switched off on the Access page.
+  const disabled = getDisabledNotificationKeys()
   const due = SCHEDULE.filter(function (entry) {
+    if (disabled.indexOf(entry.key) !== -1) return false
     return entry.time === slot && (entry.day === '*' || entry.day === day)
   })
   if (due.length > 0) {
@@ -732,6 +870,10 @@ function schedulePush(body) {
  * @param {Date} now current time
  */
 function processScheduledPushes(now) {
+  // Switched off on the Access page — rows stay pending (NOT marked sent),
+  // so they deliver after the switch is turned back on.
+  if (getDisabledNotificationKeys().indexOf('scheduled-announcements') !== -1) return
+
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
   const sheet = spreadsheet.getSheetByName(SCHEDULED_SHEET_NAME)
   if (!sheet) return // nothing ever scheduled — don't create the sheet just to read it
@@ -807,16 +949,19 @@ function getAllMemberFields() {
 
 /**
  * Member ID → [tokens] map, so each personal greeting targets only the
- * devices that member registered.
+ * devices that member registered. Muted members are left out entirely, so
+ * their birthday/anniversary/welcome greetings are skipped too.
  * @returns {Object<string, string[]>} tokens grouped by Member ID
  */
 function getFcmTokenMap() {
   const rows = getFcmSheet().getDataRange().getValues()
+  const muted = getMutedMemberIds()
   const map = {}
   for (let i = 1; i < rows.length; i++) {
     const memberId = rows[i][0]
     const token = rows[i][1]
     if (!memberId || !token) continue
+    if (muted.indexOf(memberId) !== -1) continue
     if (!map[memberId]) map[memberId] = []
     map[memberId].push(token)
   }
@@ -898,6 +1043,7 @@ function runPersonalGreetings(now, dateKey, cache) {
   const tokenMap = getFcmTokenMap()
   if (Object.keys(tokenMap).length === 0) return
   const currentYear = now.getFullYear()
+  const disabled = getDisabledNotificationKeys()
 
   getAllMemberFields().forEach(function (member) {
     const tokens = tokenMap[member.memberId]
@@ -905,7 +1051,7 @@ function runPersonalGreetings(now, dateKey, cache) {
     const name = member.fullName || 'Member'
 
     const dob = parseSheetDate(member.dob)
-    if (matchesAnnualDate(dob, now)) {
+    if (disabled.indexOf('birthday') === -1 && matchesAnnualDate(dob, now)) {
       sendPersonalOnce(cache, dateKey, 'birthday', member.memberId, tokens, {
         title: '🎂 Happy Birthday!',
         body:
@@ -917,7 +1063,7 @@ function runPersonalGreetings(now, dateKey, cache) {
     }
 
     const wedding = parseSheetDate(member.marriageDay)
-    if (matchesAnnualDate(wedding, now) && wedding.getFullYear() < currentYear) {
+    if (disabled.indexOf('wedding-anniversary') === -1 && matchesAnnualDate(wedding, now) && wedding.getFullYear() < currentYear) {
       sendPersonalOnce(cache, dateKey, 'wedding-anniversary', member.memberId, tokens, {
         title: '💍 Happy Wedding Anniversary!',
         body:
@@ -929,7 +1075,7 @@ function runPersonalGreetings(now, dateKey, cache) {
     }
 
     const joined = parseSheetDate(member.joiningDate) || parseSheetDate(member.registrationDate)
-    if (matchesAnnualDate(joined, now) && joined.getFullYear() < currentYear) {
+    if (disabled.indexOf('membership-anniversary') === -1 && matchesAnnualDate(joined, now) && joined.getFullYear() < currentYear) {
       sendPersonalOnce(cache, dateKey, 'membership-anniversary', member.memberId, tokens, {
         title: '🎉 Happy Membership Anniversary!',
         body:
@@ -941,7 +1087,7 @@ function runPersonalGreetings(now, dateKey, cache) {
     }
 
     const baptized = parseSheetDate(member.baptizedDate)
-    if (matchesAnnualDate(baptized, now) && baptized.getFullYear() < currentYear) {
+    if (disabled.indexOf('baptism-anniversary') === -1 && matchesAnnualDate(baptized, now) && baptized.getFullYear() < currentYear) {
       sendPersonalOnce(cache, dateKey, 'baptism-anniversary', member.memberId, tokens, {
         title: '✝️ Happy Baptism Anniversary!',
         body:
@@ -962,6 +1108,7 @@ function runPersonalGreetings(now, dateKey, cache) {
  * @param {GoogleAppsScript.Cache.Cache} cache script cache for dedupe
  */
 function runVisitorWelcome(now, dateKey, cache) {
+  if (getDisabledNotificationKeys().indexOf('visitor-welcome') !== -1) return
   const tokenMap = getFcmTokenMap()
   if (Object.keys(tokenMap).length === 0) return
   const tz = Session.getScriptTimeZone()
@@ -1017,8 +1164,12 @@ function getUpcomingSchedule() {
   const month = now.getMonth()
   const lastDay = new Date(year, month + 1, 0).getDate()
 
+  // Switched-off notifications are excluded so this view (and the "Next
+  // Notification" hero it powers) only ever shows what will REALLY fire.
+  const disabled = getDisabledNotificationKeys()
+
   const daily = SCHEDULE.filter(function (entry) {
-    return entry.day === '*'
+    return entry.day === '*' && disabled.indexOf(entry.key) === -1
   }).map(function (entry) {
     return { key: entry.key, time: entry.time, title: entry.title, live: Boolean(entry.url) }
   })
@@ -1032,6 +1183,7 @@ function getUpcomingSchedule() {
 
     // Church-wide weekly entries falling on this date
     SCHEDULE.forEach(function (entry) {
+      if (disabled.indexOf(entry.key) !== -1) return
       if (entry.day === '*' || entry.day !== date.getDay()) return
       if (isToday && timeHasPassed(entry.time, now)) return
       events.push({
@@ -1071,6 +1223,7 @@ function getUpcomingSchedule() {
 
     checks.forEach(function (check) {
       if (!check.date) return
+      if (disabled.indexOf(check.kind) !== -1) return
       if (check.skipYearZero && check.date.getFullYear() >= year) return
       for (let dayNum = now.getDate(); dayNum <= lastDay; dayNum++) {
         const date = new Date(year, month, dayNum)
@@ -1093,7 +1246,7 @@ function getUpcomingSchedule() {
   // Follow-ups hero/preview and the schedule page show them alongside the
   // church calendar and personal greetings.
   const scheduledSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SCHEDULED_SHEET_NAME)
-  if (scheduledSheet) {
+  if (scheduledSheet && disabled.indexOf('scheduled-announcements') === -1) {
     const scheduledRows = scheduledSheet.getDataRange().getValues()
     const monthEnd = new Date(year, month, lastDay, 23, 59, 59)
     for (let i = 1; i < scheduledRows.length; i++) {

@@ -16,6 +16,7 @@ import {
   ScheduleEventRow,
   useTokenCount,
 } from '../notifications/scheduleView'
+import { useNotificationSettings } from '../notifications/useNotificationSettings'
 
 type FilterKey = 'all' | 'church' | 'personal'
 
@@ -76,6 +77,8 @@ export function NotificationScheduleScreen() {
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   const { data: deviceCount } = useTokenCount()
+  const { data: settings } = useNotificationSettings()
+  const automationPaused = settings ? !settings.enabled : false
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
@@ -103,7 +106,12 @@ export function NotificationScheduleScreen() {
         <>
           {nextTrigger && (
             <div className="mb-4">
-              <NextNotificationCard trigger={nextTrigger} now={now} deviceCount={deviceCount ?? null} />
+              <NextNotificationCard
+                trigger={nextTrigger}
+                now={now}
+                deviceCount={deviceCount ?? null}
+                paused={automationPaused}
+              />
             </div>
           )}
 

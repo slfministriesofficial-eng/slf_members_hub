@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '../components/ui/Icon'
 import { fetchMemberNotificationStatuses, type MemberNotificationStatus } from './api'
+import { useNotificationSettings, useSetMemberMuted } from './useNotificationSettings'
 
 /**
  * Shared, cached map of which members have push notifications enabled —
@@ -29,19 +30,30 @@ function formatRegistered(iso: string): string {
 /**
  * Small push-notification status bell shown beside the MEMBER badge on every
  * member card across the app: green bell = this member has at least one
- * registered device; muted bell = none. Tapping it (this is an admin-only
- * app) opens a read-only popover with device/browser/last-registered details —
- * the token itself is never shown, and never even leaves the server.
- * Clicks stop propagation so the card's own tap action never fires.
+ * registered device; muted bell = none; amber crossed bell = paused by the
+ * admin (they receive nothing until resumed). Tapping it (this is an
+ * admin-only app) opens a popover with device/browser/last-registered details
+ * and a Pause/Resume control — the token itself is never shown, and never
+ * even leaves the server. Clicks stop propagation so the card's own tap
+ * action never fires.
  * @param {{memberId: string, className?: string}} props the member's ID (SLF-xxxx)
  */
 export function NotificationStatusBell({ memberId, className = '' }: { memberId: string; className?: string }) {
   const { data } = useMemberNotificationStatuses()
+  const { data: settings } = useNotificationSettings()
+  const setMuted = useSetMemberMuted()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
 
   const status: MemberNotificationStatus | undefined = data?.[memberId]
   const enabled = Boolean(status)
+  const muted = Boolean(settings?.muted.includes(memberId))
+
+  const stateLabel = muted
+    ? 'Notifications Paused by Admin'
+    : enabled
+      ? 'Push Notifications Enabled'
+      : 'Push Notifications Not Enabled'
 
   useEffect(() => {
     if (!open) return
@@ -64,13 +76,15 @@ export function NotificationStatusBell({ memberId, className = '' }: { memberId:
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label={enabled ? 'Push Notifications Enabled' : 'Push Notifications Not Enabled'}
-        title={enabled ? 'Push Notifications Enabled' : 'Push Notifications Not Enabled'}
+        aria-label={stateLabel}
+        title={stateLabel}
         className="flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95"
       >
         <Icon
-          name="bell"
-          className={`icon !h-[13px] !w-[13px] ${enabled ? 'text-status-regular-fg' : 'text-faint'}`}
+          name={muted ? 'bell-off' : 'bell'}
+          className={`icon !h-[13px] !w-[13px] ${
+            muted ? 'text-tint-amber-fg' : enabled ? 'text-status-regular-fg' : 'text-faint'
+          }`}
         />
       </button>
 
@@ -78,8 +92,12 @@ export function NotificationStatusBell({ memberId, className = '' }: { memberId:
         <div className="absolute right-0 top-full z-40 mt-1.5 w-60 rounded-2xl bg-surface p-3.5 text-left shadow-elev ring-1 ring-hairline">
           <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate">Push Notifications</p>
           <PopoverRow label="Status">
-            <span className={`font-bold ${enabled ? 'text-status-regular-fg' : 'text-status-alert-fg'}`}>
-              {enabled ? 'Enabled' : 'Disabled'}
+            <span
+              className={`font-bold ${
+                muted ? 'text-tint-amber-fg' : enabled ? 'text-status-regular-fg' : 'text-status-alert-fg'
+              }`}
+            >
+              {muted ? 'Paused' : enabled ? 'Enabled' : 'Disabled'}
             </span>
           </PopoverRow>
           {enabled && status && (
@@ -96,9 +114,39 @@ export function NotificationStatusBell({ memberId, className = '' }: { memberId:
               </PopoverRow>
             </>
           )}
-          {!enabled && (
+          {!enabled && !muted && (
             <p className="mt-1 text-[11px] leading-relaxed text-slate">
               This member has not enabled notifications on any device yet.
+            </p>
+          )}
+          {muted && (
+            <p className="mt-1 text-[11px] leading-relaxed text-slate">
+              Paused by admin — this member receives no notifications (announcements or greetings) until
+              resumed.
+            </p>
+          )}
+
+          {/* Pause/Resume — only when the backend supports the controls
+              endpoint (settings loaded), so old deployments never show a
+              button that can't work. */}
+          {settings && (
+            <button
+              type="button"
+              disabled={setMuted.isPending}
+              onClick={() => setMuted.mutate({ memberId, muted: !muted })}
+              className={`mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[11.5px] font-bold transition-colors disabled:opacity-50 ${
+                muted
+                  ? 'bg-ink text-white'
+                  : 'border border-hairline bg-paper text-heading hover:bg-paper-2'
+              }`}
+            >
+              <Icon name={muted ? 'bell' : 'bell-off'} className="icon !h-[12px] !w-[12px]" />
+              {setMuted.isPending ? 'Saving…' : muted ? 'Resume Notifications' : 'Pause Notifications'}
+            </button>
+          )}
+          {setMuted.isError && (
+            <p className="mt-1.5 text-center text-[10.5px] font-semibold text-status-alert-fg">
+              Could not save — try again.
             </p>
           )}
         </div>

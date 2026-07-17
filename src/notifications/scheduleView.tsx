@@ -147,12 +147,15 @@ export function NextNotificationCard({
   now,
   deviceCount,
   pendingCount,
+  paused,
 }: {
   trigger: NextTrigger
   now: Date
   deviceCount?: number | null
   /** Members who haven't enabled notifications yet — shown as a second chip. */
   pendingCount?: number | null
+  /** Master automation switch is off — the trigger will NOT fire. */
+  paused?: boolean
 }) {
   const dateStr = `${trigger.when.getFullYear()}-${String(trigger.when.getMonth() + 1).padStart(2, '0')}-${String(
     trigger.when.getDate(),
@@ -167,9 +170,15 @@ export function NextNotificationCard({
           treatment the old dashboard hero card had, now animated. */}
       <div className="motion-safe:animate-[pulse-soft_5s_ease-in-out_infinite] pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-brass/50 blur-2xl" />
 
-      <p className="relative mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#B9C2DA]">
-        Next Notification
-      </p>
+      <div className="relative mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#B9C2DA]">Next Notification</p>
+        {paused && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-status-alert-bg px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-status-alert-fg">
+            <Icon name="bell-off" className="icon !h-[10px] !w-[10px]" />
+            Paused
+          </span>
+        )}
+      </div>
       <div className="relative flex items-center gap-2">
         <span className="font-display text-[18px] font-bold leading-tight">{trigger.title}</span>
         {trigger.live && <LiveBadge />}
@@ -177,7 +186,11 @@ export function NextNotificationCard({
       {trigger.memberName && <p className="relative mt-0.5 text-[12px] text-white/75">{trigger.memberName}</p>}
       <p className="relative mt-1.5 text-[12.5px] text-white/85">
         {dayLabel(dateStr, now)} · {formatTime12(timeStr)} ·{' '}
-        <span className="font-bold text-brass">{countdownLabel(trigger.when, now)}</span>
+        {paused ? (
+          <span className="font-bold text-[#F0A9A4]">will not send while paused</span>
+        ) : (
+          <span className="font-bold text-brass">{countdownLabel(trigger.when, now)}</span>
+        )}
       </p>
       {(showReach || showPending) && (
         <div className="relative mt-3.5 flex gap-2">

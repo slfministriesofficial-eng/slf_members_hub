@@ -8,6 +8,7 @@ import { useAlertCounts } from '../hooks/useAlertCounts'
 import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
 import { findNextTrigger, NextNotificationCard, useTokenCount } from '../notifications/scheduleView'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
+import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
 import { DASHBOARD_STATS } from '../mock/data'
 import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
@@ -42,6 +43,7 @@ export function HomeScreen() {
   const now = useMemo(() => new Date(), [])
   const { data: deviceCount } = useTokenCount()
   const { data: notificationStatuses } = useMemberNotificationStatuses()
+  const { data: notificationSettings } = useNotificationSettings()
 
   useEffect(() => {
     let cancelled = false
@@ -141,6 +143,7 @@ export function HomeScreen() {
               now={now}
               deviceCount={deviceCount ?? null}
               pendingCount={pendingMemberCount}
+              paused={notificationSettings ? !notificationSettings.enabled : false}
             />
           ) : (
             <Skeleton className="h-28 w-full rounded-2xl" />

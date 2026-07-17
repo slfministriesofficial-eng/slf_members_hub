@@ -99,6 +99,96 @@ export async function fetchTokenCount(): Promise<number> {
 /** Result of a broadcast push send. */
 export type PushBroadcastResult = { sent: number; failed: number }
 
+/**
+ * Admin notification controls: the master automation switch, the list of
+ * individually paused members (who receive nothing until resumed), and the
+ * individually switched-off notification keys (SCHEDULE entry keys plus
+ * the personal-greeting / scheduled-announcement type keys).
+ */
+export type NotificationSettings = { enabled: boolean; muted: string[]; disabled: string[] }
+
+/**
+ * Fetch the current notification-control state. Validates the shape so an
+ * old Apps Script deployment (which answers unknown params with the member
+ * list) surfaces as an error instead of breaking callers. `disabled` is
+ * defaulted when absent so a backend one version behind still works.
+ * @returns {Promise<NotificationSettings>} master switch + muted members + disabled keys
+ */
+export async function fetchNotificationSettings(): Promise<NotificationSettings> {
+  const res = await fetch(`${BASE_URL}?settings=notifications`)
+  if (!res.ok) throw new Error('Failed to load notification settings')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (!data || typeof data.enabled !== 'boolean' || !Array.isArray(data.muted)) {
+    throw new Error('Settings endpoint not available — deploy the latest Apps Script version')
+  }
+  return {
+    enabled: data.enabled,
+    muted: data.muted,
+    disabled: Array.isArray(data.disabled) ? data.disabled : [],
+  }
+}
+
+/**
+ * Switch ONE automatic notification on or off (per-trigger control from the
+ * Access Settings page).
+ * @param {string} key a SCHEDULE entry key (e.g. 'sun-worship-live') or a
+ *   type key ('birthday', 'visitor-welcome', 'scheduled-announcements', …)
+ * @param {boolean} enabled the new state for that notification
+ * @returns {Promise<NotificationSettings>} the confirmed settings
+ */
+export async function updateNotificationKeyEnabled(
+  key: string,
+  enabled: boolean,
+): Promise<NotificationSettings> {
+  const res = await fetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'setNotificationKeyEnabled', key, enabled }),
+  })
+  if (!res.ok) throw new Error('Failed to update notification')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return data as NotificationSettings
+}
+
+/**
+ * Turn the entire automatic notification system on or off. While off, the
+ * dispatcher sends nothing (church calendar, greetings, scheduled
+ * announcements); manual sends from the Announcements page still work.
+ * @param {boolean} enabled the new master-switch state
+ * @returns {Promise<NotificationSettings>} the confirmed settings
+ */
+export async function updateNotificationsEnabled(enabled: boolean): Promise<NotificationSettings> {
+  const res = await fetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'setNotificationsEnabled', enabled }),
+  })
+  if (!res.ok) throw new Error('Failed to update notification settings')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return data as NotificationSettings
+}
+
+/**
+ * Pause or resume ALL notifications (automatic and manual) for one member.
+ * @param {string} memberId who to mute/unmute (SLF-xxxx)
+ * @param {boolean} muted true to pause, false to resume
+ * @returns {Promise<NotificationSettings>} the confirmed settings
+ */
+export async function updateMemberMuted(memberId: string, muted: boolean): Promise<NotificationSettings> {
+  const res = await fetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'setMemberMuted', memberId, muted }),
+  })
+  if (!res.ok) throw new Error('Failed to update member notifications')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return data as NotificationSettings
+}
+
 /** Per-member push registration summary (no token values ever included). */
 export type MemberNotificationStatus = {
   memberId: string

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
+import { isFirebaseConfigured } from '../firebase'
 import { isMessagingSupported } from '../firebase-messaging'
 import {
   enableNotifications,
@@ -8,7 +9,7 @@ import {
   wasPermissionDenied,
 } from './NotificationService'
 
-type OptInState = 'checking' | 'unsupported' | 'blocked' | 'ready' | 'enabling' | 'enabled'
+type OptInState = 'checking' | 'notconfigured' | 'unsupported' | 'blocked' | 'ready' | 'enabling' | 'enabled'
 
 /**
  * "Get Church Notifications" card for the public member-profile page (the
@@ -30,7 +31,9 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
     isMessagingSupported().then((supported) => {
       if (cancelled) return
       if (!supported) {
-        setState('unsupported')
+        // A build without the Firebase env vars is a deployment problem, not
+        // a browser problem — say so, or every phone looks "unsupported".
+        setState(isFirebaseConfigured() ? 'unsupported' : 'notconfigured')
       } else if (getPermission() === 'granted' && getStoredTokenRecord()?.token) {
         setState('enabled')
       } else if (wasPermissionDenied()) {
@@ -75,6 +78,12 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
 
       <div className="mt-5">
         {state === 'checking' && <p className="text-[12.5px] text-slate">Checking your device…</p>}
+
+        {state === 'notconfigured' && (
+          <p className="mx-auto max-w-[380px] text-[12.5px] leading-relaxed text-slate">
+            Notifications are being set up for this site — please check back soon.
+          </p>
+        )}
 
         {state === 'unsupported' && (
           <p className="mx-auto max-w-[380px] text-[12.5px] leading-relaxed text-slate">
