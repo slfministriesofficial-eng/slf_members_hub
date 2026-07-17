@@ -16,7 +16,16 @@ export default defineConfig({
         // The PDF-export libraries (html2canvas/jspdf) are dynamically imported
         // only when a user actually clicks "Download PDF" — excluding them from
         // the precache keeps that ~250KB out of every install's upfront download.
-        globIgnores: ['**/html2canvas-*.js', '**/jspdf*.js', '**/purify.es-*.js', '**/index.es-*.js'],
+        // firebase-messaging-sw.js is itself a service worker (registered at its
+        // own scope by src/firebase-messaging.ts) — it must never be served from
+        // the Workbox precache, or SW updates would go stale.
+        globIgnores: [
+          '**/html2canvas-*.js',
+          '**/jspdf*.js',
+          '**/purify.es-*.js',
+          '**/index.es-*.js',
+          '**/firebase-messaging-sw.js',
+        ],
       },
       manifest: {
         name: 'SLF Members Hub',

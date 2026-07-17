@@ -6,6 +6,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { ThemeProvider } from './theme/ThemeContext'
 import { MembersProvider } from './features/members/MembersContext'
 import { DraftMemberProvider } from './features/members/DraftMemberContext'
+import { NotificationProvider } from './notifications/NotificationContext'
 import './index.css'
 import App from './App.tsx'
 
@@ -16,13 +17,15 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <MembersProvider>
-            <DraftMemberProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </DraftMemberProvider>
-          </MembersProvider>
+          <NotificationProvider>
+            <MembersProvider>
+              <DraftMemberProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </DraftMemberProvider>
+            </MembersProvider>
+          </NotificationProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

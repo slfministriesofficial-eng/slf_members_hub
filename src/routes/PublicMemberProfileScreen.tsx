@@ -6,6 +6,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { Reveal } from '../components/ui/Reveal'
 import { IdCardFlipper } from '../features/members/IdCardFlipper'
 import { fetchMemberPublic, type PublicMemberRecord } from '../features/members/api'
+import { PublicNotificationOptIn } from '../notifications/PublicNotificationOptIn'
 import { CHURCH_INFO } from '../constants/church'
 
 function formatDate(dateStr: string | undefined): string {
@@ -142,6 +143,14 @@ export function PublicMemberProfileScreen() {
             </>
           )}
         </div>
+
+        {/* SECTION 2.5 — Notifications opt-in (only when a real member is loaded,
+            so every registered device is linked to an actual Member ID) */}
+        {member && (
+          <Reveal className="mb-14">
+            <PublicNotificationOptIn memberId={member.memberId} />
+          </Reveal>
+        )}
 
         {/* SECTION 3 — About */}
         <Reveal className="mb-14">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { useMembers } from '../features/members/MembersContext'
 import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../features/members/whatsapp'
+import { fetchTokenCount, sendPushBroadcast } from '../notifications/api'
 import { CHURCH_INFO } from '../constants/church'
 
 const MAX_MESSAGE_LENGTH = 1000
@@ -199,8 +200,28 @@ export function AnnouncementsScreen() {
   // Once the admin edits the preview directly, it stops following title/message/link
   // changes and becomes the source of truth for what actually gets sent.
   const [previewOverride, setPreviewOverride] = useState<string | null>(null)
+  // Push-notification delivery state: how many devices are registered, the
+  // in-flight flag, the delivered count for the success modal, and any error.
+  const [deviceCount, setDeviceCount] = useState<number | null>(null)
+  const [sending, setSending] = useState(false)
+  const [sentCount, setSentCount] = useState<number | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTokenCount()
+      .then((count) => {
+        if (!cancelled) setDeviceCount(count)
+      })
+      .catch(() => {
+        if (!cancelled) setDeviceCount(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Auto-resizes so the box always matches the actual message length —
   // recalculates on every change, including template picks, not just typing.
@@ -248,10 +269,51 @@ export function AnnouncementsScreen() {
     setLinks((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
   }
 
-  function confirmSend() {
+  // Push body is plain text (no WhatsApp *bold* markdown). When the admin
+  // hand-edited the preview, that edited text is the source of truth — the
+  // markdown asterisks are just stripped for the notification.
+  function buildPushContent(): { title: string; body: string; url?: string } {
+    const validLinks = links.filter((l) => l.url.trim())
+    const firstLink = validLinks[0]?.url.trim()
+    if (previewOverride !== null) {
+      return {
+        title: title.trim() || CHURCH_INFO.shortName,
+        body: previewOverride.replace(/\*/g, '').trim(),
+        url: firstLink,
+      }
+    }
+    const bodyLines = [message.trim()]
+    validLinks.forEach((l, i) => {
+      const label = l.label.trim() || defaultLinkLabel(i)
+      bodyLines.push('', `${label}: ${l.url.trim()}`)
+    })
+    return {
+      title: title.trim() || CHURCH_INFO.shortName,
+      body: bodyLines.join('\n').trim(),
+      url: firstLink,
+    }
+  }
+
+  /** Push the announcement to every registered device via Apps Script → FCM. */
+  async function confirmSend() {
     setShowConfirm(false)
+    setSendError(null)
+    setSending(true)
+    try {
+      const result = await sendPushBroadcast(buildPushContent())
+      setSentCount(result.sent)
+      setShowSuccess(true)
+    } catch (error) {
+      console.error('[Announcements] Push send failed:', error)
+      setSendError('Could not send the notification — check your connection and try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  /** Secondary path — same composed message via a WhatsApp broadcast. */
+  function sendViaWhatsapp() {
     openWhatsappBroadcast(preview)
-    setShowSuccess(true)
   }
 
   return (
@@ -271,7 +333,8 @@ export function AnnouncementsScreen() {
               label="Today"
               value={new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
             />
-            <HeaderStat icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} tone="brass" />
+            <HeaderStat icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} />
+            <HeaderStat icon="bell" label="Notify Devices" value={deviceCount === null ? '—' : String(deviceCount)} tone="brass" />
           </div>
         </div>
 
@@ -394,11 +457,12 @@ export function AnnouncementsScreen() {
         </div>
 
         {showConfirm && (
-          <ConfirmSendModal count={memberCount} onCancel={() => setShowConfirm(false)} onConfirm={confirmSend} />
+          <ConfirmSendModal count={deviceCount ?? 0} onCancel={() => setShowConfirm(false)} onConfirm={confirmSend} />
         )}
 
         {showSuccess && (
           <SuccessModal
+            sentCount={sentCount ?? 0}
             onSendAnother={() => {
               setShowSuccess(false)
               clearForm()
@@ -414,14 +478,33 @@ export function AnnouncementsScreen() {
           position:fixed children, which would make this scroll with the
           page instead of staying pinned to the viewport. */}
       <div className="fixed inset-x-4 bottom-20 z-40 md:inset-x-auto md:bottom-6 md:left-1/2 md:w-[420px] md:-translate-x-1/2">
-        <button
-          onClick={() => canSend && setShowConfirm(true)}
-          disabled={!canSend}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-[#1FAF57] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
-          Send Announcement to {memberCount} Member{memberCount === 1 ? '' : 's'}
-        </button>
+        {sendError && (
+          <p className="mb-2 rounded-xl bg-status-alert-bg px-3.5 py-2 text-center text-[12px] font-semibold text-status-alert-fg shadow-card">
+            {sendError}
+          </p>
+        )}
+        <div className="flex items-stretch gap-2">
+          <button
+            onClick={() => canSend && !sending && setShowConfirm(true)}
+            disabled={!canSend || sending}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-ink py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-ink-deep disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
+            {sending
+              ? 'Sending…'
+              : `Send Notification${deviceCount !== null ? ` to ${deviceCount} Device${deviceCount === 1 ? '' : 's'}` : ''}`}
+          </button>
+          {/* Secondary path — WhatsApp Broadcast, kept while members transition to push */}
+          <button
+            onClick={() => canSend && sendViaWhatsapp()}
+            disabled={!canSend}
+            aria-label="Send via WhatsApp instead"
+            title="Send via WhatsApp Broadcast"
+            className="flex w-[52px] shrink-0 items-center justify-center rounded-2xl bg-[#25D366] shadow-elev transition-colors hover:bg-[#1FAF57] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon name="whatsapp" className="icon !h-[19px] !w-[19px] text-white" />
+          </button>
+        </div>
       </div>
     </>
   )
@@ -476,14 +559,15 @@ function ConfirmSendModal({
         className="motion-safe:animate-[scale-in_0.25s_ease-out_both] w-full max-w-[380px] rounded-[26px] bg-paper p-5 shadow-elev"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#25D366]/15">
-          <Icon name="whatsapp" className="icon !h-[19px] !w-[19px] text-[#1FAF57]" />
+        <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-paper-2">
+          <Icon name="bell" className="icon !h-[19px] !w-[19px] text-brass-deep" />
         </span>
         <h3 className="font-display text-[16.5px] font-bold text-heading">
-          Send this announcement to {count} member{count === 1 ? '' : 's'}?
+          Send this notification to {count} device{count === 1 ? '' : 's'}?
         </h3>
         <p className="mt-1.5 text-[13px] text-slate">
-          WhatsApp will open with your message pre-filled — send it to your Broadcast Group (or any contact) once it opens.
+          It will appear instantly as a push notification on every device that has enabled church
+          notifications.
         </p>
         <div className="mt-4 flex gap-2.5">
           <button
@@ -494,7 +578,7 @@ function ConfirmSendModal({
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-[#25D366] py-3 text-[13px] font-bold text-white transition-colors hover:bg-[#1FAF57]"
+            className="flex-1 rounded-xl bg-ink py-3 text-[13px] font-bold text-white transition-colors hover:bg-ink-deep"
           >
             Send
           </button>
@@ -505,9 +589,11 @@ function ConfirmSendModal({
 }
 
 function SuccessModal({
+  sentCount,
   onSendAnother,
   onBackToDashboard,
 }: {
+  sentCount: number
   onSendAnother: () => void
   onBackToDashboard: () => void
 }) {
@@ -517,8 +603,10 @@ function SuccessModal({
         <span className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-status-regular-bg">
           <Icon name="check" className="icon !h-[28px] !w-[28px] text-status-regular-fg" />
         </span>
-        <h3 className="font-display text-[19px] font-bold text-heading">Announcement Ready</h3>
-        <p className="mt-1.5 text-[13px] text-slate">WhatsApp has been opened with your announcement.</p>
+        <h3 className="font-display text-[19px] font-bold text-heading">Notification Sent</h3>
+        <p className="mt-1.5 text-[13px] text-slate">
+          Delivered to {sentCount} device{sentCount === 1 ? '' : 's'}.
+        </p>
         <div className="mt-5 flex flex-col gap-2.5">
           <button
             onClick={onSendAnother}

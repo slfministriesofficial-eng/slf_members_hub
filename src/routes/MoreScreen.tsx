@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
 import { useTheme } from '../theme/ThemeContext'
 import { getInitials } from '../utils/initials'
+import { useNotifications } from '../notifications/useNotifications'
+import { sendTestNotification, copyToken } from '../notifications/NotificationService'
 
 function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -74,6 +76,56 @@ export function MoreScreen() {
   const navigate = useNavigate()
   const name = adminName || 'Admin'
 
+  const { permission, token, supported, lastUpdated, enabling, denied, enableNotifications, disableNotifications } =
+    useNotifications()
+  const [notifToast, setNotifToast] = useState<string | null>(null)
+  const [disabling, setDisabling] = useState(false)
+  const notificationsEnabled = permission === 'granted' && Boolean(token)
+
+  useEffect(() => {
+    if (!notifToast) return
+    const t = setTimeout(() => setNotifToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [notifToast])
+
+  async function handleEnable() {
+    await enableNotifications()
+    if (wasDeniedAfterPrompt()) {
+      setNotifToast('Notifications are blocked — enable them for this site in your browser settings.')
+    }
+  }
+
+  function wasDeniedAfterPrompt() {
+    return typeof Notification !== 'undefined' && Notification.permission === 'denied'
+  }
+
+  async function handleDisable() {
+    setDisabling(true)
+    try {
+      await disableNotifications()
+      setNotifToast('Notifications disabled on this device.')
+    } finally {
+      setDisabling(false)
+    }
+  }
+
+  async function handleTest() {
+    const shown = await sendTestNotification()
+    if (!shown) setNotifToast('Could not show a test notification — enable notifications first.')
+  }
+
+  async function handleCopyToken() {
+    const copied = await copyToken()
+    setNotifToast(copied ? 'Token copied to clipboard.' : 'No token to copy yet.')
+  }
+
+  function formatUpdated(iso: string | null): string {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-start justify-between">
@@ -122,12 +174,91 @@ export function MoreScreen() {
         />
       </Card>
 
+      <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Notifications</h2>
+      <Card className="mb-5">
+        <ListRow
+          icon="bell"
+          label="Status"
+          right={
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold ${
+                notificationsEnabled
+                  ? 'bg-status-regular-bg text-status-regular-fg'
+                  : 'bg-status-alert-bg text-status-alert-fg'
+              }`}
+            >
+              {notificationsEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+          }
+        />
+        {!supported && (
+          <div className="border-b border-hairline px-3.5 py-3 text-[12px] text-slate last:border-b-0">
+            Push notifications aren't supported in this browser.
+          </div>
+        )}
+        {supported && denied && !notificationsEnabled && (
+          <div className="border-b border-hairline px-3.5 py-3 text-[12px] text-slate last:border-b-0">
+            Notifications are blocked for this site. To turn them on, allow notifications for this app in your
+            browser or device settings — the app can't re-ask once blocked.
+          </div>
+        )}
+        {supported && !denied && !notificationsEnabled && (
+          <div className="border-b border-hairline px-3.5 py-3 last:border-b-0">
+            <button
+              onClick={handleEnable}
+              disabled={enabling}
+              className="w-full rounded-full bg-ink py-2.5 text-[12.5px] font-bold text-white transition-colors hover:bg-ink-deep disabled:opacity-50"
+            >
+              {enabling ? 'Enabling…' : 'Enable Notifications'}
+            </button>
+          </div>
+        )}
+        {notificationsEnabled && (
+          <>
+            <ListRow icon="check" label="Last updated" value={formatUpdated(lastUpdated)} />
+            <ListRow icon="lock-small" label="Current token" value="••••••••" />
+            <div className="flex flex-col gap-2 border-b border-hairline px-3.5 py-3 last:border-b-0">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleTest}
+                  className="rounded-full border border-hairline bg-surface py-2.5 text-[12px] font-bold text-heading transition-colors hover:bg-paper"
+                >
+                  Send Test
+                </button>
+                <button
+                  onClick={handleCopyToken}
+                  className="rounded-full border border-hairline bg-surface py-2.5 text-[12px] font-bold text-heading transition-colors hover:bg-paper"
+                >
+                  Copy Token
+                </button>
+              </div>
+              <button
+                onClick={handleDisable}
+                disabled={disabling}
+                className="rounded-full bg-status-alert-bg py-2.5 text-[12px] font-bold text-status-alert-fg transition-colors hover:brightness-95 disabled:opacity-50"
+              >
+                {disabling ? 'Disabling…' : 'Disable Notifications (this device)'}
+              </button>
+            </div>
+          </>
+        )}
+      </Card>
+
       <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Account</h2>
       <Card className="mb-6">
         <button onClick={logout} className="block w-full text-left">
           <ListRow icon="logout" label="Log out" danger right={<span />} />
         </button>
       </Card>
+
+      {notifToast && (
+        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4 md:bottom-8 motion-safe:animate-[fade-rise_0.3s_ease-out]">
+          <div className="flex max-w-[92vw] items-center gap-2 rounded-full bg-ink-deep px-4 py-2.5 text-[12.5px] font-semibold text-white shadow-elev">
+            <Icon name="bell" className="icon !h-[14px] !w-[14px] shrink-0 text-white" />
+            <span className="truncate">{notifToast}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
