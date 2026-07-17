@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../../components/ui/Icon'
 import type { Member } from '../../mock/types'
-import { normalizeWhatsappNumber } from './whatsapp'
+import { normalizeWhatsappNumber } from '../../templates/whatsapp'
 
 type AddWhatsappModalProps = {
   member: Member

@@ -56,7 +56,7 @@ export function buildWelcomeMessage(member: Member): string {
   const profileUrl = buildMemberProfileUrl(member.memberId)
   return sanitizeWhatsappMessage(
     [
-      '🙏 Greetings from *SLF Ministries*!',
+      '🙏 Greetings from *Sarah Living Faith Ministries*!',
       '',
       `Dear *${member.name}*,`,
       'Welcome to the SLF Ministries family. Your *Digital Membership Card* is now available.',
@@ -72,7 +72,7 @@ export function buildWelcomeMessage(member: Member): string {
       'May God bless you and your family abundantly.',
       '',
       'With love in Christ,',
-      '*SLF Ministries*',
+      '*Sarah Living Faith Ministries*',
       'Sarah Living Faith Ministries',
     ].join('\n'),
   )
@@ -149,7 +149,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
         'God bless you abundantly.',
         '',
         'With prayers,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -162,7 +162,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
         "Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.",
         '',
         'With love,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -178,7 +178,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
       'May God richly bless you and your family.',
       '',
       'With love and prayers,',
-      '*SLF Ministries*',
+      '*Sarah Living Faith Ministries*',
       'Tadigadapa',
     ].join('\n'),
   )
@@ -205,7 +205,7 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
         `We praise God for ${yearsLine} of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.`,
         '',
         'With prayers,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -218,7 +218,7 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
         "May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.",
         '',
         'With love and prayers,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -234,7 +234,7 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
       'Wishing you many more joyful years together.',
       '',
       'With prayers,',
-      '*SLF Ministries*',
+      '*Sarah Living Faith Ministries*',
       'Tadigadapa',
     ].join('\n'),
   )
@@ -250,7 +250,7 @@ export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: 
         "Welcome to the SLF Ministries family! We're so glad God brought you to us, and we look forward to growing together in faith and fellowship.",
         '',
         'With love,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -263,7 +263,7 @@ export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: 
         `We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are, and let's grow in faith together.`,
         '',
         'God bless you,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
         'Tadigadapa',
       ].join('\n'),
     )
@@ -275,7 +275,7 @@ export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: 
       'We are overjoyed to have you as part of our church family. May God bless this new chapter of your journey with us.',
       '',
       'With love in Christ,',
-      '*SLF Ministries*',
+      '*Sarah Living Faith Ministries*',
       'Tadigadapa',
     ].join('\n'),
   )
@@ -296,7 +296,7 @@ export function buildCustomMessage(key: CustomMessageTemplateKey, member: Member
         'How have you been doing? We are praying for you and would love to hear from you.',
         '',
         'With love in Christ,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
       ].join('\n'),
     )
   }
@@ -308,11 +308,11 @@ export function buildCustomMessage(key: CustomMessageTemplateKey, member: Member
         `We'd love to see you this Sunday! Join us for worship at ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'} — come as you are.`,
         '',
         'God bless you,',
-        '*SLF Ministries*',
+        '*Sarah Living Faith Ministries*',
       ].join('\n'),
     )
   }
-  return sanitizeWhatsappMessage([`Dear ${name},`, '', '', 'God bless you,', '*SLF Ministries*'].join('\n'))
+  return sanitizeWhatsappMessage([`Dear ${name},`, '', '', 'God bless you,', '*Sarah Living Faith Ministries*'].join('\n'))
 }
 
 export function buildRemovalMessage(member: Member, reason: string): string {
@@ -320,14 +320,14 @@ export function buildRemovalMessage(member: Member, reason: string): string {
     [
       `Dear *${member.name}*,`,
       '',
-      'We would like to inform you that your membership record with *SLF Ministries* has been removed from our system.',
+      'We would like to inform you that your membership record with *Sarah Living Faith Ministries* has been removed from our system.',
       '',
       `Reason: ${reason}`,
       '',
       'If you believe this was a mistake or have any questions, please feel free to reach out to us.',
       '',
       'With love in Christ,',
-      '*SLF Ministries*',
+      '*Sarah Living Faith Ministries*',
       'Sarah Living Faith Ministries',
     ].join('\n'),
   )

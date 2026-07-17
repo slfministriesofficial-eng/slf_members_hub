@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { schedulePushBroadcast } from '../notifications/api'
-import { TEMPLATES, type Template } from './AnnouncementsScreen'
+import { TEMPLATES, type Template } from '../templates/push/announcements'
 import { CHURCH_INFO } from '../constants/church'
 import logo from '../assets/slf_logo_cropped.png'
 

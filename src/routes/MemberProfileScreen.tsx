@@ -13,7 +13,7 @@ import {
   normalizeWhatsappNumber,
   openWhatsappChat,
   openWhatsappWithText,
-} from '../features/members/whatsapp'
+} from '../templates/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
 import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import { CHURCH_INFO } from '../constants/church'

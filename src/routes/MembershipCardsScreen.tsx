@@ -8,7 +8,7 @@ import { MINISTRY_OPTIONS } from '../features/members/types'
 import { IdCardFlipper } from '../features/members/IdCardFlipper'
 import { IdCard } from '../features/members/IdCard'
 import { IdCardBack } from '../features/members/IdCardBack'
-import { normalizeWhatsappNumber, openWhatsappChat } from '../features/members/whatsapp'
+import { normalizeWhatsappNumber, openWhatsappChat } from '../templates/whatsapp'
 import type { Member } from '../mock/types'
 
 const ZOOM_MIN = 60

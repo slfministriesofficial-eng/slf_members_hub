@@ -796,10 +796,12 @@ function getNotificationHistory() {
 // day: 0 = Sunday ... 6 = Saturday, or '*' for every day. time: 'HH:mm' on a
 // 15-minute boundary. url: where tapping the notification takes the member.
 
-// Bodies use clean lines with emoji labels (📅 🕙 📍 📺) for scannable
-// structure — NO *asterisks* (those are for WhatsApp, stripped from push).
+// Bodies read as a natural description (time + venue woven into the sentence,
+// not stacked date/time/venue lines) and close with the church signature.
+// NO *asterisks* — those are WhatsApp bold and are stripped from push anyway.
 // In-person service reminders carry the maps link (→ "View Location" button);
 // online prayer and all LIVE alerts carry the YouTube link (→ "Watch Live").
+const CHURCH_SIGN_OFF = 'Sarah Living Faith Ministries'
 const SCHEDULE = [
   // Sunday Worship Service — in-person, Sunday 10:00 AM
   {
@@ -807,7 +809,7 @@ const SCHEDULE = [
     day: 6,
     time: '20:00',
     title: '⛪ Tomorrow: Sunday Worship',
-    body: 'Join us tomorrow for worship, prayer, and God’s Word.\n\n📅 Sunday\n🕙 10:00 AM\n📍 SLF Ministries, Tadigadapa\n\nWe look forward to worshipping with you.',
+    body: 'Join us tomorrow, Sunday at 10:00 AM at SLF Ministries, Tadigadapa, for worship, prayer, and God’s Word. We look forward to worshipping with you.\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -815,7 +817,7 @@ const SCHEDULE = [
     day: 0,
     time: '09:30',
     title: '⏰ Worship Starts in 30 Minutes',
-    body: 'Sunday Worship begins at 10:00 AM.\n\n📍 SLF Ministries, Tadigadapa\n\nSee you soon!',
+    body: 'Sunday Worship begins at 10:00 AM at SLF Ministries, Tadigadapa. See you soon!\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -823,7 +825,7 @@ const SCHEDULE = [
     day: 0,
     time: '10:00',
     title: '🔴 Sunday Worship is LIVE',
-    body: 'We’ve begun — join us live now as we worship the Lord together.',
+    body: 'Our Sunday Worship has begun — join us live now as we worship the Lord together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
 
@@ -833,7 +835,7 @@ const SCHEDULE = [
     day: 3,
     time: '17:00',
     title: '📖 Bible Study Tonight',
-    body: 'Grow together in God’s Word with us.\n\n🕗 8:00 PM\n📍 SLF Ministries, Tadigadapa\n\nCome and be blessed.',
+    body: 'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, as we grow together in God’s Word. Come and be blessed.\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -841,7 +843,7 @@ const SCHEDULE = [
     day: 3,
     time: '19:30',
     title: '⏰ Bible Study in 30 Minutes',
-    body: 'Bible Study begins at 8:00 PM. Get ready to join us.',
+    body: 'Bible Study begins at 8:00 PM at SLF Ministries, Tadigadapa. Get ready to join us.\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -849,7 +851,7 @@ const SCHEDULE = [
     day: 3,
     time: '20:00',
     title: '🔴 Bible Study is LIVE',
-    body: 'Join us now as we open God’s Word together.',
+    body: 'Bible Study has begun — join us now as we open God’s Word together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
 
@@ -859,7 +861,7 @@ const SCHEDULE = [
     day: 6,
     time: '17:00',
     title: '🌆 Saturday Evening Service',
-    body: 'Worship and fellowship with us tonight.\n\n🕗 8:00 PM\n📍 SLF Ministries, Tadigadapa\n\nWe look forward to seeing you.',
+    body: 'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, for worship and fellowship. We look forward to seeing you.\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -867,7 +869,7 @@ const SCHEDULE = [
     day: 6,
     time: '19:30',
     title: '⏰ Service in 30 Minutes',
-    body: 'Saturday Evening Service begins at 8:00 PM.',
+    body: 'Saturday Evening Service begins at 8:00 PM at SLF Ministries, Tadigadapa. See you soon!\n\n' + CHURCH_SIGN_OFF,
     url: MAPS_LINK,
   },
   {
@@ -875,7 +877,7 @@ const SCHEDULE = [
     day: 6,
     time: '20:00',
     title: '🔴 Saturday Service is LIVE',
-    body: 'Join us now for worship and God’s Word.',
+    body: 'Saturday Evening Service has begun — join us now for worship and God’s Word.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
 
@@ -885,7 +887,7 @@ const SCHEDULE = [
     day: '*',
     time: '17:30',
     title: '🙏 Family Online Prayer Today',
-    body: 'Come together with the SLF family in prayer.\n\n🕡 6:30 PM\n📺 Live on YouTube\n\nInvite your family to join.',
+    body: 'Join the SLF family today at 6:30 PM for our Online Prayer, live on YouTube. Invite your family to pray with us.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
   {
@@ -893,7 +895,7 @@ const SCHEDULE = [
     day: '*',
     time: '18:15',
     title: '⏰ Prayer Begins in 15 Minutes',
-    body: 'Get ready to join the SLF Family Online Prayer at 6:30 PM.',
+    body: 'Our Family Online Prayer begins at 6:30 PM, live on YouTube. Get ready to join us.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
   {
@@ -901,7 +903,7 @@ const SCHEDULE = [
     day: '*',
     time: '18:30',
     title: '🔴 Family Prayer is LIVE',
-    body: 'Let us come together now in prayer and seek the Lord.',
+    body: 'Our Family Online Prayer has begun — join us now as we seek the Lord together.\n\n' + CHURCH_SIGN_OFF,
     url: YOUTUBE_LIVE_URL,
   },
 ]

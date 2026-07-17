@@ -16,7 +16,7 @@ import {
   ANNIVERSARY_TEMPLATES,
   NEW_MEMBER_TEMPLATES,
   CUSTOM_MESSAGE_TEMPLATES,
-} from '../features/members/whatsapp'
+} from '../templates/whatsapp'
 import { markCompleted } from '../utils/completedWishes'
 
 type WishKind = 'birthday' | 'anniversary' | 'welcome' | 'custom'

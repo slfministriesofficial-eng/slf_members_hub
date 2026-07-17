@@ -2,174 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { useMembers } from '../features/members/MembersContext'
-import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../features/members/whatsapp'
+import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../templates/whatsapp'
 import { fetchTokenCount, sendPushBroadcast } from '../notifications/api'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { CHURCH_INFO } from '../constants/church'
+import { TEMPLATES, type Template } from '../templates/push/announcements'
 
 const MAX_MESSAGE_LENGTH = 1000
 
-export type Template = { key: string; label: string; title: string; message: string }
 type LinkEntry = { label: string; url: string }
 
 function defaultLinkLabel(index: number): string {
   return index === 0 ? 'Join Here' : `Link ${index + 1}`
 }
-
-const VENUE_LINE = CHURCH_INFO.addressLines[0]?.replace(/,\s*$/, '') ?? CHURCH_INFO.shortName
-const SIGN_OFF = `— ${CHURCH_INFO.shortName}`
-
-// Plain bold labels (WhatsApp's own *text* markdown) instead of pictograph
-// emoji for Date/Time/Venue — confirmed on a real device that calendar/clock/
-// pin glyphs (📅⏰📍) render as broken "�" tofu on some WhatsApp clients/fonts,
-// while plain bold text is guaranteed to render everywhere.
-// Exported so the Schedule Notification page offers the same starters.
-export const TEMPLATES: Template[] = [
-  {
-    key: 'sunday-service',
-    label: 'Sunday Service',
-    title: 'Sunday Service Reminder',
-    message: [
-      'Dear Church Family,',
-      '',
-      "We warmly invite you and your family to join us for this Sunday's worship service.",
-      '',
-      '*Date:*',
-      `*Time:* ${CHURCH_INFO.services[0]?.time ?? '9:00 AM'}`,
-      `*Venue:* ${VENUE_LINE}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      "Come together in worship, prayer, and fellowship as we grow in God's presence.",
-      '',
-      'God bless you and your family.',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'prayer-meeting',
-    label: 'Prayer Meeting',
-    title: 'Prayer Meeting Reminder',
-    message: [
-      'Dear Church Family,',
-      '',
-      "Join us for our Prayer Meeting as we gather together to seek God's guidance and blessings.",
-      '',
-      '*Date:*',
-      '*Time:*',
-      `*Venue:* ${CHURCH_INFO.shortName}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      '"Prayer changes everything."',
-      '',
-      'We look forward to praying with you.',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'youth-meeting',
-    label: 'Youth Meeting',
-    title: 'Youth Fellowship',
-    message: [
-      'Dear Youth,',
-      '',
-      'You are invited to our Youth Fellowship.',
-      '',
-      '*Date:*',
-      '*Time:*',
-      `*Venue:* ${CHURCH_INFO.shortName}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      'Come with your friends for worship, Bible study, fellowship and fun.',
-      '',
-      'See you there!',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'choir-practice',
-    label: 'Choir Practice',
-    title: 'Choir Practice Reminder',
-    message: [
-      'Dear Choir Members,',
-      '',
-      'This is a reminder about our upcoming choir practice.',
-      '',
-      '*Date:*',
-      '*Time:*',
-      `*Venue:* ${CHURCH_INFO.shortName}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      'Please arrive a few minutes early and be prepared for worship practice.',
-      '',
-      'Thank you for serving God through music.',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'bible-study',
-    label: 'Bible Study',
-    title: 'Bible Study Invitation',
-    message: [
-      'Dear Church Family,',
-      '',
-      "Join us for this week's Bible Study.",
-      '',
-      '*Date:*',
-      '*Time:*',
-      `*Venue:* ${CHURCH_INFO.shortName}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      "Come and grow deeper in God's Word together.",
-      '',
-      'We look forward to seeing you.',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'special-event',
-    label: 'Special Event',
-    title: 'Special Church Event',
-    message: [
-      'Dear Church Family,',
-      '',
-      'You are warmly invited to our special church event.',
-      '',
-      '*Date:*',
-      '*Time:*',
-      `*Venue:* ${CHURCH_INFO.shortName}`,
-      `*Location:* ${CHURCH_INFO.mapsLinkUrl}`,
-      '',
-      'Bring your family and friends as we celebrate together.',
-      '',
-      'God Bless!',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-  {
-    key: 'emergency-update',
-    label: 'Emergency Update',
-    title: 'Important Church Notice',
-    message: [
-      'Dear Church Family,',
-      '',
-      'Please note the following important update.',
-      '',
-      '[Enter announcement details here]',
-      '',
-      'Thank you for your understanding.',
-      '',
-      'God bless you.',
-      '',
-      SIGN_OFF,
-    ].join('\n'),
-  },
-]
 
 // *word* is WhatsApp's own bold markdown, applied by the WhatsApp client
 // itself once the message is opened there — not styled by us. Template
