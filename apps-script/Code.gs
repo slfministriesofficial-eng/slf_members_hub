@@ -543,6 +543,34 @@ function setMemberMuted(body) {
 
 const FIREBASE_PROJECT_ID = 'slf-members-hub'
 const YOUTUBE_LIVE_URL = 'https://youtube.com/@slfministriesvijayawada?si=FxNYdC6QAlKPxpV_'
+// The church's real pinned location — used as the tap target / "View Location"
+// button on in-person service reminders. Mirrors CHURCH_INFO.mapsLinkUrl.
+const MAPS_LINK = 'https://maps.app.goo.gl/Vn86Nrbk2NbsnyTh6'
+
+/**
+ * Remove WhatsApp-style *bold* markers from push text. Templates carry `*` so
+ * WhatsApp can render bold, but a push shows them as literal characters — so
+ * every push send is cleaned here, centrally, no matter which path built it.
+ * @param {string} text
+ * @returns {string} text with asterisks removed
+ */
+function stripPushMarkdown(text) {
+  if (!text) return ''
+  return String(text).replace(/\*/g, '')
+}
+
+/**
+ * Classify a tap-target URL so the service worker can label its action button
+ * ('Watch Live' / 'View Location' / 'Open Link').
+ * @param {string} url
+ * @returns {string} 'youtube' | 'location' | 'link' | ''
+ */
+function computeLinkType(url) {
+  if (!url) return ''
+  if (/youtu\.?be|youtube\.com/i.test(url)) return 'youtube'
+  if (/maps\.app\.goo\.gl|google\.[^/]+\/maps|goo\.gl\/maps/i.test(url)) return 'location'
+  return 'link'
+}
 
 /**
  * Send one push message to a list of tokens via the FCM HTTP v1 API.
@@ -560,16 +588,22 @@ function sendPushToTokens(tokens, msg) {
   let lastError = null // first FCM rejection — surfaced for diagnosis
   const deadTokens = []
 
+  // Clean + classify once (same for every token in this send).
+  const cleanTitle = stripPushMarkdown(msg.title || 'SLF Members Hub')
+  const cleanBody = stripPushMarkdown(msg.body || '')
+  const linkType = computeLinkType(msg.url)
+
   tokens.forEach(function (token) {
     if (!token) return
     const payload = {
       message: {
         token: token,
         data: {
-          title: msg.title || 'SLF Members Hub',
-          body: msg.body || '',
+          title: cleanTitle,
+          body: cleanBody,
           url: msg.url || '/',
           tag: msg.tag || 'slf-members-hub',
+          linkType: linkType,
         },
         webpush: { headers: { Urgency: 'high', TTL: '3600' } },
       },
@@ -762,28 +796,34 @@ function getNotificationHistory() {
 // day: 0 = Sunday ... 6 = Saturday, or '*' for every day. time: 'HH:mm' on a
 // 15-minute boundary. url: where tapping the notification takes the member.
 
+// Bodies use clean lines with emoji labels (📅 🕙 📍 📺) for scannable
+// structure — NO *asterisks* (those are for WhatsApp, stripped from push).
+// In-person service reminders carry the maps link (→ "View Location" button);
+// online prayer and all LIVE alerts carry the YouTube link (→ "Watch Live").
 const SCHEDULE = [
-  // Sunday Worship Service — Sunday 10:00 AM
+  // Sunday Worship Service — in-person, Sunday 10:00 AM
   {
     key: 'sun-worship-r1',
     day: 6,
     time: '20:00',
-    title: '📅 Tomorrow’s Worship Service',
-    body: 'Join us tomorrow (Sunday) at 10:00 AM for worship, prayer, and God’s Word. We look forward to worshipping with you.',
+    title: '⛪ Tomorrow: Sunday Worship',
+    body: 'Join us tomorrow for worship, prayer, and God’s Word.\n\n📅 Sunday\n🕙 10:00 AM\n📍 SLF Ministries, Tadigadapa\n\nWe look forward to worshipping with you.',
+    url: MAPS_LINK,
   },
   {
     key: 'sun-worship-r2',
     day: 0,
     time: '09:30',
-    title: '⏰ 30 Minutes to Go!',
-    body: 'Sunday Worship Service begins at 10:00 AM. We look forward to seeing you.',
+    title: '⏰ Worship Starts in 30 Minutes',
+    body: 'Sunday Worship begins at 10:00 AM.\n\n📍 SLF Ministries, Tadigadapa\n\nSee you soon!',
+    url: MAPS_LINK,
   },
   {
     key: 'sun-worship-live',
     day: 0,
     time: '10:00',
-    title: '🔴 Sunday Worship Service is LIVE',
-    body: 'Our worship service has begun. Join us live as we worship the Lord together.',
+    title: '🔴 Sunday Worship is LIVE',
+    body: 'We’ve begun — join us live now as we worship the Lord together.',
     url: YOUTUBE_LIVE_URL,
   },
 
@@ -793,69 +833,75 @@ const SCHEDULE = [
     day: 3,
     time: '17:00',
     title: '📖 Bible Study Tonight',
-    body: 'Join us today at 8:00 PM as we grow together in God’s Word.',
+    body: 'Grow together in God’s Word with us.\n\n🕗 8:00 PM\n📍 SLF Ministries, Tadigadapa\n\nCome and be blessed.',
+    url: MAPS_LINK,
   },
   {
     key: 'bible-r2',
     day: 3,
     time: '19:30',
-    title: '⏰ 30 Minutes Remaining',
+    title: '⏰ Bible Study in 30 Minutes',
     body: 'Bible Study begins at 8:00 PM. Get ready to join us.',
+    url: MAPS_LINK,
   },
   {
     key: 'bible-live',
     day: 3,
     time: '20:00',
     title: '🔴 Bible Study is LIVE',
-    body: 'Join us now as we study God’s Word together.',
+    body: 'Join us now as we open God’s Word together.',
     url: YOUTUBE_LIVE_URL,
   },
 
-  // Saturday Evening Service — Saturday 8:00 PM
+  // Saturday Evening Service — in-person, Saturday 8:00 PM
   {
     key: 'sat-eve-r1',
     day: 6,
     time: '17:00',
-    title: '🌅 Saturday Evening Service',
-    body: 'Join us tonight at 8:00 PM for worship and fellowship.',
+    title: '🌆 Saturday Evening Service',
+    body: 'Worship and fellowship with us tonight.\n\n🕗 8:00 PM\n📍 SLF Ministries, Tadigadapa\n\nWe look forward to seeing you.',
+    url: MAPS_LINK,
   },
   {
     key: 'sat-eve-r2',
     day: 6,
     time: '19:30',
-    title: '⏰ 30 Minutes Remaining',
+    title: '⏰ Service in 30 Minutes',
     body: 'Saturday Evening Service begins at 8:00 PM.',
+    url: MAPS_LINK,
   },
   {
     key: 'sat-eve-live',
     day: 6,
     time: '20:00',
-    title: '🔴 Saturday Evening Service is LIVE',
+    title: '🔴 Saturday Service is LIVE',
     body: 'Join us now for worship and God’s Word.',
     url: YOUTUBE_LIVE_URL,
   },
 
-  // SLF Family Online Prayer — every day 6:30 PM
+  // SLF Family Online Prayer — online, every day 6:30 PM
   {
     key: 'prayer-r1',
     day: '*',
     time: '17:30',
-    title: '🙏 SLF Family Online Prayer',
-    body: 'Join us today at 6:30 PM as we come together in prayer.',
+    title: '🙏 Family Online Prayer Today',
+    body: 'Come together with the SLF family in prayer.\n\n🕡 6:30 PM\n📺 Live on YouTube\n\nInvite your family to join.',
+    url: YOUTUBE_LIVE_URL,
   },
   {
     key: 'prayer-r2',
     day: '*',
     time: '18:15',
     title: '⏰ Prayer Begins in 15 Minutes',
-    body: 'Get ready to join the SLF Family Online Prayer.',
+    body: 'Get ready to join the SLF Family Online Prayer at 6:30 PM.',
+    url: YOUTUBE_LIVE_URL,
   },
   {
     key: 'prayer-live',
     day: '*',
     time: '18:30',
-    title: '🔴 SLF Family Online Prayer is LIVE',
-    body: 'Let us come together in prayer and seek the Lord.',
+    title: '🔴 Family Prayer is LIVE',
+    body: 'Let us come together now in prayer and seek the Lord.',
     url: YOUTUBE_LIVE_URL,
   },
 ]

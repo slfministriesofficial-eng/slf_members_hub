@@ -40,12 +40,25 @@ const messaging = firebase.messaging()
  * causing duplicates. Notification-type payloads (e.g. Firebase console
  * test sends) are still handled as a fallback.
  */
+/** Label for the single action button, by link type. */
+function actionLabelFor(linkType) {
+  if (linkType === 'youtube') return 'Watch Live'
+  if (linkType === 'location') return 'View Location'
+  return 'Open Link'
+}
+
 messaging.onBackgroundMessage((payload) => {
   const data = payload.data || {}
   const notif = payload.notification || {}
   const title = data.title || notif.title || 'SLF Members Hub'
   const body = data.body || notif.body || ''
   const clickUrl = data.url || '/'
+
+  // Show a tappable action button when there's a real destination link
+  // (YouTube live / maps location / announcement link). Tapping the body
+  // already opens the same URL — this just makes the "why tap" obvious.
+  const hasLink = clickUrl && clickUrl !== '/'
+  const actions = hasLink ? [{ action: 'open', title: actionLabelFor(data.linkType) }] : []
 
   self.registration.showNotification(title, {
     body,
@@ -57,6 +70,7 @@ messaging.onBackgroundMessage((payload) => {
     // time (e.g. Saturday 8 PM live + tomorrow's-service reminder) don't
     // replace each other.
     tag: data.tag || 'slf-members-hub',
+    actions,
     data: { url: clickUrl },
   })
 })

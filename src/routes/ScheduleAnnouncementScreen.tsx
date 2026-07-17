@@ -52,13 +52,17 @@ export function ScheduleAnnouncementScreen() {
     setMessage(template.message)
   }
 
-  /** The exact data-only push payload the dispatcher will send. */
+  /**
+   * The exact data-only push payload the dispatcher will send. Asterisks are
+   * stripped — templates carry `*bold*` for WhatsApp, but a push shows them as
+   * literal characters, so the preview and the sent text are both cleaned.
+   */
   function buildPushContent(): { title: string; body: string; url?: string } {
     const bodyLines = [message.trim()]
-    if (link.trim()) bodyLines.push('', `Join Here: ${link.trim()}`)
+    if (link.trim()) bodyLines.push('', `Open the link: ${link.trim()}`)
     return {
-      title: title.trim() || CHURCH_INFO.shortName,
-      body: bodyLines.join('\n').trim(),
+      title: (title.trim() || CHURCH_INFO.shortName).replace(/\*/g, ''),
+      body: bodyLines.join('\n').replace(/\*/g, '').trim(),
       url: link.trim() || undefined,
     }
   }

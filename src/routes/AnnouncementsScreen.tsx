@@ -298,9 +298,11 @@ export function AnnouncementsScreen() {
       const label = l.label.trim() || defaultLinkLabel(i)
       bodyLines.push('', `${label}: ${l.url.trim()}`)
     })
+    // Strip `*bold*` here too: a template applied without editing the preview
+    // would otherwise leak literal asterisks into the push.
     return {
-      title: title.trim() || CHURCH_INFO.shortName,
-      body: bodyLines.join('\n').trim(),
+      title: (title.trim() || CHURCH_INFO.shortName).replace(/\*/g, ''),
+      body: bodyLines.join('\n').replace(/\*/g, '').trim(),
       url: firstLink,
     }
   }
