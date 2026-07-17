@@ -594,7 +594,7 @@ function ConfirmSendModal({
         </h3>
         <p className="mt-1.5 text-[13px] text-slate">
           {scheduledLabel
-            ? 'It will be delivered automatically to every registered device around the chosen time (within 15 minutes).'
+            ? 'It will be delivered automatically to every registered device around the chosen time (within 5 minutes).'
             : 'It will appear instantly as a push notification on every device that has enabled church notifications.'}
         </p>
         <div className="mt-4 flex gap-2.5">

@@ -22,7 +22,7 @@ function formatScheduleLabel(value: string): string {
  * Schedule button on the Announcements page. Compose (same templates as the
  * main composer), pick a future date & time, preview exactly how the
  * notification will look on a member's phone, and confirm. The Apps Script
- * dispatcher delivers it within ~15 minutes of the chosen time.
+ * dispatcher delivers it within ~5 minutes of the chosen time.
  */
 export function ScheduleAnnouncementScreen() {
   const navigate = useNavigate()
@@ -175,7 +175,7 @@ export function ScheduleAnnouncementScreen() {
               )}
               {sendAtValid && (
                 <p className="mt-1.5 text-[11px] text-slate">
-                  Will be delivered around {formatScheduleLabel(sendAt)} (within 15 minutes of the chosen time).
+                  Will be delivered around {formatScheduleLabel(sendAt)} (within 5 minutes of the chosen time).
                 </p>
               )}
             </label>

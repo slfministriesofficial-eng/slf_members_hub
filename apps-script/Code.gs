@@ -652,7 +652,7 @@ function sendTestPush() {
 
 // ============================== SCHEDULED NOTIFICATIONS ==============================
 // The church notification calendar. A single time-driven trigger fires
-// runScheduledNotifications() every 15 minutes; it matches the current
+// runScheduledNotifications() every 5 minutes; it matches the current
 // day + 15-minute slot against this table and sends whatever is due.
 // Times are in the script's timezone — make sure Project Settings shows
 // Asia/Kolkata (IST).
@@ -759,10 +759,11 @@ const SCHEDULE = [
 ]
 
 /**
- * Dispatcher — runs every 15 minutes via a clock trigger. Rounds "now" to the
- * nearest 15-minute slot (clock triggers drift a few minutes), finds SCHEDULE
- * entries due in this slot, and sends each at most once per day
- * (CacheService guards against double-fires).
+ * Dispatcher — runs every 5 minutes via a clock trigger. Uses the most recent
+ * 15-minute slot boundary (floor, never round-up), so a SCHEDULE entry fires
+ * on the first run AT or AFTER its time — a couple of minutes late at worst,
+ * never early — and at most once per day (CacheService guards double-fires
+ * across the multiple runs that map to the same slot).
  */
 function runScheduledNotifications() {
   // Master switch — while paused, NOTHING automatic goes out. Scheduled
@@ -771,13 +772,8 @@ function runScheduledNotifications() {
 
   const now = new Date()
   const tz = Session.getScriptTimeZone()
-  let hour = now.getHours()
-  let minute = Math.round(now.getMinutes() / 15) * 15
-  if (minute === 60) {
-    minute = 0
-    hour += 1
-  }
-  if (hour === 24) return // nothing scheduled at midnight; skip day-rollover edge
+  const hour = now.getHours()
+  const minute = Math.floor(now.getMinutes() / 15) * 15
   const slot = (hour < 10 ? '0' : '') + hour + ':' + (minute < 10 ? '0' : '') + minute
   const day = now.getDay()
   const dateKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd')
@@ -817,7 +813,7 @@ function runScheduledNotifications() {
 
 // ============================== SCHEDULED ANNOUNCEMENTS ==============================
 // One-off announcements the admin schedules from the Announcements page.
-// Stored in their own sheet; the 15-minute dispatcher sends any pending row
+// Stored in their own sheet; the 5-minute dispatcher sends any pending row
 // whose time has arrived, then marks it sent (so it can never fire twice).
 
 const SCHEDULED_SHEET_NAME = 'Scheduled Notifications'
@@ -865,8 +861,8 @@ function schedulePush(body) {
 
 /**
  * Send every pending scheduled announcement whose time has arrived, then
- * mark it sent. Runs inside the 15-minute dispatcher, so delivery lands
- * within ~15 minutes of the chosen time.
+ * mark it sent. Runs inside the 5-minute dispatcher, so delivery lands
+ * within ~5 minutes of the chosen time.
  * @param {Date} now current time
  */
 function processScheduledPushes(now) {
@@ -903,7 +899,7 @@ function processScheduledPushes(now) {
 
 /**
  * One-time setup: run this once from the Apps Script editor. Creates the
- * every-15-minutes clock trigger for runScheduledNotifications (removing any
+ * every-5-minutes clock trigger for runScheduledNotifications (removing any
  * older duplicates first, so re-running is always safe).
  * @returns {string} confirmation text
  */
@@ -913,8 +909,8 @@ function setupTriggers() {
       ScriptApp.deleteTrigger(trigger)
     }
   })
-  ScriptApp.newTrigger('runScheduledNotifications').timeBased().everyMinutes(15).create()
-  return 'Scheduled-notification trigger installed (runs every 15 minutes).'
+  ScriptApp.newTrigger('runScheduledNotifications').timeBased().everyMinutes(5).create()
+  return 'Scheduled-notification trigger installed (runs every 5 minutes).'
 }
 
 // ============================== PERSONAL NOTIFICATIONS ==============================

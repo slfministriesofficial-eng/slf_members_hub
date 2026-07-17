@@ -222,8 +222,8 @@ export async function fetchMemberNotificationStatuses(): Promise<Record<string, 
 
 /**
  * Schedule an announcement push for a future time — the Apps Script
- * dispatcher (which runs every 15 minutes) delivers it once the time
- * arrives, so delivery lands within ~15 minutes of the chosen moment.
+ * dispatcher (which runs every 5 minutes) delivers it once the time
+ * arrives, so delivery lands within ~5 minutes of the chosen moment.
  * @param {{title: string, body: string, url?: string, sendAt: string}} message
  *   sendAt as an ISO datetime, must be in the future
  * @returns {Promise<{sendAt: string}>} the confirmed scheduled time
