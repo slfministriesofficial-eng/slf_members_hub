@@ -19,6 +19,19 @@ type StepDef = {
   seconds: number
   isRelevant?: (data: MemberFormData) => boolean
   isValid: (data: MemberFormData) => boolean
+  /** Optional steps get a Skip button that advances without filling anything. */
+  skippable?: boolean
+}
+
+/** Compact step names for the mobile step switcher — full titles don't fit in chips. */
+const SHORT_TITLES: Record<string, string> = {
+  personal: 'Personal',
+  contact: 'Contact',
+  family: 'Family',
+  fellowship: 'Fellowship',
+  ministry: 'Ministry',
+  occupation: 'Occupation',
+  review: 'Review',
 }
 
 export function AddMemberScreen() {
@@ -74,12 +87,14 @@ export function AddMemberScreen() {
         title: 'Ministry Interest',
         seconds: 10,
         isValid: (_d: MemberFormData) => true,
+        skippable: true,
       },
       {
         key: 'occupation',
         title: 'Occupation & Emergency Contact',
         seconds: 15,
         isValid: (d: MemberFormData) => !!d.emergencyName && !!d.emergencyMobile,
+        skippable: true,
       },
       {
         key: 'review',
@@ -161,6 +176,17 @@ export function AddMemberScreen() {
     }
   }
 
+  // Skip advances without validating or marking the step complete — the
+  // paper form sometimes leaves ministry/occupation blank.
+  function goSkip() {
+    setStepIndex((i) => Math.min(i + 1, steps.length - 1))
+  }
+
+  // Keeps the active chip visible in the mobile step switcher.
+  function scrollCurrentChipIntoView(el: HTMLButtonElement | null) {
+    el?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }
+
   function renderStep() {
     switch (current.key) {
       case 'personal':
@@ -192,7 +218,7 @@ export function AddMemberScreen() {
 
       <div className="mx-auto max-w-md px-4 pb-10 pt-6 md:mx-0 md:h-screen md:max-w-none md:flex-1 md:overflow-y-auto md:px-10 md:py-9 lg:px-14 xl:px-20">
         <div className="mb-1 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={() => navigate(-1)}
               aria-label="Back"
@@ -200,7 +226,9 @@ export function AddMemberScreen() {
             >
               <Icon name="chevron" className="icon !h-[17px] !w-[17px] rotate-180 text-heading" />
             </button>
-            <h1 className="font-display text-[26px] font-bold text-heading md:text-[32px]">
+            {/* Smaller on phones — at 26px "New Member Registration" overflows
+                the header between the back and home buttons. */}
+            <h1 className="min-w-0 font-display text-[19px] font-bold leading-tight text-heading sm:text-[24px] md:text-[32px]">
               {isEditMode ? 'Edit Member' : 'New Member Registration'}
             </h1>
           </div>
@@ -225,10 +253,37 @@ export function AddMemberScreen() {
           </h2>
         </div>
 
-        {/* Step counter + progress bar — mobile only; desktop shows this via the step sidebar */}
-        <span className="mb-2 block text-[11px] font-bold uppercase tracking-wide text-brass-deep md:hidden">
-          Step {stepIndex + 1} of {steps.length}
-        </span>
+        {/* Mobile step switcher — every step is tappable, the same free
+            navigation the desktop sidebar gives; desktop hides this. */}
+        <div className="-mx-4 mb-2.5 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+          {steps.map((s, i) => {
+            const state = completedKeys.has(s.key) ? 'done' : s.key === current.key ? 'current' : 'upcoming'
+            return (
+              <button
+                key={s.key}
+                type="button"
+                ref={state === 'current' ? scrollCurrentChipIntoView : undefined}
+                onClick={() => goToStep(s.key)}
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-1.5 pl-1.5 pr-3 text-[11.5px] font-bold transition-colors ${
+                  state === 'current' ? 'bg-ink text-white' : 'bg-surface text-heading shadow-card'
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    state === 'current'
+                      ? 'bg-brass text-ink-deep'
+                      : state === 'done'
+                        ? 'bg-ink text-white'
+                        : 'bg-paper-2 text-slate'
+                  }`}
+                >
+                  {state === 'done' ? <Icon name="check" className="icon !h-[10px] !w-[10px]" /> : i + 1}
+                </span>
+                {SHORT_TITLES[s.key] ?? s.title}
+              </button>
+            )
+          })}
+        </div>
         <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-paper-2 md:hidden">
           <div
             className="h-full rounded-full bg-gradient-to-r from-brass to-brass-deep transition-all duration-300"
@@ -257,6 +312,15 @@ export function AddMemberScreen() {
           >
             {stepIndex === 0 ? 'Cancel' : 'Back'}
           </button>
+          {current.skippable && !isLast && (
+            <button
+              onClick={goSkip}
+              disabled={isSaving}
+              className="flex-1 rounded-xl border border-dashed border-hairline bg-transparent py-3.5 text-[14px] font-bold text-slate disabled:opacity-40 md:flex-none md:px-8"
+            >
+              Skip
+            </button>
+          )}
           <button
             onClick={goNext}
             disabled={!canProceed || isSaving}

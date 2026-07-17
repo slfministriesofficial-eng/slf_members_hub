@@ -1,4 +1,4 @@
-import type { ActivityItem, CareItem, Member, UpcomingDate } from './types'
+import type { ActivityItem, CareItem, Member } from './types'
 
 export const MEMBERS: Member[] = [
   {
@@ -118,12 +118,6 @@ export const ACTIVITY: ActivityItem[] = [
   { id: 'a2', text: 'Grace Priya flagged absent x3', time: 'TODAY · 9:02 AM' },
   { id: 'a3', text: 'Follow-up completed — Daniel Kumar', time: 'YESTERDAY' },
   { id: 'a4', text: 'Weekly backup completed', time: 'YESTERDAY · 2:00 AM' },
-]
-
-export const UPCOMING_DATES: UpcomingDate[] = [
-  { id: 'u1', day: '14', month: 'Jul', who: 'Ann Prasad', what: 'Turns 9 · birthday' },
-  { id: 'u2', day: '16', month: 'Jul', who: 'The Josephs', what: 'Wedding anniv.' },
-  { id: 'u3', day: '19', month: 'Jul', who: 'Daniel Kumar', what: 'Baptism anniv.' },
 ]
 
 export const CARE_ITEMS: CareItem[] = [

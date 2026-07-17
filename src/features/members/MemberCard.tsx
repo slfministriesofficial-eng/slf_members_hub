@@ -1,6 +1,7 @@
 import { Icon } from '../../components/ui/Icon'
 import { Card } from '../../components/ui/Card'
 import { Avatar } from '../../components/ui/Avatar'
+import { NotificationStatusBell } from '../../notifications/NotificationStatusBell'
 import type { Member } from '../../mock/types'
 
 export type MemberCardType = 'birthday' | 'anniversary' | 'new-member'
@@ -54,9 +55,12 @@ export function MemberCard({
       <div className="flex items-start gap-3">
         <Avatar initials={member.initials} color={member.color} size={44} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13.5px] font-bold text-heading">
-            {member.name}
-            {coupleName && <span className="font-normal text-slate"> &amp; {coupleName}</span>}
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[13.5px] font-bold text-heading">
+              {member.name}
+              {coupleName && <span className="font-normal text-slate"> &amp; {coupleName}</span>}
+            </span>
+            <NotificationStatusBell memberId={member.memberId} />
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px]">
             <span className="font-mono text-slate">{member.memberId}</span>

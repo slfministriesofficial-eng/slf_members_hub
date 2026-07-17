@@ -52,6 +52,7 @@
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.75"/><path d="M4 17l5-5 4 4 3-3 4 4"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M8.6 5.2A6 6 0 0 1 18 10c0 3 1 5 2 6h-5"/><path d="M6.3 8.6C6.1 9 6 9.5 6 10c0 3-1 5-2 6h7"/><path d="M10 19a2 2 0 0 0 4 0"/><path d="M4 4l16 16"/></symbol>
     <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v14M7 18l-3.2-3.2M7 18l3.2-3.2"/><path d="M17 20V6M17 6l-3.2 3.2M17 6l3.2 3.2"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1.1 1.1"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1.1-1.1"/></symbol>
     <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z"/><path d="M8.4 8.8c.1-.6.5-1.3 1-1.3s.7.3.9.7c.2.5.4 1.1.2 1.5-.2.4-.6.5-.3.9.4.7 1.4 1.7 2.1 2.1.4.3.5-.1.9-.3.4-.2 1-.1 1.5.2.4.2.7.6.7.9-.1.7-1 1.2-1.7 1.2-1.4 0-4-1.4-5.1-3.8-.3-.6-.7-1.4-.2-2.1Z" fill="currentColor" stroke="none"/></symbol>

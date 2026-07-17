@@ -1,16 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
-import { IconButton } from '../components/ui/IconButton'
-import { StatusPill } from '../components/ui/StatusPill'
-import { CARE_ITEMS } from '../mock/data'
 import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
 import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } from '../utils/celebrations'
 import { getCompletedIds } from '../utils/completedWishes'
+import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
+import { findNextTrigger, NextNotificationCard, ScheduleEventRow, useTokenCount } from '../notifications/scheduleView'
+import { markFollowUpsSeen } from '../hooks/useAlertCounts'
 import type { Member } from '../mock/types'
+
+/** How many upcoming triggers the dashboard previews before "View All". */
+const SCHEDULE_PREVIEW_LIMIT = 5
 
 type FilterKey = 'all' | 'today' | 'week' | 'month' | 'completed'
 
@@ -38,9 +41,36 @@ export function FollowUpsScreen() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [completedIds] = useState<Set<string>>(getCompletedIds)
+  const [schedule, setSchedule] = useState<UpcomingSchedule | null>(null)
+  const [scheduleError, setScheduleError] = useState(false)
 
   const now = useMemo(() => new Date(), [])
   const newMembers = useMemo(() => deriveNewMembers(members), [members])
+
+  // Opening this page counts as "seeing" the pending welcomes — clears the
+  // Follow-ups badge until a new member appears.
+  useEffect(() => {
+    if (isLoading || isError) return
+    markFollowUpsSeen(newMembers.map((e) => e.member.id))
+  }, [isLoading, isError, newMembers])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchUpcomingSchedule()
+      .then((data) => {
+        if (!cancelled) setSchedule(data)
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleError(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
+  const previewEvents = schedule ? schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT) : []
+  const { data: deviceCount } = useTokenCount()
 
   // Once welcomed, someone drops off every filter except "Completed" itself.
   const filteredNewMembers = useMemo(() => {
@@ -62,38 +92,74 @@ export function FollowUpsScreen() {
 
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between">
-        <h1 className="font-display text-[20px] font-bold text-heading">Follow-ups</h1>
-        <IconButton icon="bell" />
+      {/* Title + the page's own Schedule button share the top row — same
+          alignment pattern as the Members and Attendance pages. */}
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h1 className="font-display text-[20px] font-bold text-heading md:text-[26px]">Follow-ups</h1>
+        <button onClick={() => navigate('/follow-ups/schedule')} className="flex shrink-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
+            <Icon name="cal-check" className="icon !h-[16px] !w-[16px] text-white" />
+          </span>
+          <span className="text-[12px] font-bold text-brass-deep">Schedule</span>
+        </button>
       </div>
+      <p className="mb-4 overflow-hidden whitespace-nowrap text-[10px] text-slate md:text-[12.5px]">
+        Stay ahead of what's coming for your members.
+      </p>
 
-      <div>
-        {CARE_ITEMS.map((item) => (
-          <div key={item.id} className="mb-2.5 rounded-2xl bg-surface p-3.5 shadow-card">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[13px] font-bold text-heading">{item.who}</span>
-              <StatusPill status={item.tagStatus} label={item.tagLabel} size="sm" />
-            </div>
-            <p className="mb-2.5 text-[12px] leading-relaxed text-charcoal">{item.note}</p>
-            <div className="flex items-center justify-between">
-              <span
-                className={`font-mono text-[11px] ${
-                  item.isDueToday ? 'font-bold text-status-alert-fg' : 'text-slate'
-                }`}
-              >
-                {item.due}
-              </span>
-              <button
-                className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${
-                  item.isDueToday ? 'bg-ink text-white' : 'border border-hairline text-heading'
-                }`}
-              >
-                Log contact
-              </button>
-            </div>
+      {/* NEXT NOTIFICATION + UPCOMING PREVIEW — real automation data replacing
+          the old mock pastoral-care placeholders. */}
+      {!scheduleError && !schedule && (
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+        </div>
+      )}
+
+      {!scheduleError && schedule && (
+        <>
+          {nextTrigger && <NextNotificationCard trigger={nextTrigger} now={now} deviceCount={deviceCount ?? null} />}
+
+          <div className="mb-2 mt-5 flex items-center justify-between">
+            <h2 className="font-display text-[15px] font-bold text-heading">
+              Upcoming This Month ({schedule.events.length})
+            </h2>
+            <button
+              onClick={() => navigate('/follow-ups/schedule')}
+              className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
+            >
+              View All
+            </button>
           </div>
-        ))}
-      </div>
+
+          {previewEvents.length === 0 ? (
+            <Card className="p-5 text-center">
+              <p className="text-[12.5px] text-slate">
+                No dated notifications left this month — daily prayer reminders continue every evening.
+              </p>
+            </Card>
+          ) : (
+            <Card>
+              {previewEvents.map((event, i) => (
+                <ScheduleEventRow
+                  key={`${event.kind}-${event.date}-${event.time}-${event.memberId ?? i}`}
+                  event={event}
+                  showDay
+                  now={now}
+                />
+              ))}
+            </Card>
+          )}
+        </>
+      )}
+
+      {scheduleError && (
+        <Card className="p-5 text-center">
+          <p className="text-[12.5px] text-slate">
+            Could not load the notification schedule — make sure the latest Apps Script version is deployed.
+          </p>
+        </Card>
+      )}
 
       {/* NEW MEMBER WELCOME */}
       <section className="mt-8 motion-safe:animate-[fade-rise_0.4s_ease-out_both]">

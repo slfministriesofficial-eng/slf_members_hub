@@ -6,7 +6,7 @@ import { CHURCH_INFO } from '../../constants/church'
 export function IdCardBack() {
   const founder = CHURCH_INFO.leadership[0]
   return (
-    <div className="relative aspect-[8/5] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-[#FBF8F1] to-[#F1EAD8] shadow-elev">
+    <div className="relative aspect-[8/5] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-[#FBF8F1] to-[#F1EAD8]">
       {/* corner wave accents — kept small and pushed outside the card so they
           read as a folded-corner ribbon instead of covering the content grid */}
       <div className="pointer-events-none absolute -left-24 -top-28 h-32 w-32 rotate-45 rounded-[42%] bg-gradient-to-br from-ink-deep to-ink" />

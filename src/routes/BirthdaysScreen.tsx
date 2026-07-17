@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
@@ -7,6 +7,7 @@ import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
 import { deriveBirthdays, deriveAnniversaries, formatUpcomingLabel, dateParts } from '../utils/celebrations'
 import { getCompletedIds } from '../utils/completedWishes'
+import { markCelebrationsSeen } from '../hooks/useAlertCounts'
 import type { Member } from '../mock/types'
 
 type FilterKey = 'all' | 'birthdays' | 'anniversaries' | 'today' | 'upcoming'
@@ -29,6 +30,14 @@ export function BirthdaysScreen() {
   const now = useMemo(() => new Date(), [])
   const birthdays = useMemo(() => deriveBirthdays(members), [members])
   const anniversaries = useMemo(() => deriveAnniversaries(members), [members])
+
+  // Opening this page counts as "seeing" today's + this week's celebrations —
+  // clears the Birthdays badges on every nav surface.
+  useEffect(() => {
+    if (isLoading || isError) return
+    const weekIds = [...birthdays, ...anniversaries].filter((e) => e.daysAway <= 7).map((e) => e.member.id)
+    markCelebrationsSeen(weekIds)
+  }, [isLoading, isError, birthdays, anniversaries])
 
   const todaysBirthdays = birthdays.filter((e) => e.daysAway === 0)
   const todaysAnniversaries = anniversaries.filter((e) => e.daysAway === 0)

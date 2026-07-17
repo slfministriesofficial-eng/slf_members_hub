@@ -10,6 +10,8 @@ import { MINISTRY_OPTIONS } from '../features/members/types'
 import { buildRemovalMessage, normalizeWhatsappNumber, openWhatsappWithText } from '../features/members/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
 import { AddWhatsappModal } from '../features/members/AddWhatsappModal'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
+import { markMembersSeen } from '../hooks/useAlertCounts'
 import type { Member } from '../mock/types'
 
 type ViewMode = 'list' | 'grid'
@@ -78,6 +80,12 @@ export function MembersScreen() {
     const t = setTimeout(() => setToast(null), 4000)
     return () => clearTimeout(t)
   }, [toast])
+
+  // Opening this page counts as "seeing" the roster — clears the new-members
+  // badge on every nav surface.
+  useEffect(() => {
+    if (!isLoading && !isError && members.length > 0) markMembersSeen(members)
+  }, [isLoading, isError, members])
 
   function changeView(next: ViewMode) {
     setView(next)
@@ -407,6 +415,7 @@ function PreviewMemberRow({ member, onOpen }: { member: Member; onOpen: () => vo
         <div className="flex items-center gap-1.5">
           <span className="truncate font-mono text-[12.5px] font-bold text-heading">{member.memberId}</span>
           <StatusPill status={member.status} label={member.statusLabel} size="sm" />
+          <NotificationStatusBell memberId={member.memberId} />
         </div>
         <div className="mt-0.5 truncate text-[13px] text-heading">{member.name}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-slate">
@@ -551,6 +560,7 @@ function MemberListRow({ member, navigate, onDelete, deleting, onAddWhatsapp, de
           <span className="truncate text-[14.5px] font-bold text-heading">{member.name}</span>
           {member.familyCount ? <FamilyBadge count={member.familyCount} /> : null}
           <ActiveBadge />
+          <NotificationStatusBell memberId={member.memberId} />
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate">
           <span>{member.memberId}</span>
@@ -606,6 +616,7 @@ function MemberGridCard({ member, navigate, onDelete, deleting, onAddWhatsapp, d
       <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
         {member.familyCount ? <FamilyBadge count={member.familyCount} /> : null}
         <ActiveBadge />
+        <NotificationStatusBell memberId={member.memberId} />
       </div>
       <div className="mt-2 text-[10.5px] italic text-slate">Member since {sinceYear}</div>
     </div>

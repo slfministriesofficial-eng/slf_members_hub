@@ -1,8 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
+import { CountBadge } from '../ui/CountBadge'
+import { useAlertCounts, badgeForRoute } from '../../hooks/useAlertCounts'
 import logo from '../../assets/slf_logo_cropped.png'
 
-const LINKS = [
+// Single source of truth for the app's navigation — the mobile NavDrawer
+// renders these same lists so both surfaces always stay identical.
+export const LINKS = [
   { to: '/', label: 'Dashboard', icon: 'home', end: true },
   { to: '/members', label: 'Members', icon: 'users', end: false },
   { to: '/attendance', label: 'Attendance', icon: 'cal-check', end: false },
@@ -12,31 +16,49 @@ const LINKS = [
   { to: '/membership-cards', label: 'Membership Cards', icon: 'id', end: false },
 ]
 
-const SYSTEM_LINKS = [
+export const SYSTEM_LINKS = [
   { to: '/reports', label: 'Reports', icon: 'chart', end: false },
   { to: '/access', label: 'Access Settings', icon: 'shield', end: false },
   { to: '/more', label: 'More', icon: 'grid', end: false },
 ]
 
-function NavItem({ to, label, icon, end }: { to: string; label: string; icon: string; end: boolean }) {
+export function NavItem({
+  to,
+  label,
+  icon,
+  end,
+  onClick,
+  badge = 0,
+}: {
+  to: string
+  label: string
+  icon: string
+  end: boolean
+  onClick?: () => void
+  badge?: number
+}) {
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={onClick}
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors ${
           isActive ? 'bg-brass/15 text-brass' : 'text-[#CFDDD3] hover:text-white'
         }`
       }
     >
-      <Icon name={icon} className="icon !h-[17px] !w-[17px]" />
-      {label}
+      <Icon name={icon} className="icon !h-[17px] !w-[17px] shrink-0" />
+      <span className="min-w-0 flex-1">{label}</span>
+      <CountBadge count={badge} />
     </NavLink>
   )
 }
 
 // Desktop/web only — mobile keeps the bottom tab bar untouched.
 export function Sidebar() {
+  const counts = useAlertCounts()
+
   return (
     <aside className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-56 md:shrink-0 md:flex-col md:overflow-y-auto md:bg-ink-deep md:px-4 md:py-6 print:hidden">
       <div className="mb-8 flex items-center gap-2.5 px-2 text-white">
@@ -48,7 +70,7 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-1">
         {LINKS.map((link) => (
-          <NavItem key={link.to} {...link} />
+          <NavItem key={link.to} {...link} badge={badgeForRoute(counts, link.to)} />
         ))}
       </nav>
 
@@ -57,7 +79,7 @@ export function Sidebar() {
       </div>
       <nav className="flex flex-col gap-1">
         {SYSTEM_LINKS.map((link) => (
-          <NavItem key={link.to} {...link} />
+          <NavItem key={link.to} {...link} badge={badgeForRoute(counts, link.to)} />
         ))}
       </nav>
     </aside>

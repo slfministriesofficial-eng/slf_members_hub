@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card'
 import { Avatar } from '../components/ui/Avatar'
 import { useMembers } from '../features/members/MembersContext'
 import { calculateAge, calculateYearsMarried, dateParts } from '../utils/celebrations'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 
 type ProfileType = 'birthday' | 'anniversary' | 'new-member' | 'attendance'
 
@@ -96,6 +97,7 @@ export function MemberQuickProfileScreen() {
               >
                 {member.initials}
               </span>
+              <NotificationStatusBell memberId={member.memberId} />
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate">
               <span>{member.memberId}</span>

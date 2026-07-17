@@ -6,6 +6,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
 import { getAttendanceMarks, togglePresence, type AttendanceMarksMap } from '../utils/attendanceMarks'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import type { Member } from '../mock/types'
 
 const FILTER_CHIPS: { key: 'all' | 'present' | 'absent'; label: string }[] = [
@@ -178,7 +179,10 @@ function MemberRow({
       <Checkbox checked={present} onChange={onToggle} ariaLabel={`Mark ${member.name} present`} />
       <Avatar initials={member.initials} color={member.color} size={40} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13.5px] font-bold text-heading">{member.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[13.5px] font-bold text-heading">{member.name}</span>
+          <NotificationStatusBell memberId={member.memberId} />
+        </div>
         <div className="mt-0.5 truncate font-mono text-[11px] text-slate">
           {member.memberId} • {member.ministry}
         </div>

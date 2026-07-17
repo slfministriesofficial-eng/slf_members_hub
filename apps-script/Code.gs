@@ -101,6 +101,20 @@ function doGet(e) {
     return jsonResponse({ count: countFcmTokens() })
   }
 
+  // Per-member notification status for the bell indicator on member cards.
+  // Deliberately returns NO token values — only whether each member has a
+  // registration and which device/browser it came from.
+  if (e.parameter && e.parameter.tokens === 'status') {
+    return jsonResponse(getFcmStatusByMember())
+  }
+
+  // Upcoming-triggers view for the admin's Notification Schedule page —
+  // computed HERE so the page always mirrors what the trigger will really
+  // fire (SCHEDULE + member dates live server-side; no duplicated logic).
+  if (e.parameter && e.parameter.schedule === 'upcoming') {
+    return jsonResponse(getUpcomingSchedule())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -136,6 +150,7 @@ function doPost(e) {
     if (body.action === 'saveFcmToken') return jsonResponse(saveFCMToken(body))
     if (body.action === 'deleteFcmToken') return jsonResponse(deleteFCMToken(body))
     if (body.action === 'sendPush') return jsonResponse(sendPushBroadcast(body))
+    if (body.action === 'schedulePush') return jsonResponse(schedulePush(body))
 
     return jsonResponse({ error: 'Unknown action: ' + body.action })
   } catch (err) {
@@ -410,6 +425,7 @@ function sendPushToTokens(tokens, msg) {
   const url = 'https://fcm.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID + '/messages:send'
   let sent = 0
   let failed = 0
+  const deadTokens = []
 
   tokens.forEach(function (token) {
     if (!token) return
@@ -433,12 +449,29 @@ function sendPushToTokens(tokens, msg) {
         payload: JSON.stringify(payload),
         muteHttpExceptions: true,
       })
-      if (response.getResponseCode() === 200) sent++
-      else failed++
+      const code = response.getResponseCode()
+      if (code === 200) {
+        sent++
+      } else {
+        failed++
+        // 404 UNREGISTERED = the token is permanently dead (rotated/uninstalled).
+        // Collect it so the row gets pruned — otherwise dead rows pile up and
+        // inflate the device counts shown in the app.
+        if (code === 404) deadTokens.push(token)
+      }
     } catch (err) {
       failed++
     }
   })
+
+  deadTokens.forEach(function (token) {
+    try {
+      deleteFCMToken({ token: token })
+    } catch (err) {
+      // best-effort cleanup — a failed prune just retries on the next send
+    }
+  })
+
   return { sent: sent, failed: failed }
 }
 
@@ -615,25 +648,115 @@ function runScheduledNotifications() {
   const dateKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd')
   const cache = CacheService.getScriptCache()
 
+  // Church-wide calendar entries due in this slot (services, prayer, live alerts)
   const due = SCHEDULE.filter(function (entry) {
     return entry.time === slot && (entry.day === '*' || entry.day === day)
   })
-  if (due.length === 0) return
+  if (due.length > 0) {
+    const tokens = getFcmTokens()
+    if (tokens.length > 0) {
+      due.forEach(function (entry) {
+        const dedupeKey = 'push-' + dateKey + '-' + slot + '-' + entry.key
+        if (cache.get(dedupeKey)) return
+        cache.put(dedupeKey, '1', 21600) // 6h — far longer than any trigger drift
+        sendPushToTokens(tokens, {
+          title: entry.title,
+          body: entry.body,
+          url: entry.url,
+          tag: 'slf-' + entry.key,
+        })
+      })
+    }
+  }
 
-  const tokens = getFcmTokens()
-  if (tokens.length === 0) return
+  // Personal greetings — each one goes ONLY to that member's own devices
+  if (slot === PERSONAL_GREETINGS_SLOT) runPersonalGreetings(now, dateKey, cache)
+  if (slot === VISITOR_WELCOME_SLOT) runVisitorWelcome(now, dateKey, cache)
 
-  due.forEach(function (entry) {
-    const dedupeKey = 'push-' + dateKey + '-' + slot + '-' + entry.key
-    if (cache.get(dedupeKey)) return
-    cache.put(dedupeKey, '1', 21600) // 6h — far longer than any trigger drift
+  // Admin-scheduled announcements whose time has arrived
+  processScheduledPushes(now)
+}
+
+// ============================== SCHEDULED ANNOUNCEMENTS ==============================
+// One-off announcements the admin schedules from the Announcements page.
+// Stored in their own sheet; the 15-minute dispatcher sends any pending row
+// whose time has arrived, then marks it sent (so it can never fire twice).
+
+const SCHEDULED_SHEET_NAME = 'Scheduled Notifications'
+const SCHEDULED_HEADERS = ['ID', 'Title', 'Body', 'URL', 'Send At', 'Status', 'Created At', 'Sent At']
+
+/**
+ * Get (or create on first use) the scheduled-announcements sheet.
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the sheet
+ */
+function getScheduledSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = spreadsheet.getSheetByName(SCHEDULED_SHEET_NAME)
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SCHEDULED_SHEET_NAME)
+    sheet.appendRow(SCHEDULED_HEADERS)
+  }
+  return sheet
+}
+
+/**
+ * "schedulePush" web-app action — store an announcement to be pushed later.
+ * @param {{title: string, body: string, url?: string, sendAt: string}} body
+ *   sendAt is an ISO datetime; must be in the future
+ * @returns {{scheduled: boolean, sendAt: string}} confirmation payload
+ */
+function schedulePush(body) {
+  if (!body.title && !body.body) throw new Error('Missing notification content')
+  if (!body.sendAt) throw new Error('Missing sendAt')
+  const sendAt = new Date(body.sendAt)
+  if (isNaN(sendAt.getTime())) throw new Error('Invalid sendAt')
+  if (sendAt.getTime() <= Date.now()) throw new Error('Scheduled time must be in the future')
+
+  getScheduledSheet().appendRow([
+    Utilities.getUuid(),
+    body.title || '',
+    body.body || '',
+    body.url || '',
+    sendAt.toISOString(),
+    'pending',
+    new Date().toISOString(),
+    '',
+  ])
+  return { scheduled: true, sendAt: sendAt.toISOString() }
+}
+
+/**
+ * Send every pending scheduled announcement whose time has arrived, then
+ * mark it sent. Runs inside the 15-minute dispatcher, so delivery lands
+ * within ~15 minutes of the chosen time.
+ * @param {Date} now current time
+ */
+function processScheduledPushes(now) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  const sheet = spreadsheet.getSheetByName(SCHEDULED_SHEET_NAME)
+  if (!sheet) return // nothing ever scheduled — don't create the sheet just to read it
+
+  const rows = sheet.getDataRange().getValues()
+  let tokens = null // fetched lazily, only if something is actually due
+
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][5] !== 'pending') continue
+    const sendAt = parseSheetDate(rows[i][4])
+    if (!sendAt || sendAt.getTime() > now.getTime()) continue
+
+    // Mark sent BEFORE sending — if the send partially fails we prefer a
+    // missed retry over accidentally blasting everyone twice.
+    sheet.getRange(i + 1, 6, 1, 3).setValues([['sent', rows[i][6], new Date().toISOString()]])
+
+    if (tokens === null) tokens = getFcmTokens()
+    if (tokens.length === 0) continue
     sendPushToTokens(tokens, {
-      title: entry.title,
-      body: entry.body,
-      url: entry.url,
-      tag: 'slf-' + entry.key,
+      title: rows[i][1],
+      body: rows[i][2],
+      url: rows[i][3] || undefined,
+      tag: 'slf-scheduled-' + rows[i][0],
     })
-  })
+  }
 }
 
 /**
@@ -650,4 +773,384 @@ function setupTriggers() {
   })
   ScriptApp.newTrigger('runScheduledNotifications').timeBased().everyMinutes(15).create()
   return 'Scheduled-notification trigger installed (runs every 15 minutes).'
+}
+
+// ============================== PERSONAL NOTIFICATIONS ==============================
+// Per-member greetings, matched daily against the Members sheet and sent ONLY
+// to the devices that member registered (via "Get Church Notifications" on
+// their public profile page). Members who never opted in are skipped silently.
+//
+//   8:00 AM — Birthday, Wedding Anniversary, Membership Anniversary,
+//             Baptism Anniversary (whichever apply that day)
+//   7:00 PM — First-Time Visitor Welcome (registered earlier the same day)
+
+const PERSONAL_GREETINGS_SLOT = '08:00'
+const VISITOR_WELCOME_SLOT = '19:00'
+const SIGN_OFF_LINES = 'With love and prayers,\nSarah Living Faith Ministries, Vijayawada'
+
+/**
+ * All member records as camelCase field objects (same shape the web app uses).
+ * @returns {Object[]} member field objects
+ */
+function getAllMemberFields() {
+  const rows = getSheet().getDataRange().getValues()
+  return rows
+    .slice(1)
+    .map(function (row) {
+      return rowToRecord(HEADERS, row)
+    })
+    .filter(function (r) {
+      return r['Member ID']
+    })
+    .map(recordToFields)
+}
+
+/**
+ * Member ID → [tokens] map, so each personal greeting targets only the
+ * devices that member registered.
+ * @returns {Object<string, string[]>} tokens grouped by Member ID
+ */
+function getFcmTokenMap() {
+  const rows = getFcmSheet().getDataRange().getValues()
+  const map = {}
+  for (let i = 1; i < rows.length; i++) {
+    const memberId = rows[i][0]
+    const token = rows[i][1]
+    if (!memberId || !token) continue
+    if (!map[memberId]) map[memberId] = []
+    map[memberId].push(token)
+  }
+  return map
+}
+
+/**
+ * Parse a sheet cell that should hold a date — tolerates real Date cells and
+ * 'yyyy-MM-dd' text cells (the app writes dates as text on purpose).
+ * @param {*} value raw cell value
+ * @returns {Date | null} parsed date, or null when empty/invalid
+ */
+function parseSheetDate(value) {
+  if (!value) return null
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value
+  const parsed = new Date(String(value))
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
+/**
+ * Does an annual event (birthday/anniversary) fall on today's month+day?
+ * Feb-29 events are celebrated on Feb 28 in non-leap years instead of being
+ * skipped for three years out of four.
+ * @param {Date | null} eventDate the original event date
+ * @param {Date} now today
+ * @returns {boolean} true when the anniversary is today
+ */
+function matchesAnnualDate(eventDate, now) {
+  if (!eventDate) return false
+  const eventMonth = eventDate.getMonth()
+  const eventDay = eventDate.getDate()
+  if (eventMonth === now.getMonth() && eventDay === now.getDate()) return true
+  if (eventMonth === 1 && eventDay === 29 && now.getMonth() === 1 && now.getDate() === 28) {
+    const year = now.getFullYear()
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+    return !isLeap
+  }
+  return false
+}
+
+/**
+ * "Full Name & Spouse's Name" when a spouse is on file, otherwise just the
+ * member's name (per spec: single / no spouse → only {Full Name}).
+ * @param {Object} member camelCase member fields
+ * @returns {string} greeting name(s)
+ */
+function coupleName(member) {
+  const name = member.fullName || 'Member'
+  const spouse = (member.spouseName || '').toString().trim()
+  return spouse ? name + ' & ' + spouse : name
+}
+
+/**
+ * Send one personal greeting at most once per member per day.
+ * @param {GoogleAppsScript.Cache.Cache} cache script cache for dedupe
+ * @param {string} dateKey yyyy-MM-dd
+ * @param {string} eventKey e.g. 'birthday'
+ * @param {string} memberId whose greeting this is
+ * @param {string[]} tokens that member's device tokens
+ * @param {{title: string, body: string}} msg what to send
+ */
+function sendPersonalOnce(cache, dateKey, eventKey, memberId, tokens, msg) {
+  const dedupeKey = 'personal-' + dateKey + '-' + eventKey + '-' + memberId
+  if (cache.get(dedupeKey)) return
+  cache.put(dedupeKey, '1', 21600)
+  sendPushToTokens(tokens, { title: msg.title, body: msg.body, tag: 'slf-' + eventKey })
+}
+
+/**
+ * 8:00 AM sweep — birthday, wedding anniversary, membership anniversary, and
+ * baptism anniversary greetings for every member whose date matches today.
+ * Anniversaries are skipped in their starting year (joining/marriage/baptism
+ * day itself is not an "anniversary" yet).
+ * @param {Date} now current time
+ * @param {string} dateKey yyyy-MM-dd
+ * @param {GoogleAppsScript.Cache.Cache} cache script cache for dedupe
+ */
+function runPersonalGreetings(now, dateKey, cache) {
+  const tokenMap = getFcmTokenMap()
+  if (Object.keys(tokenMap).length === 0) return
+  const currentYear = now.getFullYear()
+
+  getAllMemberFields().forEach(function (member) {
+    const tokens = tokenMap[member.memberId]
+    if (!tokens || tokens.length === 0) return
+    const name = member.fullName || 'Member'
+
+    const dob = parseSheetDate(member.dob)
+    if (matchesAnnualDate(dob, now)) {
+      sendPersonalOnce(cache, dateKey, 'birthday', member.memberId, tokens, {
+        title: '🎂 Happy Birthday!',
+        body:
+          'Dear ' +
+          name +
+          ',\nMay our Lord Jesus Christ bless you with abundant joy, good health, wisdom, peace, and many more blessed years of life.\n\nWishing you a very Happy Birthday!\n\n' +
+          SIGN_OFF_LINES,
+      })
+    }
+
+    const wedding = parseSheetDate(member.marriageDay)
+    if (matchesAnnualDate(wedding, now) && wedding.getFullYear() < currentYear) {
+      sendPersonalOnce(cache, dateKey, 'wedding-anniversary', member.memberId, tokens, {
+        title: '💍 Happy Wedding Anniversary!',
+        body:
+          'Dear ' +
+          coupleName(member) +
+          ',\nMay God continue to bless your marriage with love, peace, joy, and abundant grace.\n\nWishing you both a blessed Wedding Anniversary.\n\n' +
+          SIGN_OFF_LINES,
+      })
+    }
+
+    const joined = parseSheetDate(member.joiningDate) || parseSheetDate(member.registrationDate)
+    if (matchesAnnualDate(joined, now) && joined.getFullYear() < currentYear) {
+      sendPersonalOnce(cache, dateKey, 'membership-anniversary', member.memberId, tokens, {
+        title: '🎉 Happy Membership Anniversary!',
+        body:
+          'Dear ' +
+          coupleName(member) +
+          ",\nToday marks another wonderful year as members of Sarah Living Faith Ministries, Vijayawada.\n\nThank you for your faithful fellowship, service, and commitment to God's Kingdom. May the Lord continue to bless your family abundantly.\n\n" +
+          SIGN_OFF_LINES,
+      })
+    }
+
+    const baptized = parseSheetDate(member.baptizedDate)
+    if (matchesAnnualDate(baptized, now) && baptized.getFullYear() < currentYear) {
+      sendPersonalOnce(cache, dateKey, 'baptism-anniversary', member.memberId, tokens, {
+        title: '✝️ Happy Baptism Anniversary!',
+        body:
+          'Dear ' +
+          name +
+          ',\nToday marks your Baptism Anniversary. May the Lord strengthen your faith and continue to guide you in your walk with Christ.\n\nMay His grace and peace be with you always.\n\n' +
+          SIGN_OFF_LINES,
+      })
+    }
+  })
+}
+
+/**
+ * 7:00 PM sweep — same-day welcome for first-time visitors who registered
+ * earlier today.
+ * @param {Date} now current time
+ * @param {string} dateKey yyyy-MM-dd
+ * @param {GoogleAppsScript.Cache.Cache} cache script cache for dedupe
+ */
+function runVisitorWelcome(now, dateKey, cache) {
+  const tokenMap = getFcmTokenMap()
+  if (Object.keys(tokenMap).length === 0) return
+  const tz = Session.getScriptTimeZone()
+
+  getAllMemberFields().forEach(function (member) {
+    if (member.firstTimeVisiting !== 'Yes') return
+    const registered = parseSheetDate(member.registrationDate)
+    if (!registered) return
+    if (Utilities.formatDate(registered, tz, 'yyyy-MM-dd') !== dateKey) return
+
+    const tokens = tokenMap[member.memberId]
+    if (!tokens || tokens.length === 0) return
+
+    sendPersonalOnce(cache, dateKey, 'visitor-welcome', member.memberId, tokens, {
+      title: '👋 Welcome to Sarah Living Faith Ministries!',
+      body:
+        'Dear ' +
+        (member.fullName || 'Friend') +
+        ",\nThank you for worshipping with us today. We are delighted to have you with us and pray that you experienced God's presence.\n\nWe look forward to welcoming you again soon.\n\nGod bless you and your family.\nSarah Living Faith Ministries, Vijayawada",
+    })
+  })
+}
+
+// ============================== UPCOMING-SCHEDULE VIEW ==============================
+// Read-only data for the admin's "Notification Schedule" page: everything the
+// dispatcher will fire between now and the end of the current month.
+
+/**
+ * 'HH:mm' has already passed at `now`?
+ * @param {string} time 'HH:mm'
+ * @param {Date} now reference moment
+ * @returns {boolean} true when the slot time is not after now
+ */
+function timeHasPassed(time, now) {
+  const parts = time.split(':')
+  const slotMinutes = Number(parts[0]) * 60 + Number(parts[1])
+  return slotMinutes <= now.getHours() * 60 + now.getMinutes()
+}
+
+/**
+ * Upcoming notification triggers for the rest of the current month —
+ * church-wide weekly entries expanded per date, daily entries returned once
+ * (the page shows them as a single "repeats daily" card), and every personal
+ * greeting (birthday / wedding / membership / baptism) computed from the
+ * Members sheet. Visitor welcomes are unpredictable (same-day) and are
+ * represented by the daily card note client-side.
+ * @returns {{month: string, daily: Object[], events: Object[]}}
+ */
+function getUpcomingSchedule() {
+  const tz = Session.getScriptTimeZone()
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const lastDay = new Date(year, month + 1, 0).getDate()
+
+  const daily = SCHEDULE.filter(function (entry) {
+    return entry.day === '*'
+  }).map(function (entry) {
+    return { key: entry.key, time: entry.time, title: entry.title, live: Boolean(entry.url) }
+  })
+
+  const events = []
+
+  for (let dayNum = now.getDate(); dayNum <= lastDay; dayNum++) {
+    const date = new Date(year, month, dayNum)
+    const isToday = dayNum === now.getDate()
+    const dateStr = Utilities.formatDate(date, tz, 'yyyy-MM-dd')
+
+    // Church-wide weekly entries falling on this date
+    SCHEDULE.forEach(function (entry) {
+      if (entry.day === '*' || entry.day !== date.getDay()) return
+      if (isToday && timeHasPassed(entry.time, now)) return
+      events.push({
+        date: dateStr,
+        time: entry.time,
+        kind: 'church',
+        title: entry.title,
+        live: Boolean(entry.url),
+      })
+    })
+  }
+
+  // Personal greetings for the rest of the month (all fire at 08:00)
+  const personalTime = PERSONAL_GREETINGS_SLOT
+  getAllMemberFields().forEach(function (member) {
+    const checks = [
+      { kind: 'birthday', title: 'Birthday', date: parseSheetDate(member.dob), skipYearZero: false },
+      {
+        kind: 'wedding-anniversary',
+        title: 'Wedding Anniversary',
+        date: parseSheetDate(member.marriageDay),
+        skipYearZero: true,
+      },
+      {
+        kind: 'membership-anniversary',
+        title: 'Membership Anniversary',
+        date: parseSheetDate(member.joiningDate) || parseSheetDate(member.registrationDate),
+        skipYearZero: true,
+      },
+      {
+        kind: 'baptism-anniversary',
+        title: 'Baptism Anniversary',
+        date: parseSheetDate(member.baptizedDate),
+        skipYearZero: true,
+      },
+    ]
+
+    checks.forEach(function (check) {
+      if (!check.date) return
+      if (check.skipYearZero && check.date.getFullYear() >= year) return
+      for (let dayNum = now.getDate(); dayNum <= lastDay; dayNum++) {
+        const date = new Date(year, month, dayNum)
+        if (!matchesAnnualDate(check.date, date)) continue
+        if (dayNum === now.getDate() && timeHasPassed(personalTime, now)) continue
+        events.push({
+          date: Utilities.formatDate(date, tz, 'yyyy-MM-dd'),
+          time: personalTime,
+          kind: check.kind,
+          title: check.title,
+          live: false,
+          memberName: member.fullName || member.memberId,
+          memberId: member.memberId,
+        })
+      }
+    })
+  })
+
+  // Admin-scheduled announcements still pending within this month — so the
+  // Follow-ups hero/preview and the schedule page show them alongside the
+  // church calendar and personal greetings.
+  const scheduledSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SCHEDULED_SHEET_NAME)
+  if (scheduledSheet) {
+    const scheduledRows = scheduledSheet.getDataRange().getValues()
+    const monthEnd = new Date(year, month, lastDay, 23, 59, 59)
+    for (let i = 1; i < scheduledRows.length; i++) {
+      if (scheduledRows[i][5] !== 'pending') continue
+      const sendAt = parseSheetDate(scheduledRows[i][4])
+      if (!sendAt || sendAt.getTime() <= now.getTime() || sendAt.getTime() > monthEnd.getTime()) continue
+      events.push({
+        date: Utilities.formatDate(sendAt, tz, 'yyyy-MM-dd'),
+        time: Utilities.formatDate(sendAt, tz, 'HH:mm'),
+        kind: 'scheduled',
+        title: scheduledRows[i][1] || 'Scheduled Announcement',
+        live: false,
+      })
+    }
+  }
+
+  events.sort(function (a, b) {
+    return a.date === b.date ? (a.time < b.time ? -1 : a.time > b.time ? 1 : 0) : a.date < b.date ? -1 : 1
+  })
+
+  return { month: Utilities.formatDate(now, tz, 'MMMM yyyy'), daily: daily, events: events }
+}
+
+/**
+ * Notification-status summary per member — powers the bell indicator shown
+ * beside the MEMBER badge across the app. One entry per member who has at
+ * least one registered device; the newest registration wins for the
+ * device/browser/updatedAt details. Token values are never included.
+ * @returns {{members: Array<{memberId: string, platform: string, browser: string, updatedAt: string, devices: number}>}}
+ */
+function getFcmStatusByMember() {
+  const rows = getFcmSheet().getDataRange().getValues()
+  const byMember = {}
+
+  for (let i = 1; i < rows.length; i++) {
+    const memberId = rows[i][0]
+    const token = rows[i][1]
+    if (!memberId || !token) continue
+    const updatedAt = rows[i][4] ? String(rows[i][4]) : ''
+    const existing = byMember[memberId]
+    if (!existing) {
+      byMember[memberId] = {
+        memberId: memberId,
+        platform: rows[i][2] || '',
+        browser: rows[i][3] || '',
+        updatedAt: updatedAt,
+        devices: 1,
+      }
+    } else {
+      existing.devices += 1
+      if (updatedAt > existing.updatedAt) {
+        existing.platform = rows[i][2] || ''
+        existing.browser = rows[i][3] || ''
+        existing.updatedAt = updatedAt
+      }
+    }
+  }
+
+  return { members: Object.keys(byMember).map(function (key) { return byMember[key] }) }
 }

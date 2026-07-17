@@ -26,20 +26,36 @@ export function getUpcomingDates(members: Member[], withinDays = 7, now = new Da
   const horizon = new Date(today)
   horizon.setDate(horizon.getDate() + withinDays)
 
-  const events: { date: Date; who: string; what: string }[] = []
+  const events: { date: Date; who: string; what: string; memberId: string }[] = []
 
   members.forEach((m) => {
     const birthday = parseMonthDay(m.dob)
-    if (birthday) events.push({ date: nextOccurrence(birthday.month, birthday.day, today), who: m.name, what: 'Birthday' })
+    if (birthday)
+      events.push({
+        date: nextOccurrence(birthday.month, birthday.day, today),
+        who: m.name,
+        what: 'Birthday',
+        memberId: m.memberId,
+      })
 
     const anniversary = parseMonthDay(m.anniversary)
     if (anniversary) {
-      events.push({ date: nextOccurrence(anniversary.month, anniversary.day, today), who: m.name, what: 'Wedding anniv.' })
+      events.push({
+        date: nextOccurrence(anniversary.month, anniversary.day, today),
+        who: m.name,
+        what: 'Wedding anniv.',
+        memberId: m.memberId,
+      })
     }
 
     const baptism = parseMonthDay(m.baptizedDate)
     if (baptism) {
-      events.push({ date: nextOccurrence(baptism.month, baptism.day, today), who: m.name, what: 'Baptism anniv.' })
+      events.push({
+        date: nextOccurrence(baptism.month, baptism.day, today),
+        who: m.name,
+        what: 'Baptism anniv.',
+        memberId: m.memberId,
+      })
     }
   })
 
@@ -52,5 +68,6 @@ export function getUpcomingDates(members: Member[], withinDays = 7, now = new Da
       month: e.date.toLocaleDateString('en-US', { month: 'short' }),
       who: e.who,
       what: e.what,
+      memberId: e.memberId,
     }))
 }

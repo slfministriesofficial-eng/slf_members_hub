@@ -4,7 +4,7 @@ import { ADMIN_ROLE, useAuth } from '../../auth/AuthContext'
 import { getInitials } from '../../utils/initials'
 import { getFormattedDate } from '../../utils/date'
 import { Icon } from '../ui/Icon'
-import { IconButton } from '../ui/IconButton'
+import { NotificationBell } from '../../notifications/NotificationBell'
 
 export function TopBar() {
   const { adminName, logout } = useAuth()
@@ -47,7 +47,7 @@ export function TopBar() {
           </button>
         )}
 
-        <IconButton icon="bell" dot />
+        <NotificationBell variant="desktop" />
 
         <div ref={menuRef} className="relative">
           <button

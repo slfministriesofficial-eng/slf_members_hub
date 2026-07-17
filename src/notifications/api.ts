@@ -99,6 +99,103 @@ export async function fetchTokenCount(): Promise<number> {
 /** Result of a broadcast push send. */
 export type PushBroadcastResult = { sent: number; failed: number }
 
+/** Per-member push registration summary (no token values ever included). */
+export type MemberNotificationStatus = {
+  memberId: string
+  platform: string
+  browser: string
+  updatedAt: string
+  devices: number
+}
+
+/**
+ * Fetch which members have push notifications enabled — a map keyed by
+ * Member ID. Members absent from the map have no registered device.
+ * Validates the shape so an old Apps Script deployment (which answers with
+ * the member list) surfaces as an error instead of breaking callers.
+ * @returns {Promise<Record<string, MemberNotificationStatus>>} status by Member ID
+ */
+export async function fetchMemberNotificationStatuses(): Promise<Record<string, MemberNotificationStatus>> {
+  const res = await fetch(`${BASE_URL}?tokens=status`)
+  if (!res.ok) throw new Error('Failed to load notification statuses')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (!data || !Array.isArray(data.members)) {
+    throw new Error('Status endpoint not available — deploy the latest Apps Script version')
+  }
+  const map: Record<string, MemberNotificationStatus> = {}
+  for (const entry of data.members as MemberNotificationStatus[]) {
+    if (entry && entry.memberId) map[entry.memberId] = entry
+  }
+  return map
+}
+
+/**
+ * Schedule an announcement push for a future time — the Apps Script
+ * dispatcher (which runs every 15 minutes) delivers it once the time
+ * arrives, so delivery lands within ~15 minutes of the chosen moment.
+ * @param {{title: string, body: string, url?: string, sendAt: string}} message
+ *   sendAt as an ISO datetime, must be in the future
+ * @returns {Promise<{sendAt: string}>} the confirmed scheduled time
+ */
+export async function schedulePushBroadcast(message: {
+  title: string
+  body: string
+  url?: string
+  sendAt: string
+}): Promise<{ sendAt: string }> {
+  const res = await fetch(BASE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'schedulePush', ...message }),
+  })
+  if (!res.ok) throw new Error('Failed to schedule notification')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return { sendAt: data.sendAt }
+}
+
+/** One daily-repeating schedule entry (shown once, not per-day). */
+export type DailyScheduleEntry = { key: string; time: string; title: string; live: boolean }
+
+/** One dated upcoming trigger (church calendar, personal greeting, or an admin-scheduled announcement). */
+export type UpcomingScheduleEvent = {
+  date: string
+  time: string
+  kind: 'church' | 'birthday' | 'wedding-anniversary' | 'membership-anniversary' | 'baptism-anniversary' | 'scheduled'
+  title: string
+  live: boolean
+  memberName?: string
+  memberId?: string
+}
+
+/** Everything the Notification Schedule page renders. */
+export type UpcomingSchedule = {
+  month: string
+  daily: DailyScheduleEntry[]
+  events: UpcomingScheduleEvent[]
+}
+
+/**
+ * Fetch every notification the Apps Script dispatcher will fire between now
+ * and the end of the current month — computed server-side so this page can
+ * never drift from what actually gets sent.
+ * Validates the response shape: an old Apps Script deployment (without the
+ * schedule endpoint) answers this URL with the member list instead — that
+ * must surface as a load error, never crash the page.
+ * @returns {Promise<UpcomingSchedule>} month label, daily entries, dated events
+ */
+export async function fetchUpcomingSchedule(): Promise<UpcomingSchedule> {
+  const res = await fetch(`${BASE_URL}?schedule=upcoming`)
+  if (!res.ok) throw new Error('Failed to load schedule')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (!data || !Array.isArray(data.events) || !Array.isArray(data.daily)) {
+    throw new Error('Schedule endpoint not available — deploy the latest Apps Script version')
+  }
+  return data as UpcomingSchedule
+}
+
 /**
  * Ask the Apps Script backend to push a notification to every registered
  * device (the browser itself can't send FCM messages — that requires server

@@ -5,6 +5,7 @@ import { NavDrawer } from '../nav/NavDrawer'
 import { Sidebar } from '../nav/Sidebar'
 import { TopBar } from './TopBar'
 import { Icon } from '../ui/Icon'
+import { NotificationBell } from '../../notifications/NotificationBell'
 
 // Exactly the destinations reachable directly from the drawer/bottom nav —
 // arriving at one of these is always a fresh jump, not a drill-down, so the
@@ -41,6 +42,8 @@ const HIDE_TOP_BAR_PREFIXES = [
   '/celebration-profile/',
   '/send-wish/',
   '/birthdays/',
+  '/follow-ups/',
+  '/announcements/',
 ]
 
 export function AppShell() {
@@ -70,6 +73,7 @@ export function AppShell() {
               <Icon name="menu" className="icon !h-[18px] !w-[18px]" />
             </button>
             <span className="flex-1 font-display text-[14px] font-bold text-heading">SLF Members Hub</span>
+            <NotificationBell variant="mobile" />
             {!isDashboard && !hasOwnCloseButton && (
               <button
                 onClick={() => (isPrimaryPage ? navigate('/') : navigate(-1))}

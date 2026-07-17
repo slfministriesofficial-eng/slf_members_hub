@@ -4,11 +4,12 @@ import { Icon } from '../components/ui/Icon'
 import { useMembers } from '../features/members/MembersContext'
 import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../features/members/whatsapp'
 import { fetchTokenCount, sendPushBroadcast } from '../notifications/api'
+import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { CHURCH_INFO } from '../constants/church'
 
 const MAX_MESSAGE_LENGTH = 1000
 
-type Template = { key: string; label: string; title: string; message: string }
+export type Template = { key: string; label: string; title: string; message: string }
 type LinkEntry = { label: string; url: string }
 
 function defaultLinkLabel(index: number): string {
@@ -22,7 +23,8 @@ const SIGN_OFF = `— ${CHURCH_INFO.shortName}`
 // emoji for Date/Time/Venue — confirmed on a real device that calendar/clock/
 // pin glyphs (📅⏰📍) render as broken "�" tofu on some WhatsApp clients/fonts,
 // while plain bold text is guaranteed to render everywhere.
-const TEMPLATES: Template[] = [
+// Exported so the Schedule Notification page offers the same starters.
+export const TEMPLATES: Template[] = [
   {
     key: 'sunday-service',
     label: 'Sunday Service',
@@ -244,6 +246,15 @@ export function AnnouncementsScreen() {
   const canSend = preview.trim().length > 0
   const memberCount = isLoading ? 0 : members.length
 
+  // 🔔/🔕 stats — how many of the roster have push enabled vs not. Counted
+  // against real member IDs so admin-device tokens don't inflate the number.
+  const { data: notificationStatuses } = useMemberNotificationStatuses()
+  const enabledMemberCount =
+    notificationStatuses && !isLoading
+      ? members.filter((m) => Boolean(notificationStatuses[m.memberId])).length
+      : null
+  const disabledMemberCount = enabledMemberCount === null ? null : memberCount - enabledMemberCount
+
   function applyTemplate(template: Template) {
     setTitle(template.title)
     setMessage(template.message)
@@ -319,23 +330,37 @@ export function AnnouncementsScreen() {
   return (
     <>
       <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-32 md:pb-24">
-        {/* HEADER */}
-        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Announcements</h1>
-            <p className="mt-1 max-w-[420px] text-[12.5px] text-slate">
-              Send updates and important information to your members.
-            </p>
-          </div>
-          <div className="flex gap-2.5">
-            <HeaderStat
-              icon="cal-check"
-              label="Today"
-              value={new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-            />
-            <HeaderStat icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} />
-            <HeaderStat icon="bell" label="Notify Devices" value={deviceCount === null ? '—' : String(deviceCount)} tone="brass" />
-          </div>
+        {/* HEADER — title + gold-circle action button on the top row, one-line
+            subtitle below, then a stats grid: same pattern as every other page. */}
+        <div className="mb-1 flex items-center justify-between gap-3">
+          {/* Smaller on phones — "Announcements" is a long word and at 22px it
+              collides with the Schedule button on narrow screens. */}
+          <h1 className="min-w-0 truncate font-display text-[18px] font-bold text-heading sm:text-[22px] md:text-[26px]">
+            Announcements
+          </h1>
+          <button onClick={() => navigate('/announcements/schedule')} className="flex shrink-0 items-center gap-2">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
+              <Icon name="cal-check" className="icon !h-[16px] !w-[16px] text-white" />
+            </span>
+            <span className="text-[12px] font-bold text-brass-deep">Schedule</span>
+          </button>
+        </div>
+        <p className="mb-4 overflow-hidden whitespace-nowrap text-[10px] text-slate md:text-[12.5px]">
+          Send updates and important information to your members.
+        </p>
+
+        <div className="mb-6 grid grid-cols-3 gap-2 md:gap-3">
+          <AnnouncementStatCard icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} />
+          <AnnouncementStatCard
+            icon="bell"
+            label="Notifications Enabled"
+            value={enabledMemberCount === null ? '—' : String(enabledMemberCount)}
+          />
+          <AnnouncementStatCard
+            icon="bell-off"
+            label="Notifications Disabled"
+            value={disabledMemberCount === null ? '—' : String(disabledMemberCount)}
+          />
         </div>
 
         <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
@@ -457,12 +482,18 @@ export function AnnouncementsScreen() {
         </div>
 
         {showConfirm && (
-          <ConfirmSendModal count={deviceCount ?? 0} onCancel={() => setShowConfirm(false)} onConfirm={confirmSend} />
+          <ConfirmSendModal
+            count={deviceCount ?? 0}
+            scheduledLabel={null}
+            onCancel={() => setShowConfirm(false)}
+            onConfirm={confirmSend}
+          />
         )}
 
         {showSuccess && (
           <SuccessModal
             sentCount={sentCount ?? 0}
+            scheduledLabel={null}
             onSendAnother={() => {
               setShowSuccess(false)
               clearForm()
@@ -510,38 +541,32 @@ export function AnnouncementsScreen() {
   )
 }
 
-function HeaderStat({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: string
-  label: string
-  value: string
-  tone?: 'brass'
-}) {
+// Same stat-card treatment as the Members and Attendance pages — centered
+// icon/number/label on mobile, horizontal row on desktop.
+function AnnouncementStatCard({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="flex min-w-[86px] flex-col items-center gap-1 rounded-2xl bg-surface px-3 py-2.5 text-center shadow-card">
-      <span
-        className={`flex h-7 w-7 items-center justify-center rounded-full ${
-          tone === 'brass' ? 'bg-gradient-to-br from-brass to-brass-deep text-white' : 'bg-paper-2 text-brass-deep'
-        }`}
-      >
-        <Icon name={icon} className="icon !h-[13px] !w-[13px]" />
+    <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface p-2.5 text-center shadow-card transition-shadow hover:shadow-elev md:flex-row md:items-center md:gap-3 md:p-3.5 md:text-left">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep md:h-10 md:w-10">
+        <Icon name={icon} className="icon !h-[14px] !w-[14px] text-white md:!h-[17px] md:!w-[17px]" />
       </span>
-      <span className="font-mono text-[13px] font-bold text-heading">{value}</span>
-      <span className="text-[8.5px] font-semibold uppercase tracking-wide text-slate">{label}</span>
+      <div className="min-w-0">
+        <div className="font-display text-[16px] font-bold leading-none text-heading md:text-[19px]">{value}</div>
+        <div className="mt-1 line-clamp-2 text-[8.5px] font-semibold uppercase leading-tight tracking-wide text-slate md:truncate md:text-[10px]">
+          {label}
+        </div>
+      </div>
     </div>
   )
 }
 
 function ConfirmSendModal({
   count,
+  scheduledLabel,
   onCancel,
   onConfirm,
 }: {
   count: number
+  scheduledLabel: string | null
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -560,14 +585,17 @@ function ConfirmSendModal({
         onClick={(e) => e.stopPropagation()}
       >
         <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-paper-2">
-          <Icon name="bell" className="icon !h-[19px] !w-[19px] text-brass-deep" />
+          <Icon name={scheduledLabel ? 'cal-check' : 'bell'} className="icon !h-[19px] !w-[19px] text-brass-deep" />
         </span>
         <h3 className="font-display text-[16.5px] font-bold text-heading">
-          Send this notification to {count} device{count === 1 ? '' : 's'}?
+          {scheduledLabel
+            ? `Schedule this notification for ${scheduledLabel}?`
+            : `Send this notification to ${count} device${count === 1 ? '' : 's'}?`}
         </h3>
         <p className="mt-1.5 text-[13px] text-slate">
-          It will appear instantly as a push notification on every device that has enabled church
-          notifications.
+          {scheduledLabel
+            ? 'It will be delivered automatically to every registered device around the chosen time (within 15 minutes).'
+            : 'It will appear instantly as a push notification on every device that has enabled church notifications.'}
         </p>
         <div className="mt-4 flex gap-2.5">
           <button
@@ -590,10 +618,12 @@ function ConfirmSendModal({
 
 function SuccessModal({
   sentCount,
+  scheduledLabel,
   onSendAnother,
   onBackToDashboard,
 }: {
   sentCount: number
+  scheduledLabel: string | null
   onSendAnother: () => void
   onBackToDashboard: () => void
 }) {
@@ -603,9 +633,13 @@ function SuccessModal({
         <span className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-status-regular-bg">
           <Icon name="check" className="icon !h-[28px] !w-[28px] text-status-regular-fg" />
         </span>
-        <h3 className="font-display text-[19px] font-bold text-heading">Notification Sent</h3>
+        <h3 className="font-display text-[19px] font-bold text-heading">
+          {scheduledLabel ? 'Notification Scheduled' : 'Notification Sent'}
+        </h3>
         <p className="mt-1.5 text-[13px] text-slate">
-          Delivered to {sentCount} device{sentCount === 1 ? '' : 's'}.
+          {scheduledLabel
+            ? `Will be delivered to all registered devices around ${scheduledLabel}.`
+            : `Delivered to ${sentCount} device${sentCount === 1 ? '' : 's'}.`}
         </p>
         <div className="mt-5 flex flex-col gap-2.5">
           <button

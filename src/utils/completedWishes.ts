@@ -24,5 +24,8 @@ export function markCompleted(memberId: string): Set<string> {
   const ids = readIds()
   ids.add(memberId)
   window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]))
+  // Literal event name (not imported from useAlertCounts) to avoid a module
+  // cycle — keeps nav badges in sync the moment a wish is sent.
+  window.dispatchEvent(new Event('slf-alerts-changed'))
   return ids
 }

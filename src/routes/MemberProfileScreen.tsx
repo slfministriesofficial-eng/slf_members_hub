@@ -15,6 +15,7 @@ import {
   openWhatsappWithText,
 } from '../features/members/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import { CHURCH_INFO } from '../constants/church'
 import { toTitleCase } from '../utils/initials'
 
@@ -63,7 +64,7 @@ export function MemberProfileScreen() {
             <Icon name="chevron" className="icon !h-[17px] !w-[17px] rotate-180 text-heading" />
           </button>
         </div>
-        <div className="mb-4 flex flex-col items-center gap-3 rounded-2xl bg-surface p-6 shadow-card">
+        <div className="mb-4 flex flex-col items-center gap-3 rounded-2xl bg-surface p-6">
           <Skeleton className="h-24 w-24 rounded-full" />
           <Skeleton className="h-5 w-40 rounded" />
           <Skeleton className="h-3.5 w-24 rounded" />
@@ -133,17 +134,17 @@ export function MemberProfileScreen() {
   const ministryList = member.ministryInterests?.length ? member.ministryInterests : member.ministry !== '—' ? [member.ministry] : []
 
   return (
-    <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-24 md:pb-8">
+    // overflow-x-clip: the ID card's springy 3D flip overshoots past 180° and
+    // its perspective projection momentarily sticks out past the viewport —
+    // without the clip, mobile browsers keep the page horizontally scrollable.
+    <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] overflow-x-clip pb-24 md:pb-8">
       {/* HEADER */}
       <PageBackHeader title="Member Profile" onBack={() => navigate('/members')} />
 
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="max-w-[520px] text-[12.5px] text-slate">
-            View complete member information, digital membership card, ministry involvement, family details, and
-            church engagement.
-          </p>
-        </div>
+      <div className="mb-4 flex flex-col gap-4 md:mb-6 md:flex-row md:items-start md:justify-between">
+        <p className="-mt-2 overflow-hidden whitespace-nowrap text-[10px] text-slate md:mt-0 md:max-w-[520px] md:whitespace-normal md:text-[12.5px]">
+          View complete member information, membership card, ministry and family details.
+        </p>
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           <HeaderActionButton icon="pencil" label="Edit Member" onClick={() => navigate(`/members/${member.id}/edit`)} />
           <HeaderActionButton icon="id" label="Membership Card" onClick={() => navigate('/membership-cards')} />
@@ -165,8 +166,8 @@ export function MemberProfileScreen() {
       )}
 
       {/* SECTION 1 — PROFILE HERO */}
-      <div className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mb-6 flex flex-col items-center gap-3 rounded-[28px] bg-gradient-to-br from-surface via-surface to-paper p-6 text-center shadow-card md:p-8">
-        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep font-display text-[28px] font-bold text-white shadow-elev ring-4 ring-brass/20 md:h-28 md:w-28">
+      <div className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mb-5 flex flex-col items-center gap-2.5 rounded-[28px] bg-gradient-to-br from-surface via-surface to-paper p-4 text-center md:mb-6 md:gap-3 md:p-8">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep font-display text-[24px] font-bold text-white shadow-elev ring-4 ring-brass/20 md:h-28 md:w-28 md:text-[28px]">
           {member.initials}
         </div>
 
@@ -184,6 +185,7 @@ export function MemberProfileScreen() {
           <Badge tone="regular" icon="check">
             Active Member
           </Badge>
+          <NotificationStatusBell memberId={member.memberId} />
           {ministryList.length > 0 && (
             <Badge tone="leader" icon="megaphone">
               {ministryList.join(', ')}
@@ -211,7 +213,7 @@ export function MemberProfileScreen() {
       </div>
 
       {/* SECTION 2 — DIGITAL MEMBERSHIP CARD */}
-      <div className="mb-6">
+      <div className="mb-5 md:mb-6">
         <h3 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
           Digital Membership Card
         </h3>
@@ -235,8 +237,11 @@ export function MemberProfileScreen() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_280px] lg:items-start">
-        <div className="space-y-5">
+      {/* min-w-0 on the grid children: grid items refuse to shrink below their
+          content's min width by default, so one wide inner value would stretch
+          every card past the viewport ("details out of the box"). */}
+      <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+        <div className="min-w-0 space-y-4 md:space-y-5">
           {/* SECTION 3 — QUICK SUMMARY */}
           <Reveal>
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-6">
@@ -401,7 +406,7 @@ export function MemberProfileScreen() {
 
           {/* SECTION 10 — CHURCH INFORMATION */}
           <Reveal>
-            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-ink-deep via-ink to-ink-soft p-5 text-white shadow-card md:p-6">
+            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-ink-deep via-ink to-ink-soft p-5 text-white md:p-6">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-brass/70">
                   <img src={logo} alt="" className="h-full w-full object-cover" />
@@ -470,7 +475,7 @@ export function MemberProfileScreen() {
 
         {/* SECTION 11 — QUICK ACTION PANEL (desktop only; mobile gets the sticky bottom bar) */}
         <div className="hidden lg:block">
-          <div className="sticky top-6 space-y-1.5 rounded-2xl bg-surface p-3 shadow-card">
+          <div className="sticky top-6 space-y-1.5 rounded-2xl bg-surface p-3">
             <p className="px-2 pb-1 pt-1 text-[10.5px] font-bold uppercase tracking-wide text-slate">
               Quick Actions
             </p>
@@ -614,7 +619,7 @@ function CardActionButton({
       disabled={disabled}
       title={title}
       className={`flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center transition-transform hover:scale-[1.03] disabled:opacity-40 disabled:hover:scale-100 ${
-        accent ? 'bg-[#25D366] text-white' : 'bg-surface text-heading shadow-card'
+        accent ? 'bg-[#25D366] text-white' : 'bg-surface text-heading'
       }`}
     >
       <Icon name={icon} className={`icon !h-[17px] !w-[17px] ${accent ? 'text-white' : 'text-brass-deep'}`} />
@@ -671,12 +676,12 @@ function Badge({ tone, icon, children }: { tone: keyof typeof BADGE_TONES; icon:
 
 function SummaryStat({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface p-3.5 text-center shadow-card transition-transform hover:-translate-y-0.5 hover:shadow-elev">
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep">
-        <Icon name={icon} className="icon !h-[15px] !w-[15px] text-white" />
+    <div className="flex min-w-0 flex-col items-center gap-1 rounded-2xl bg-surface p-2.5 text-center transition-transform hover:-translate-y-0.5 md:gap-1.5 md:p-3.5">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep md:h-9 md:w-9">
+        <Icon name={icon} className="icon !h-[14px] !w-[14px] text-white md:!h-[15px] md:!w-[15px]" />
       </span>
-      <span className="truncate text-[12.5px] font-bold text-heading">{value}</span>
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-slate">{label}</span>
+      <span className="max-w-full truncate text-[12px] font-bold text-heading md:text-[12.5px]">{value}</span>
+      <span className="text-[8.5px] font-semibold uppercase tracking-wide text-slate md:text-[9px]">{label}</span>
     </div>
   )
 }
@@ -693,7 +698,8 @@ function SectionCard({
   children: ReactNode
 }) {
   return (
-    <div className="rounded-2xl bg-surface p-4 shadow-card md:p-5">
+    // overflow-hidden: nothing inside a section card may ever escape its box
+    <div className="overflow-hidden rounded-2xl bg-surface p-4 md:p-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate">
           <Icon name={icon} className="icon !h-[13px] !w-[13px] text-brass-deep" />
@@ -722,10 +728,10 @@ function InfoField({
   action?: ReactNode
 }) {
   return (
-    <div className="flex items-center gap-2.5 py-1.5">
+    <div className="flex min-w-0 items-center gap-2.5 py-1.5">
       <Icon name={icon} className="icon !h-[14px] !w-[14px] shrink-0 text-slate" />
-      <span className="flex-1 truncate text-[12.5px] text-charcoal">{label}</span>
-      <span className="truncate text-right text-[12.5px] font-semibold text-heading">{value}</span>
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-charcoal">{label}</span>
+      <span className="min-w-0 truncate text-right text-[12.5px] font-semibold text-heading">{value}</span>
       {action}
     </div>
   )

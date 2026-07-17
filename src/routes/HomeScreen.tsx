@@ -1,8 +1,13 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
-import { IconButton } from '../components/ui/IconButton'
 import { Card } from '../components/ui/Card'
+import { CountBadge } from '../components/ui/CountBadge'
+import { Skeleton } from '../components/ui/Skeleton'
+import { useAlertCounts } from '../hooks/useAlertCounts'
+import { fetchUpcomingSchedule, type UpcomingSchedule } from '../notifications/api'
+import { findNextTrigger, NextNotificationCard, useTokenCount } from '../notifications/scheduleView'
+import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
 import { DASHBOARD_STATS } from '../mock/data'
 import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
@@ -19,8 +24,8 @@ const QUICK_ACTIONS = [
   { icon: 'cake', label: 'Birthdays', to: '/birthdays' },
   { icon: 'megaphone', label: 'Announcements', accent: true, to: '/announcements' },
   { icon: 'chart', label: 'Reports', to: '/reports' },
-  { icon: 'download', label: 'Export' },
-  { icon: 'cloud', label: 'Backup' },
+  { icon: 'users', label: 'Members', to: '/members' },
+  { icon: 'id', label: 'ID Cards', to: '/membership-cards' },
 ]
 
 export function HomeScreen() {
@@ -28,6 +33,44 @@ export function HomeScreen() {
   const navigate = useNavigate()
   const name = adminName || 'Admin'
   const { members, isLoading, isError } = useMembers()
+  const alertCounts = useAlertCounts()
+
+  // Next-notification hero — same shared card as the Follow-ups page, with
+  // "Reaches N devices" and "Pending N members" (not yet enabled) chips.
+  const [schedule, setSchedule] = useState<UpcomingSchedule | null>(null)
+  const [scheduleFailed, setScheduleFailed] = useState(false)
+  const now = useMemo(() => new Date(), [])
+  const { data: deviceCount } = useTokenCount()
+  const { data: notificationStatuses } = useMemberNotificationStatuses()
+
+  useEffect(() => {
+    let cancelled = false
+    fetchUpcomingSchedule()
+      .then((data) => {
+        if (!cancelled) setSchedule(data)
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
+  const pendingMemberCount =
+    notificationStatuses && !isLoading && !isError
+      ? members.filter((m) => !notificationStatuses[m.memberId]).length
+      : null
+
+  // Dashboard quick-action badges — Birthdays shows the WEEK's pending
+  // celebrations (per spec); Follow-ups shows welcomes still owed today.
+  function quickActionBadge(to?: string): number {
+    if (to === '/birthdays') return alertCounts.celebrationsWeek
+    if (to === '/follow-ups') return alertCounts.followUpsPending
+    if (to === '/members') return alertCounts.newMembers
+    return 0
+  }
 
   const ministryCount = useMemo(
     () => new Set(members.flatMap((m) => m.ministryInterests ?? [])).size,
@@ -61,7 +104,6 @@ export function HomeScreen() {
             <Icon name="plus" className="icon !h-[13px] !w-[13px] text-white" />
             New Member
           </button>
-          <IconButton icon="bell" dot />
         </div>
       </div>
 
@@ -80,27 +122,31 @@ export function HomeScreen() {
         </div>
       </button>
 
-      {/* Today hero card */}
-      <div className="relative mb-5 overflow-hidden rounded-[22px] bg-gradient-to-br from-ink-deep via-ink to-ink-soft p-5 text-white">
-        <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-brass/50 blur-2xl" />
-        <p className="relative mb-2.5 text-[11px] font-bold uppercase tracking-wide text-[#B9C2DA]">
-          Needs attention today
-        </p>
-        <div className="relative mb-1 font-display text-[28px] font-bold leading-tight">
-          3 members flagged
+      {/* Next-notification hero — the shared Follow-ups card, replacing the old
+          mock "Needs attention" card with real automation data. Tapping it opens
+          the full schedule. Hidden quietly if the schedule endpoint is unreachable. */}
+      {!scheduleFailed && (
+        <div
+          className="mb-5 -mx-2 cursor-pointer md:mx-0"
+          onClick={() => navigate('/follow-ups/schedule')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') navigate('/follow-ups/schedule')
+          }}
+        >
+          {nextTrigger ? (
+            <NextNotificationCard
+              trigger={nextTrigger}
+              now={now}
+              deviceCount={deviceCount ?? null}
+              pendingCount={pendingMemberCount}
+            />
+          ) : (
+            <Skeleton className="h-28 w-full rounded-2xl" />
+          )}
         </div>
-        <p className="relative mb-4 text-[12.5px] text-white/70">
-          Absent 3 Sundays running — Grace, Joseph &amp; the Fernandez family
-        </p>
-        <div className="relative flex gap-2">
-          <button className="rounded-full bg-brass px-4 py-2 text-[12px] font-bold text-ink-deep">
-            Review now
-          </button>
-          <button className="rounded-full bg-surface/15 px-4 py-2 text-[12px] font-bold text-white">
-            Remind me later
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Stats row — desktop only, mobile already gets this via the hero + quick actions */}
       <div className="mb-5 hidden gap-3 md:grid md:grid-cols-4">
@@ -143,11 +189,12 @@ export function HomeScreen() {
             onClick={action.to ? () => navigate(action.to) : undefined}
             className="flex flex-col items-center gap-2 rounded-2xl bg-surface px-1.5 py-3 shadow-card"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-paper-2">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-paper-2">
               <Icon
                 name={action.icon}
                 className={`icon !h-[18px] !w-[18px] ${action.accent ? 'text-brass-deep' : 'text-heading'}`}
               />
+              <CountBadge count={quickActionBadge(action.to)} className="absolute -right-1.5 -top-1.5" />
             </div>
             <span className="text-center text-[10px] font-bold leading-tight text-heading font-body">
               {action.label}
@@ -180,7 +227,7 @@ export function HomeScreen() {
               {upcoming.map((item) => (
                 <div
                   key={item.id}
-                  className="w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center shadow-card md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
+                  className="w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
                 >
                   <div className="md:w-11 md:shrink-0 md:text-center">
                     <div className="text-[10px] font-bold uppercase text-brass-deep font-mono">
@@ -188,10 +235,11 @@ export function HomeScreen() {
                     </div>
                     <div className="font-display text-[19px] font-bold text-heading">{item.day}</div>
                   </div>
-                  <div className="mt-1.5 md:mt-0 md:flex-1">
-                    <div className="text-[11px] font-semibold leading-tight text-charcoal">
+                  <div className="mt-1.5 md:mt-0 md:min-w-0 md:flex-1">
+                    <div className="truncate text-[11px] font-semibold leading-tight text-charcoal">
                       {item.who}
                     </div>
+                    <div className="mt-0.5 truncate font-mono text-[9.5px] text-slate">{item.memberId}</div>
                     <div className="mt-0.5 text-[10px] text-slate">{item.what}</div>
                   </div>
                 </div>

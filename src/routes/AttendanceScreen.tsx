@@ -6,6 +6,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { getAttendanceMarks, setAttendanceMarks, togglePresence, type AttendanceMarksMap } from '../utils/attendanceMarks'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import type { Member } from '../mock/types'
 
 const FILTER_OPTIONS: { key: 'all' | 'checked-in' | 'not-checked-in'; label: string }[] = [
@@ -393,7 +394,10 @@ function DashboardMemberRow({
       <DashboardCheckbox checked={checked} onChange={onToggle} ariaLabel={`Mark ${member.name} checked in`} />
       <Avatar initials={member.initials} color={member.color} size={40} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-bold text-heading">{member.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[13px] font-bold text-heading">{member.name}</span>
+          <NotificationStatusBell memberId={member.memberId} />
+        </div>
         <div className="mt-0.5 truncate font-mono text-[10.5px] text-slate">
           {member.memberId} • {member.ministry}
         </div>

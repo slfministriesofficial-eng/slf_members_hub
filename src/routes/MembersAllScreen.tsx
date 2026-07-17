@@ -11,6 +11,8 @@ import { MINISTRY_OPTIONS } from '../features/members/types'
 import { buildRemovalMessage, normalizeWhatsappNumber, openWhatsappWithText } from '../features/members/whatsapp'
 import { DeleteMemberModal } from '../features/members/DeleteMemberModal'
 import { AddWhatsappModal } from '../features/members/AddWhatsappModal'
+import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
+import { markMembersSeen } from '../hooks/useAlertCounts'
 import {
   RowActionButtons,
   EmptyDirectoryState,
@@ -42,6 +44,11 @@ export function MembersAllScreen() {
     const t = setTimeout(() => setToast(null), 4000)
     return () => clearTimeout(t)
   }, [toast])
+
+  // Opening the full directory also counts as "seeing" the roster.
+  useEffect(() => {
+    if (!isLoading && !isError && members.length > 0) markMembersSeen(members)
+  }, [isLoading, isError, members])
 
   function requestDelete(member: Member) {
     setPendingDelete(member)
@@ -240,6 +247,7 @@ function CompactMemberRow({ member, navigate, onDelete, deleting, onAddWhatsapp 
         <div className="flex items-center gap-1.5">
           <span className="truncate font-mono text-[13px] font-bold text-heading">{member.memberId}</span>
           <StatusPill status={member.status} label={member.statusLabel} size="sm" />
+          <NotificationStatusBell memberId={member.memberId} />
         </div>
         <div className="mt-0.5 truncate text-[13px] text-heading">{member.name}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-slate">

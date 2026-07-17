@@ -42,7 +42,7 @@ export function IdCard({
   // even if the member's other details change later.
   const profileUrl = `${window.location.origin}/member?id=${encodeURIComponent(memberId)}`
   return (
-    <div className="relative aspect-[8/5] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-[#FBF8F1] to-[#F1EAD8] shadow-elev">
+    <div className="relative aspect-[8/5] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-[#FBF8F1] to-[#F1EAD8]">
       {/* faint watermark */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.06]">
         <Icon name="cross" className="icon !h-36 !w-36 text-ink" />

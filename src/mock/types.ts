@@ -58,6 +58,7 @@ export type UpcomingDate = {
   month: string
   who: string
   what: string
+  memberId: string
 }
 
 export type CareItem = {
