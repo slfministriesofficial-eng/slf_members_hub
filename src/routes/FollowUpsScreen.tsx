@@ -62,7 +62,24 @@ export function FollowUpsScreen() {
   }, [isLoading, isError, newMembers])
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
-  const previewEvents = schedule ? schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT) : []
+  // The first N events are dominated by the frequent church calendar (daily
+  // prayer + weekly services), which would bury the occasional birthday /
+  // anniversary below the fold. So guarantee upcoming personal celebrations
+  // appear: take the first N chronologically, then fold in the next few
+  // personal events not already shown, and re-sort.
+  const previewEvents = useMemo(() => {
+    if (!schedule) return []
+    const personalKinds = ['birthday', 'wedding-anniversary', 'membership-anniversary', 'baptism-anniversary']
+    const keyOf = (e: (typeof schedule.events)[number]) => `${e.date}-${e.time}-${e.kind}-${e.memberId ?? ''}`
+    const firstFew = schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT)
+    const shown = new Set(firstFew.map(keyOf))
+    const extraPersonal = schedule.events
+      .filter((e) => personalKinds.includes(e.kind) && !shown.has(keyOf(e)))
+      .slice(0, 3)
+    return [...firstFew, ...extraPersonal].sort((a, b) =>
+      a.date === b.date ? (a.time < b.time ? -1 : a.time > b.time ? 1 : 0) : a.date < b.date ? -1 : 1,
+    )
+  }, [schedule])
   const { data: deviceCount } = useTokenCount()
   const { data: settings } = useNotificationSettings()
   const automationPaused = settings ? !settings.enabled : false

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
@@ -24,6 +24,7 @@ import { getInitials } from '../utils/initials'
 import { getFormattedDate } from '../utils/date'
 import { getUpcomingDates } from '../utils/upcomingDates'
 import { getRecentActivity } from '../utils/recentActivity'
+import { getCompletedIds } from '../utils/completedWishes'
 
 const QUICK_ACTIONS = [
   { icon: 'cal-check', label: 'Attendance', to: '/attendance' },
@@ -98,6 +99,26 @@ export function HomeScreen() {
   const upcoming = useMemo(() => getUpcomingDates(members), [members])
   const recentActivity = useMemo(() => getRecentActivity(members), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
+
+  // "Wish sent" ticks on the This-week cards. Wishes are marked completed by
+  // the member's internal id (SendWishScreen), while the cards carry the
+  // SLF-xxxx memberId — so map one to the other. Refreshes live when a wish
+  // is sent anywhere (the 'slf-alerts-changed' event completedWishes fires).
+  const [completedWishIds, setCompletedWishIds] = useState<Set<string>>(getCompletedIds)
+  useEffect(() => {
+    const refresh = () => setCompletedWishIds(getCompletedIds())
+    window.addEventListener('slf-alerts-changed', refresh)
+    return () => window.removeEventListener('slf-alerts-changed', refresh)
+  }, [])
+  const memberIdToInternalId = useMemo(() => {
+    const map = new Map<string, string>()
+    members.forEach((m) => map.set(m.memberId, m.id))
+    return map
+  }, [members])
+  function isWishSent(memberId: string): boolean {
+    const internalId = memberIdToInternalId.get(memberId)
+    return internalId ? completedWishIds.has(internalId) : false
+  }
 
   // Follow-ups/absentees have no real backend yet (no attendance log to source them
   // from) — left as mock until that's built, unlike the stats above which are real.
@@ -244,26 +265,42 @@ export function HomeScreen() {
             <p className="text-[12px] text-slate">Nothing coming up this week.</p>
           ) : (
             <div className="-mx-4 mb-2 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:mb-0 md:flex-col md:gap-2.5 md:overflow-visible md:px-0 md:pb-0">
-              {upcoming.map((item) => (
-                <div
-                  key={item.id}
-                  className="w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
-                >
-                  <div className="md:w-11 md:shrink-0 md:text-center">
-                    <div className="text-[10px] font-bold uppercase text-brass-deep font-mono">
-                      {item.month}
+              {upcoming.map((item) => {
+                const wishSent = isWishSent(item.memberId)
+                return (
+                  <div
+                    key={item.id}
+                    className="relative w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
+                  >
+                    {/* Green tick once a wish has been sent to this member — so
+                        the admin can see at a glance who's already been wished. */}
+                    {wishSent && (
+                      <span
+                        title="Wish sent"
+                        className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-status-regular-fg md:static md:order-3 md:h-5 md:w-5"
+                      >
+                        <Icon name="check" className="icon !h-[10px] !w-[10px] text-white md:!h-[12px] md:!w-[12px]" />
+                      </span>
+                    )}
+                    <div className="md:w-11 md:shrink-0 md:text-center">
+                      <div className="text-[10px] font-bold uppercase text-brass-deep font-mono">
+                        {item.month}
+                      </div>
+                      <div className="font-display text-[19px] font-bold text-heading">{item.day}</div>
                     </div>
-                    <div className="font-display text-[19px] font-bold text-heading">{item.day}</div>
-                  </div>
-                  <div className="mt-1.5 md:mt-0 md:min-w-0 md:flex-1">
-                    <div className="truncate text-[11px] font-semibold leading-tight text-charcoal">
-                      {item.who}
+                    <div className="mt-1.5 md:mt-0 md:min-w-0 md:flex-1">
+                      <div className="truncate text-[11px] font-semibold leading-tight text-charcoal">
+                        {item.who}
+                      </div>
+                      <div className="mt-0.5 truncate font-mono text-[9.5px] text-slate">{item.memberId}</div>
+                      <div className="mt-0.5 text-[10px] text-slate">
+                        {item.what}
+                        {wishSent && <span className="ml-1 font-semibold text-status-regular-fg">· Wished</span>}
+                      </div>
                     </div>
-                    <div className="mt-0.5 truncate font-mono text-[9.5px] text-slate">{item.memberId}</div>
-                    <div className="mt-0.5 text-[10px] text-slate">{item.what}</div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
