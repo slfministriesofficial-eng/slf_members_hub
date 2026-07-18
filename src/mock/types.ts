@@ -52,6 +52,8 @@ export type ActivityItem = {
   time: string
 }
 
+export type UpcomingEventKind = 'birthday' | 'wedding' | 'baptism' | 'membership' | 'visitor'
+
 export type UpcomingDate = {
   id: string
   day: string
@@ -59,6 +61,7 @@ export type UpcomingDate = {
   who: string
   what: string
   memberId: string
+  kind: UpcomingEventKind
 }
 
 export type CareItem = {

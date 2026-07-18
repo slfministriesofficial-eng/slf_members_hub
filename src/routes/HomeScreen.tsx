@@ -25,6 +25,7 @@ import { getFormattedDate } from '../utils/date'
 import { getUpcomingDates } from '../utils/upcomingDates'
 import { getRecentActivity } from '../utils/recentActivity'
 import { getCompletedIds } from '../utils/completedWishes'
+import type { UpcomingEventKind } from '../mock/types'
 
 const QUICK_ACTIONS = [
   { icon: 'cal-check', label: 'Attendance', to: '/attendance' },
@@ -40,11 +41,21 @@ const QUICK_ACTIONS = [
 /** How many rows each dashboard preview section shows before "View all". */
 const PREVIEW_LIMIT = 5
 
-/** Which Send-Wish flow a This-week celebration opens (baptism has no dedicated wish). */
-function wishKindFor(what: string): 'birthday' | 'anniversary' | 'custom' {
-  if (what === 'Birthday') return 'birthday'
-  if (what.startsWith('Wedding')) return 'anniversary'
-  return 'custom'
+/** Distinct color per event kind so the This-week labels are easy to tell apart. */
+const UPCOMING_KIND_COLOR: Record<UpcomingEventKind, string> = {
+  birthday: 'text-tint-amber-fg',
+  wedding: 'text-tint-pink-fg',
+  baptism: 'text-tint-blue-fg',
+  membership: 'text-tint-purple-fg',
+  visitor: 'text-tint-green-fg',
+}
+
+/** Which Send-Wish flow a This-week card opens, by event kind. */
+function wishKindFor(kind: UpcomingEventKind): 'birthday' | 'anniversary' | 'welcome' | 'custom' {
+  if (kind === 'birthday') return 'birthday'
+  if (kind === 'wedding') return 'anniversary'
+  if (kind === 'visitor') return 'welcome'
+  return 'custom' // baptism / membership — no dedicated wish flow
 }
 
 /** Icon/label for a history row's kind — falls back for kinds KIND_META lacks. */
@@ -278,7 +289,7 @@ export function HomeScreen() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => internalId && navigate(`/send-wish/${wishKindFor(item.what)}/${internalId}`)}
+                    onClick={() => internalId && navigate(`/send-wish/${wishKindFor(item.kind)}/${internalId}`)}
                     className="relative w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center transition-shadow hover:shadow-card md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
                   >
                     {/* Green tick once a wish has been sent to this member — so
@@ -302,8 +313,8 @@ export function HomeScreen() {
                         {item.who}
                       </div>
                       <div className="mt-0.5 truncate font-mono text-[9.5px] text-slate">{item.memberId}</div>
-                      <div className="mt-0.5 text-[10px] text-slate">
-                        {item.what}
+                      <div className="mt-0.5 text-[10px]">
+                        <span className={`font-bold ${UPCOMING_KIND_COLOR[item.kind]}`}>{item.what}</span>
                         {wishSent && <span className="ml-1 font-semibold text-status-regular-fg">· Wished</span>}
                       </div>
                     </div>
