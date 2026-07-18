@@ -143,6 +143,54 @@ export function deriveAnniversaries(members: Member[], now = new Date()): Annive
     .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
 }
 
+export type AnnualEventKind = 'birthday' | 'wedding' | 'baptism' | 'membership'
+
+export type AnnualEventEntry = {
+  member: Member
+  kind: AnnualEventKind
+  nextDate: Date
+  daysAway: number
+  /** Age for birthdays; completed years for the three anniversaries. */
+  years: number | null
+}
+
+/**
+ * Every annual celebration across the whole year, all four kinds in one
+ * sorted list — powers the Birthdays page's year timeline. Wedding/baptism/
+ * membership skip their starting year (the event day itself is year zero,
+ * not an anniversary), mirroring the backend's greeting rules.
+ * @param members roster
+ * @param now reference date
+ * @returns entries sorted soonest-first, covering the next 12 months
+ */
+export function deriveAnnualEvents(members: Member[], now = new Date()): AnnualEventEntry[] {
+  const today = startOfDay(now)
+  const sources: { kind: AnnualEventKind; get: (m: Member) => string | undefined; skipStartingYear: boolean }[] = [
+    { kind: 'birthday', get: (m) => m.dob, skipStartingYear: false },
+    { kind: 'wedding', get: (m) => m.anniversary, skipStartingYear: true },
+    { kind: 'baptism', get: (m) => m.baptizedDate, skipStartingYear: true },
+    { kind: 'membership', get: (m) => m.joiningDateRaw || m.registrationDate, skipStartingYear: true },
+  ]
+
+  const events: AnnualEventEntry[] = []
+  members.forEach((member) => {
+    sources.forEach(({ kind, get, skipStartingYear }) => {
+      const d = parseDate(get(member))
+      if (!d) return
+      const nextDate = nextOccurrence(d.getMonth(), d.getDate(), today)
+      if (skipStartingYear && nextDate.getFullYear() <= d.getFullYear()) return
+      events.push({
+        member,
+        kind,
+        nextDate,
+        daysAway: daysUntil(nextDate, today),
+        years: nextDate.getFullYear() - d.getFullYear(),
+      })
+    })
+  })
+  return events.sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+}
+
 // Registration is a one-time past event (not a recurring annual date like a
 // birthday), so "new members" looks backward from today instead of forward.
 export function deriveNewMembers(members: Member[], now = new Date()): NewMemberEntry[] {

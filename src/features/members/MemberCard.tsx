@@ -4,15 +4,17 @@ import { Avatar } from '../../components/ui/Avatar'
 import { NotificationStatusBell } from '../../notifications/NotificationStatusBell'
 import type { Member } from '../../mock/types'
 
-export type MemberCardType = 'birthday' | 'anniversary' | 'new-member'
+export type MemberCardType = 'birthday' | 'anniversary' | 'baptism' | 'membership' | 'new-member'
 
-// Birthday = orange/amber, Anniversary = pink — color-codes the icon circle
-// and ministry line by occasion type. The Send Wish button stays WhatsApp
-// green everywhere instead, since that's about the channel it opens, not
-// the occasion.
+// Birthday = amber, Anniversary = pink, Baptism = blue, Membership = purple —
+// the same five-color coding used on the dashboard's This-week labels. The
+// Send Wish button stays WhatsApp green everywhere instead, since that's
+// about the channel it opens, not the occasion.
 const ACCENT_ICON: Record<MemberCardType, string> = {
   birthday: 'text-tint-amber-fg',
   anniversary: 'text-tint-pink-fg',
+  baptism: 'text-tint-blue-fg',
+  membership: 'text-tint-purple-fg',
   'new-member': 'text-brass-deep',
 }
 

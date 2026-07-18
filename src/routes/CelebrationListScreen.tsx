@@ -8,15 +8,21 @@ import { MemberCard } from '../features/members/MemberCard'
 import {
   deriveBirthdays,
   deriveAnniversaries,
+  deriveAnnualEvents,
+  deriveNewMembers,
   formatUpcomingLabel,
+  formatPastLabel,
+  isSameCalendarMonth,
   dateParts,
   type BirthdayEntry,
   type AnniversaryEntry,
+  type AnnualEventEntry,
+  type NewMemberEntry,
 } from '../utils/celebrations'
 import { getCompletedIds } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
-type ListType = 'birthdays' | 'anniversaries'
+type ListType = 'birthdays' | 'anniversaries' | 'baptisms' | 'membership' | 'visitors'
 type FilterKey = 'all' | 'week' | 'month' | 'completed'
 type ViewMode = 'list' | 'grid'
 
@@ -35,6 +41,27 @@ const PAGE_META: Record<ListType, { title: string; icon: string; accent: string;
     accent: 'text-tint-pink-fg',
     noun: 'Anniversaries',
     emptyText: 'No anniversaries match.',
+  },
+  baptisms: {
+    title: 'Baptism Anniversaries',
+    icon: 'cross',
+    accent: 'text-tint-blue-fg',
+    noun: 'Baptisms',
+    emptyText: 'No baptism anniversaries match.',
+  },
+  membership: {
+    title: 'Membership Anniversaries',
+    icon: 'heart',
+    accent: 'text-tint-purple-fg',
+    noun: 'Membership',
+    emptyText: 'No membership anniversaries match.',
+  },
+  visitors: {
+    title: 'First-Time Visitors',
+    icon: 'user',
+    accent: 'text-tint-green-fg',
+    noun: 'First Visits',
+    emptyText: 'No first-time visitors match.',
   },
 }
 
@@ -70,7 +97,10 @@ function matchesSearch(member: Member, query: string): boolean {
 
 export function CelebrationListScreen() {
   const { type: rawType } = useParams<{ type: string }>()
-  const type: ListType = rawType === 'anniversaries' ? 'anniversaries' : 'birthdays'
+  const type: ListType =
+    rawType === 'anniversaries' || rawType === 'baptisms' || rawType === 'membership' || rawType === 'visitors'
+      ? rawType
+      : 'birthdays'
   const navigate = useNavigate()
   const { members, isLoading, isError } = useMembers()
   const [query, setQuery] = useState('')
@@ -91,6 +121,27 @@ export function CelebrationListScreen() {
 
   const birthdays = useMemo(() => deriveBirthdays(members), [members])
   const anniversaries = useMemo(() => deriveAnniversaries(members), [members])
+  // Baptism/membership anniversaries share one deriver, shaped to carry the
+  // same isThisMonth flag the filter chips need.
+  const baptisms = useMemo(
+    () =>
+      deriveAnnualEvents(members)
+        .filter((e) => e.kind === 'baptism')
+        .map((e) => ({ ...e, isThisMonth: isSameCalendarMonth(e.nextDate, now) })),
+    [members, now],
+  )
+  const membershipAnnivs = useMemo(
+    () =>
+      deriveAnnualEvents(members)
+        .filter((e) => e.kind === 'membership')
+        .map((e) => ({ ...e, isThisMonth: isSameCalendarMonth(e.nextDate, now) })),
+    [members, now],
+  )
+  // First visits are a one-time PAST event — filters reinterpret onto daysAgo.
+  const visitors = useMemo(
+    () => deriveNewMembers(members).filter((e) => e.member.firstTimeVisiting),
+    [members],
+  )
 
   // Once wished, someone drops off every filter except "Completed" itself —
   // reviewing who's done lives there instead of a badge on the pending view.
@@ -135,9 +186,61 @@ export function CelebrationListScreen() {
       .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
   }, [anniversaries, query, filter, topAnniversaries, completedIds])
 
+  const topBaptisms = useMemo(
+    () => baptisms.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
+    [baptisms, query, filter, completedIds],
+  )
+  const upcomingBaptisms = useMemo(() => {
+    if (filter === 'completed') return []
+    const topIds = new Set(topBaptisms.map((e) => e.member.id))
+    return baptisms
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
+  }, [baptisms, query, filter, topBaptisms, completedIds])
+
+  const topMembership = useMemo(
+    () => membershipAnnivs.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
+    [membershipAnnivs, query, filter, completedIds],
+  )
+  const upcomingMembership = useMemo(() => {
+    if (filter === 'completed') return []
+    const topIds = new Set(topMembership.map((e) => e.member.id))
+    return membershipAnnivs
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
+  }, [membershipAnnivs, query, filter, topMembership, completedIds])
+
+  // Visitors look BACKWARD: today / last 7 days / this calendar month.
+  const topVisitors = useMemo(() => {
+    return visitors
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => {
+        if (filter === 'completed') return completedIds.has(e.member.id)
+        if (completedIds.has(e.member.id)) return false
+        switch (filter) {
+          case 'week':
+            return e.daysAgo <= 7
+          case 'month':
+            return isSameCalendarMonth(e.joinedDate, now)
+          default:
+            return e.daysAgo === 0
+        }
+      })
+  }, [visitors, query, filter, completedIds, now])
+  const recentVisitors = useMemo(() => {
+    if (filter === 'completed') return []
+    const topIds = new Set(topVisitors.map((e) => e.member.id))
+    return visitors
+      .filter((e) => matchesSearch(e.member, query))
+      .filter((e) => e.daysAgo > 0 && e.daysAgo <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
+  }, [visitors, query, filter, topVisitors, completedIds])
+
   const isEmpty =
     (type === 'birthdays' && topBirthdays.length === 0 && upcomingBirthdays.length === 0) ||
-    (type === 'anniversaries' && topAnniversaries.length === 0 && upcomingAnniversaries.length === 0)
+    (type === 'anniversaries' && topAnniversaries.length === 0 && upcomingAnniversaries.length === 0) ||
+    (type === 'baptisms' && topBaptisms.length === 0 && upcomingBaptisms.length === 0) ||
+    (type === 'membership' && topMembership.length === 0 && upcomingMembership.length === 0) ||
+    (type === 'visitors' && topVisitors.length === 0 && recentVisitors.length === 0)
 
   function renderBirthdayCard(e: BirthdayEntry) {
     const { day, month } = dateParts(e.nextDate)
@@ -174,6 +277,46 @@ export function CelebrationListScreen() {
         onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
         onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
         sendLabel="Send Wishes"
+      />
+    )
+  }
+
+  // Baptism/membership have no dedicated wish flow — View opens the full
+  // profile and Send opens the general custom-message composer.
+  function renderAnnualCard(e: AnnualEventEntry & { isThisMonth: boolean }, cardType: 'baptism' | 'membership') {
+    const { day, month } = dateParts(e.nextDate)
+    return (
+      <MemberCard
+        key={e.member.id}
+        member={e.member}
+        type={cardType}
+        dateDay={day}
+        dateMonth={month}
+        subLabel={e.years !== null ? `${e.years} yr${e.years === 1 ? '' : 's'}` : undefined}
+        countdownLabel={formatUpcomingLabel(e.nextDate, now)}
+        completed={completedIds.has(e.member.id)}
+        onView={() => navigate(`/members/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/custom/${e.member.id}`)}
+        sendLabel="Send Wishes"
+      />
+    )
+  }
+
+  function renderVisitorCard(e: NewMemberEntry) {
+    const { day, month } = dateParts(e.joinedDate)
+    return (
+      <MemberCard
+        key={e.member.id}
+        member={e.member}
+        type="new-member"
+        dateDay={day}
+        dateMonth={month}
+        subLabel="First visit"
+        countdownLabel={formatPastLabel(e.joinedDate, now)}
+        completed={completedIds.has(e.member.id)}
+        onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/welcome/${e.member.id}`)}
+        sendLabel="Send Welcome"
       />
     )
   }
@@ -292,6 +435,78 @@ export function CelebrationListScreen() {
                     <section>
                       <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming Anniversaries</h2>
                       <div className={listClass}>{upcomingAnniversaries.map((e) => renderAnniversaryCard(e))}</div>
+                    </section>
+                  )}
+                </>
+              )}
+
+              {type === 'baptisms' && (
+                <>
+                  <section>
+                    <h2 className="mb-3 text-[13px] font-bold text-heading">
+                      {topTitleFor(filter, 'Baptisms')} ({topBaptisms.length})
+                    </h2>
+                    {topBaptisms.length === 0 ? (
+                      <Card className="p-6 text-center">
+                        <p className="text-[12px] text-slate">Nobody matches this filter.</p>
+                      </Card>
+                    ) : (
+                      <div className={listClass}>{topBaptisms.map((e) => renderAnnualCard(e, 'baptism'))}</div>
+                    )}
+                  </section>
+
+                  {filter !== 'completed' && upcomingBaptisms.length > 0 && (
+                    <section>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming Baptism Anniversaries</h2>
+                      <div className={listClass}>{upcomingBaptisms.map((e) => renderAnnualCard(e, 'baptism'))}</div>
+                    </section>
+                  )}
+                </>
+              )}
+
+              {type === 'membership' && (
+                <>
+                  <section>
+                    <h2 className="mb-3 text-[13px] font-bold text-heading">
+                      {topTitleFor(filter, 'Membership')} ({topMembership.length})
+                    </h2>
+                    {topMembership.length === 0 ? (
+                      <Card className="p-6 text-center">
+                        <p className="text-[12px] text-slate">Nobody matches this filter.</p>
+                      </Card>
+                    ) : (
+                      <div className={listClass}>{topMembership.map((e) => renderAnnualCard(e, 'membership'))}</div>
+                    )}
+                  </section>
+
+                  {filter !== 'completed' && upcomingMembership.length > 0 && (
+                    <section>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming Membership Anniversaries</h2>
+                      <div className={listClass}>{upcomingMembership.map((e) => renderAnnualCard(e, 'membership'))}</div>
+                    </section>
+                  )}
+                </>
+              )}
+
+              {type === 'visitors' && (
+                <>
+                  <section>
+                    <h2 className="mb-3 text-[13px] font-bold text-heading">
+                      {topTitleFor(filter, 'First Visits')} ({topVisitors.length})
+                    </h2>
+                    {topVisitors.length === 0 ? (
+                      <Card className="p-6 text-center">
+                        <p className="text-[12px] text-slate">Nobody matches this filter.</p>
+                      </Card>
+                    ) : (
+                      <div className={listClass}>{topVisitors.map((e) => renderVisitorCard(e))}</div>
+                    )}
+                  </section>
+
+                  {filter !== 'completed' && recentVisitors.length > 0 && (
+                    <section>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Recent First Visits</h2>
+                      <div className={listClass}>{recentVisitors.map((e) => renderVisitorCard(e))}</div>
                     </section>
                   )}
                 </>

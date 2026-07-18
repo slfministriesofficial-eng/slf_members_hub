@@ -5,31 +5,32 @@ import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
-import { deriveBirthdays, deriveAnniversaries, formatUpcomingLabel, dateParts } from '../utils/celebrations'
+import {
+  deriveBirthdays,
+  deriveAnniversaries,
+  deriveAnnualEvents,
+  deriveNewMembers,
+  formatUpcomingLabel,
+  dateParts,
+} from '../utils/celebrations'
 import { getCompletedIds } from '../utils/completedWishes'
 import { markCelebrationsSeen } from '../hooks/useAlertCounts'
-import type { Member } from '../mock/types'
-
-type FilterKey = 'all' | 'birthdays' | 'anniversaries' | 'today' | 'upcoming'
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'birthdays', label: 'Birthdays' },
-  { key: 'anniversaries', label: 'Anniversaries' },
-  { key: 'today', label: 'Today' },
-  { key: 'upcoming', label: 'Upcoming' },
-]
 
 export function BirthdaysScreen() {
   const { members, isLoading, isError } = useMembers()
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<FilterKey>('all')
   const [anniversariesOpen, setAnniversariesOpen] = useState(false)
   const [completedIds] = useState<Set<string>>(getCompletedIds)
 
   const now = useMemo(() => new Date(), [])
   const birthdays = useMemo(() => deriveBirthdays(members), [members])
   const anniversaries = useMemo(() => deriveAnniversaries(members), [members])
+  // All four annual kinds in one list — feeds the baptism/membership counts.
+  const annualEvents = useMemo(() => deriveAnnualEvents(members), [members])
+  const recentVisitors = useMemo(
+    () => deriveNewMembers(members).filter((e) => e.member.firstTimeVisiting && e.daysAgo <= 30),
+    [members],
+  )
 
   // Opening this page counts as "seeing" today's + this week's celebrations —
   // clears the Birthdays badges on every nav surface.
@@ -41,36 +42,11 @@ export function BirthdaysScreen() {
 
   const todaysBirthdays = birthdays.filter((e) => e.daysAway === 0)
   const todaysAnniversaries = anniversaries.filter((e) => e.daysAway === 0)
+  const todaysBaptisms = annualEvents.filter((e) => e.kind === 'baptism' && e.daysAway === 0)
+  const todaysMembership = annualEvents.filter((e) => e.kind === 'membership' && e.daysAway === 0)
 
-  const searchedBirthdays = birthdays
-  const searchedAnniversaries = anniversaries
-
-  // Once wished, someone drops off the pending views entirely (Today/Upcoming/
-  // the type filters) rather than just showing a "Completed" badge in place —
-  // reviewing who's done lives on the dedicated page's Completed filter instead.
-  const upcomingCombined = useMemo(() => {
-    type Combined = { key: string; date: Date; kind: 'birthday' | 'anniversary'; member: Member }
-    const items: Combined[] = [
-      ...searchedBirthdays
-        .filter((e) => e.daysAway > 0 && e.daysAway <= 30 && !completedIds.has(e.member.id))
-        .map((e) => ({ key: `b-${e.member.id}`, date: e.nextDate, kind: 'birthday' as const, member: e.member })),
-      ...searchedAnniversaries
-        .filter((e) => e.daysAway > 0 && e.daysAway <= 30 && !completedIds.has(e.member.id))
-        .map((e) => ({ key: `a-${e.member.id}`, date: e.nextDate, kind: 'anniversary' as const, member: e.member })),
-    ]
-    return items.sort((a, b) => a.date.getTime() - b.date.getTime())
-  }, [searchedBirthdays, searchedAnniversaries, completedIds])
-
-  const showBirthdaysSection = filter === 'all' || filter === 'birthdays' || filter === 'today'
-  const showAnniversariesSection = filter === 'all' || filter === 'anniversaries' || filter === 'today'
-  const showUpcomingSection = filter === 'upcoming'
-
-  const birthdaysToShow = (
-    filter === 'birthdays' ? searchedBirthdays : searchedBirthdays.filter((e) => e.daysAway === 0)
-  ).filter((e) => !completedIds.has(e.member.id))
-  const anniversariesToShow = (
-    filter === 'anniversaries' ? searchedAnniversaries : searchedAnniversaries.filter((e) => e.daysAway === 0)
-  ).filter((e) => !completedIds.has(e.member.id))
+  const birthdaysToShow = todaysBirthdays.filter((e) => !completedIds.has(e.member.id))
+  const anniversariesToShow = todaysAnniversaries.filter((e) => !completedIds.has(e.member.id))
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
@@ -83,7 +59,9 @@ export function BirthdaysScreen() {
         </p>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-2.5 md:gap-3">
+      {/* FIVE CELEBRATION CARDS — one per event type, same five colors as the
+          dashboard's This-week labels. Each opens that type's full-year list. */}
+      <div className="mb-6 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 xl:grid-cols-5">
         <NavStatCard
           icon="cake"
           label="Birthdays"
@@ -102,6 +80,33 @@ export function BirthdaysScreen() {
           buttonLabel="View Anniversaries"
           onClick={() => navigate('/birthdays/anniversaries')}
         />
+        <NavStatCard
+          icon="cross"
+          label="Baptisms"
+          value={isLoading ? '—' : todaysBaptisms.length}
+          accent="bg-tint-blue-fg"
+          buttonAccent="bg-tint-blue-fg hover:brightness-110"
+          buttonLabel="View Baptisms"
+          onClick={() => navigate('/birthdays/baptisms')}
+        />
+        <NavStatCard
+          icon="heart"
+          label="Membership"
+          value={isLoading ? '—' : todaysMembership.length}
+          accent="bg-tint-purple-fg"
+          buttonAccent="bg-tint-purple-fg hover:brightness-110"
+          buttonLabel="View Membership"
+          onClick={() => navigate('/birthdays/membership')}
+        />
+        <NavStatCard
+          icon="user"
+          label="First Visits"
+          value={isLoading ? '—' : recentVisitors.length}
+          accent="bg-tint-green-fg"
+          buttonAccent="bg-tint-green-fg hover:brightness-110"
+          buttonLabel="View First Visits"
+          onClick={() => navigate('/birthdays/visitors')}
+        />
       </div>
 
       {isError && (
@@ -117,152 +122,93 @@ export function BirthdaysScreen() {
       )}
 
       {!isError && !isLoading && (
-        <>
-          {/* FILTERS */}
-          <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => (
+        <div className="space-y-6">
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-1.5 text-[13px] font-bold text-heading">
+                <Icon name="cake" className="icon !h-[14px] !w-[14px] text-tint-amber-fg" />
+                Today's Birthdays ({birthdaysToShow.length})
+              </h2>
               <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[12px] font-bold transition-colors ${
-                  filter === f.key ? 'bg-ink-deep text-white' : 'bg-surface text-heading shadow-card hover:bg-paper'
-                }`}
+                onClick={() => navigate('/birthdays/birthdays')}
+                className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
               >
-                {f.label}
+                View All
               </button>
-            ))}
-          </div>
-
-          <div className="space-y-6">
-            {showUpcomingSection && (
-              <section>
-                <h2 className="mb-3 text-[13px] font-bold text-heading">Upcoming (Next 30 Days)</h2>
-                {upcomingCombined.length === 0 ? (
-                  <EmptyRow text="Nothing coming up in the next 30 days." />
-                ) : (
-                  <div className="space-y-2">
-                    {upcomingCombined.map((item) => {
-                      const { day, month } = dateParts(item.date)
-                      return (
-                        <div
-                          key={item.key}
-                          onClick={() => navigate(`/celebration-profile/${item.kind}/${item.member.id}`)}
-                          role="button"
-                          tabIndex={0}
-                          className="flex cursor-pointer items-center gap-3 rounded-2xl bg-surface p-3.5 shadow-card transition-shadow hover:shadow-elev"
-                        >
-                          <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl border border-hairline bg-paper">
-                            <span className="font-display text-[13px] font-bold leading-none text-heading">{day}</span>
-                            <span className="mt-0.5 text-[8.5px] font-bold uppercase text-slate">{month}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13.5px] font-bold text-heading">{item.member.name}</div>
-                            <div className="text-[11px] text-slate">
-                              {item.kind === 'birthday' ? 'Birthday' : 'Anniversary'}
-                            </div>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-paper-2 px-2.5 py-1 text-[10.5px] font-bold text-slate">
-                            {formatUpcomingLabel(item.date, now)}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </section>
+            </div>
+            {birthdaysToShow.length === 0 ? (
+              <EmptyRow text="No birthdays to show." />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {birthdaysToShow.map((e) => {
+                  const { day, month } = dateParts(e.nextDate)
+                  return (
+                    <MemberCard
+                      key={e.member.id}
+                      member={e.member}
+                      type="birthday"
+                      dateDay={day}
+                      dateMonth={month}
+                      subLabel={e.age !== null ? `${e.age} yrs` : undefined}
+                      countdownLabel={formatUpcomingLabel(e.nextDate, now)}
+                      completed={completedIds.has(e.member.id)}
+                      onView={() => navigate(`/celebration-profile/birthday/${e.member.id}`)}
+                      onSend={() => navigate(`/send-wish/birthday/${e.member.id}`)}
+                      sendLabel="Send Wishes"
+                    />
+                  )
+                })}
+              </div>
             )}
+          </section>
 
-            {showBirthdaysSection && (
-              <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-1.5 text-[13px] font-bold text-heading">
-                    <Icon name="cake" className="icon !h-[14px] !w-[14px] text-tint-amber-fg" />
-                    {filter === 'birthdays' ? 'Birthdays' : "Today's Birthdays"} ({birthdaysToShow.length})
-                  </h2>
-                  <button
-                    onClick={() => navigate('/birthdays/birthdays')}
-                    className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
-                  >
-                    View All
-                  </button>
-                </div>
-                {birthdaysToShow.length === 0 ? (
-                  <EmptyRow text="No birthdays to show." />
+          <section>
+            <button
+              onClick={() => setAnniversariesOpen((o) => !o)}
+              className="flex w-full items-center justify-between rounded-2xl bg-surface p-4 shadow-card"
+            >
+              <span className="flex items-center gap-1.5 text-[13px] font-bold text-heading">
+                <Icon name="rings" className="icon !h-[14px] !w-[14px] text-tint-pink-fg" />
+                Today's Anniversaries ({anniversariesToShow.length})
+              </span>
+              <Icon
+                name="chevron"
+                className={`icon !h-[14px] !w-[14px] text-slate transition-transform ${
+                  anniversariesOpen ? 'rotate-90' : ''
+                }`}
+              />
+            </button>
+            {anniversariesOpen && (
+              <div className="mt-3">
+                {anniversariesToShow.length === 0 ? (
+                  <EmptyRow text="No anniversaries to show." />
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {birthdaysToShow.map((e) => {
+                    {anniversariesToShow.map((e) => {
                       const { day, month } = dateParts(e.nextDate)
                       return (
                         <MemberCard
                           key={e.member.id}
                           member={e.member}
-                          type="birthday"
+                          type="anniversary"
                           dateDay={day}
                           dateMonth={month}
-                          subLabel={e.age !== null ? `${e.age} yrs` : undefined}
+                          subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
+                          coupleName={e.member.spouse}
                           countdownLabel={formatUpcomingLabel(e.nextDate, now)}
                           completed={completedIds.has(e.member.id)}
-                          onView={() => navigate(`/celebration-profile/birthday/${e.member.id}`)}
-                          onSend={() => navigate(`/send-wish/birthday/${e.member.id}`)}
+                          onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
+                          onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
                           sendLabel="Send Wishes"
                         />
                       )
                     })}
                   </div>
                 )}
-              </section>
+              </div>
             )}
-
-            {showAnniversariesSection && (
-              <section>
-                <button
-                  onClick={() => setAnniversariesOpen((o) => !o)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-surface p-4 shadow-card"
-                >
-                  <span className="flex items-center gap-1.5 text-[13px] font-bold text-heading">
-                    <Icon name="rings" className="icon !h-[14px] !w-[14px] text-tint-pink-fg" />
-                    {filter === 'anniversaries' ? 'Anniversaries' : "Today's Anniversaries"} ({anniversariesToShow.length})
-                  </span>
-                  <Icon
-                    name="chevron"
-                    className={`icon !h-[14px] !w-[14px] text-slate transition-transform ${
-                      anniversariesOpen ? 'rotate-90' : ''
-                    }`}
-                  />
-                </button>
-                {anniversariesOpen && (
-                  <div className="mt-3">
-                    {anniversariesToShow.length === 0 ? (
-                      <EmptyRow text="No anniversaries to show." />
-                    ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {anniversariesToShow.map((e) => {
-                          const { day, month } = dateParts(e.nextDate)
-                          return (
-                            <MemberCard
-                              key={e.member.id}
-                              member={e.member}
-                              type="anniversary"
-                              dateDay={day}
-                              dateMonth={month}
-                              subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
-                              coupleName={e.member.spouse}
-                              countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-                              completed={completedIds.has(e.member.id)}
-                              onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
-                              onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
-                              sendLabel="Send Wishes"
-                            />
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
-          </div>
-        </>
+          </section>
+        </div>
       )}
 
     </div>
@@ -306,7 +252,7 @@ function NavStatCard({
           e.stopPropagation()
           onClick()
         }}
-        className={`mt-3 w-full rounded-full py-2 text-[11.5px] font-bold text-white transition-transform hover:scale-[1.02] ${buttonAccent}`}
+        className={`mt-3 w-full whitespace-nowrap rounded-full px-2 py-2 text-[11px] font-bold text-white transition-transform hover:scale-[1.02] ${buttonAccent}`}
       >
         {buttonLabel}
       </button>
