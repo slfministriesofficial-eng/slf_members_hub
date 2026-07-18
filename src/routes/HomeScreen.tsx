@@ -37,8 +37,15 @@ const QUICK_ACTIONS = [
   { icon: 'id', label: 'ID Cards', to: '/membership-cards' },
 ]
 
-/** How many history rows the dashboard card shows. */
-const HISTORY_PREVIEW_LIMIT = 6
+/** How many rows each dashboard preview section shows before "View all". */
+const PREVIEW_LIMIT = 5
+
+/** Which Send-Wish flow a This-week celebration opens (baptism has no dedicated wish). */
+function wishKindFor(what: string): 'birthday' | 'anniversary' | 'custom' {
+  if (what === 'Birthday') return 'birthday'
+  if (what.startsWith('Wedding')) return 'anniversary'
+  return 'custom'
+}
 
 /** Icon/label for a history row's kind — falls back for kinds KIND_META lacks. */
 function historyMeta(kind: string): { icon: string; accent: string; label: string } {
@@ -97,7 +104,7 @@ export function HomeScreen() {
     [members],
   )
   const upcoming = useMemo(() => getUpcomingDates(members), [members])
-  const recentActivity = useMemo(() => getRecentActivity(members), [members])
+  const recentActivity = useMemo(() => getRecentActivity(members, PREVIEW_LIMIT), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
 
   // "Wish sent" ticks on the This-week cards. Wishes are marked completed by
@@ -249,9 +256,9 @@ export function HomeScreen() {
         <div>
           <div className="mb-3 mt-6 flex items-baseline justify-between md:mt-6">
             <h2 className="font-display text-[15.5px] font-bold text-heading">This week</h2>
-            <a href="#" className="text-[12px] font-bold text-brass-deep">
+            <button onClick={() => navigate('/birthdays')} className="text-[12px] font-bold text-brass-deep">
               See all
-            </a>
+            </button>
           </div>
           {isLoading ? (
             <div className="-mx-4 mb-2 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:mb-0 md:flex-col md:gap-2.5 md:overflow-visible md:px-0 md:pb-0">
@@ -265,12 +272,14 @@ export function HomeScreen() {
             <p className="text-[12px] text-slate">Nothing coming up this week.</p>
           ) : (
             <div className="-mx-4 mb-2 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:mb-0 md:flex-col md:gap-2.5 md:overflow-visible md:px-0 md:pb-0">
-              {upcoming.map((item) => {
+              {upcoming.slice(0, PREVIEW_LIMIT).map((item) => {
                 const wishSent = isWishSent(item.memberId)
+                const internalId = memberIdToInternalId.get(item.memberId)
                 return (
-                  <div
+                  <button
                     key={item.id}
-                    className="relative w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
+                    onClick={() => internalId && navigate(`/send-wish/${wishKindFor(item.what)}/${internalId}`)}
+                    className="relative w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center transition-shadow hover:shadow-card md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
                   >
                     {/* Green tick once a wish has been sent to this member — so
                         the admin can see at a glance who's already been wished. */}
@@ -298,7 +307,7 @@ export function HomeScreen() {
                         {wishSent && <span className="ml-1 font-semibold text-status-regular-fg">· Wished</span>}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -311,17 +320,25 @@ export function HomeScreen() {
               month, so this list resets naturally on the 1st. */}
           {sendHistory && (
             <>
-              <div className="mb-3 mt-6 flex items-baseline justify-between">
+              <div className="mb-3 mt-6 flex items-baseline justify-between gap-2">
                 <h2 className="font-display text-[15.5px] font-bold text-heading">Notifications sent</h2>
-                <span className="text-[11px] font-semibold text-slate">
-                  This month · {sendHistory.length}
-                </span>
+                <div className="flex shrink-0 items-baseline gap-2.5">
+                  <span className="text-[11px] font-semibold text-slate">This month · {sendHistory.length}</span>
+                  {sendHistory.length > PREVIEW_LIMIT && (
+                    <button
+                      onClick={() => navigate('/notifications-sent')}
+                      className="text-[12px] font-bold text-brass-deep"
+                    >
+                      View all
+                    </button>
+                  )}
+                </div>
               </div>
               {sendHistory.length === 0 ? (
                 <p className="mb-2 text-[12px] text-slate">Nothing sent yet this month.</p>
               ) : (
                 <Card className="mb-2">
-                  {sendHistory.slice(0, HISTORY_PREVIEW_LIMIT).map((item, i) => {
+                  {sendHistory.slice(0, PREVIEW_LIMIT).map((item, i) => {
                     const meta = historyMeta(item.kind)
                     return (
                       <div
@@ -354,8 +371,13 @@ export function HomeScreen() {
             </>
           )}
 
-          <div className="mb-3 mt-6 md:mt-6">
+          <div className="mb-3 mt-6 flex items-baseline justify-between md:mt-6">
             <h2 className="font-display text-[15.5px] font-bold text-heading">Recent activity</h2>
+            {members.length > PREVIEW_LIMIT && (
+              <button onClick={() => navigate('/activity')} className="text-[12px] font-bold text-brass-deep">
+                View all
+              </button>
+            )}
           </div>
           {isLoading ? (
             <Card className="mb-2 px-1 py-1">
@@ -370,20 +392,22 @@ export function HomeScreen() {
           ) : (
             <Card className="mb-2 px-1 py-1">
               {recentActivity.map((item, i) => (
-                <div
+                <button
                   key={item.id}
-                  className={`flex gap-2.5 px-3 py-2.5 text-[12.5px] ${
+                  onClick={() => navigate(`/members/${item.id}`)}
+                  className={`flex w-full gap-2.5 px-3 py-2.5 text-left text-[12.5px] transition-colors hover:bg-paper ${
                     i < recentActivity.length - 1 ? 'border-b border-hairline' : ''
                   }`}
                 >
                   <div className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full bg-brass" />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     {item.text}
                     <span className="mt-0.5 block font-mono text-[10.5px] text-slate">
                       {item.time}
                     </span>
                   </div>
-                </div>
+                  <Icon name="chevron" className="icon !h-[13px] !w-[13px] shrink-0 self-center text-faint" />
+                </button>
               ))}
             </Card>
           )}

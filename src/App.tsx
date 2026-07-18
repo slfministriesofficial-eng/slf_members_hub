@@ -25,6 +25,8 @@ import { MembershipCardsScreen } from './routes/MembershipCardsScreen'
 import { MoreScreen } from './routes/MoreScreen'
 import { ReportsScreen } from './routes/ReportsScreen'
 import { AccessSettingsScreen } from './routes/AccessSettingsScreen'
+import { ActivityScreen } from './routes/ActivityScreen'
+import { NotificationsSentScreen } from './routes/NotificationsSentScreen'
 
 function App() {
   const { isAuthenticated, showWelcome } = useAuth()
@@ -66,6 +68,8 @@ function App() {
               <Route path="/more" element={<MoreScreen />} />
               <Route path="/reports" element={<ReportsScreen />} />
               <Route path="/access" element={<AccessSettingsScreen />} />
+              <Route path="/activity" element={<ActivityScreen />} />
+              <Route path="/notifications-sent" element={<NotificationsSentScreen />} />
             </Route>
           </>
         )}

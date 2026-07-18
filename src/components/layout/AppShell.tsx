@@ -44,6 +44,8 @@ const HIDE_TOP_BAR_PREFIXES = [
   '/birthdays/',
   '/follow-ups/',
   '/announcements/',
+  '/activity',
+  '/notifications-sent',
 ]
 
 export function AppShell() {
