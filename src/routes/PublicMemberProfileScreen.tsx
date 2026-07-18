@@ -4,7 +4,7 @@ import logo from '../assets/slf_logo_cropped.png'
 import { Icon } from '../components/ui/Icon'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Reveal } from '../components/ui/Reveal'
-import { IdCardFlipper } from '../features/members/IdCardFlipper'
+import { IdCardFull } from '../features/members/IdCardFull'
 import { fetchMemberPublic, type PublicMemberRecord } from '../features/members/api'
 import { PublicNotificationOptIn } from '../notifications/PublicNotificationOptIn'
 import { CHURCH_INFO } from '../constants/church'
@@ -128,17 +128,15 @@ export function PublicMemberProfileScreen() {
                 <h2 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
                   Digital Membership Card
                 </h2>
-                <div className="motion-safe:animate-[float-soft_6s_ease-in-out_infinite]">
-                  <IdCardFlipper
-                    name={member.fullName}
-                    memberId={member.memberId}
-                    bloodGroup={member.bloodGroup}
-                    status={isVisitor ? 'visitor' : 'regular'}
-                    statusLabel={isVisitor ? 'Visitor' : 'Member'}
-                    sinceYear={sinceYear || undefined}
-                    hideMobile
-                  />
-                </div>
+                <IdCardFull
+                  name={member.fullName}
+                  memberId={member.memberId}
+                  bloodGroup={member.bloodGroup}
+                  status={isVisitor ? 'visitor' : 'regular'}
+                  statusLabel={isVisitor ? 'Visitor' : 'Member'}
+                  sinceYear={sinceYear || undefined}
+                  hideMobile
+                />
               </div>
             </>
           )}

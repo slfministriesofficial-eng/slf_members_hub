@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
-import { useMembers } from '../features/members/MembersContext'
-import { MemberCard } from '../features/members/MemberCard'
-import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } from '../utils/celebrations'
-import { useCompletedWishes } from '../utils/completedWishes'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import {
   findNextTrigger,
   NextNotificationCard,
@@ -15,51 +12,17 @@ import {
   useUpcomingSchedule,
 } from '../notifications/scheduleView'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
-import { markFollowUpsSeen } from '../hooks/useAlertCounts'
-import type { Member } from '../mock/types'
 
 /** How many upcoming triggers the dashboard previews before "View All". */
 const SCHEDULE_PREVIEW_LIMIT = 5
 
-type FilterKey = 'all' | 'today' | 'week' | 'month' | 'completed'
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-  { key: 'completed', label: 'Completed' },
-]
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
-function matchesSearch(member: Member, query: string): boolean {
-  if (!query.trim()) return true
-  const q = query.trim().toLowerCase()
-  return member.name.toLowerCase().includes(q) || normalize(member.memberId).includes(normalize(query))
-}
-
 export function FollowUpsScreen() {
   const navigate = useNavigate()
-  const { members, isLoading, isError } = useMembers()
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('all')
-  const isWished = useCompletedWishes()
   // Shared cached query — the Access page's switches invalidate it, so this
   // page reflects a flipped switch immediately.
   const { data: schedule, isError: scheduleError } = useUpcomingSchedule()
 
   const now = useMemo(() => new Date(), [])
-  const newMembers = useMemo(() => deriveNewMembers(members), [members])
-
-  // Opening this page counts as "seeing" the pending welcomes — clears the
-  // Follow-ups badge until a new member appears.
-  useEffect(() => {
-    if (isLoading || isError) return
-    markFollowUpsSeen(newMembers.map((e) => e.member.id))
-  }, [isLoading, isError, newMembers])
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
   // The first N events are dominated by the frequent church calendar (daily
@@ -84,30 +47,15 @@ export function FollowUpsScreen() {
   const { data: settings } = useNotificationSettings()
   const automationPaused = settings ? !settings.enabled : false
 
-  // Once welcomed, someone drops off every filter except "Completed" itself.
-  const filteredNewMembers = useMemo(() => {
-    return newMembers.filter((e) => matchesSearch(e.member, query)).filter((e) => {
-      if (filter === 'completed') return isWished(e.member.id, 'visitor')
-      if (isWished(e.member.id, 'visitor')) return false
-      switch (filter) {
-        case 'today':
-          return e.daysAgo === 0
-        case 'week':
-          return e.daysAgo <= 7
-        case 'month':
-          return isSameCalendarMonth(e.joinedDate, now)
-        default:
-          return true
-      }
-    })
-  }, [newMembers, query, filter, now, isWished])
-
   return (
     <div>
       {/* Title + the page's own Schedule button share the top row — same
           alignment pattern as the Members and Attendance pages. */}
       <div className="mb-1 flex items-center justify-between gap-3">
-        <h1 className="font-display text-[20px] font-bold text-heading md:text-[26px]">Follow-ups</h1>
+        <div className="flex min-w-0 items-center gap-1">
+          <MobileBackButton />
+          <h1 className="font-display text-[20px] font-bold text-heading md:text-[26px]">Follow-ups</h1>
+        </div>
         <button onClick={() => navigate('/follow-ups/schedule')} className="flex shrink-0 items-center gap-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
             <Icon name="cal-check" className="icon !h-[16px] !w-[16px] text-white" />
@@ -144,14 +92,19 @@ export function FollowUpsScreen() {
           {settings && (
             <button
               onClick={() => navigate('/access')}
-              className="mt-3 flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition-colors hover:bg-paper"
+              className={`mt-3 flex w-full items-center gap-2.5 rounded-2xl border px-4 py-3 text-left shadow-card transition-colors ${
+                settings.enabled
+                  ? 'border-brass/40 bg-gradient-to-br from-brass/15 via-surface to-surface hover:from-brass/20'
+                  : 'border-status-alert-fg/30 bg-status-alert-bg hover:brightness-[0.98]'
+              }`}
             >
-              <Icon
-                name={settings.enabled ? 'bell' : 'bell-off'}
-                className={`icon !h-[15px] !w-[15px] shrink-0 ${
-                  settings.enabled ? 'text-status-regular-fg' : 'text-status-alert-fg'
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  settings.enabled ? 'bg-gradient-to-br from-brass to-brass-deep' : 'bg-status-alert-fg'
                 }`}
-              />
+              >
+                <Icon name={settings.enabled ? 'bell' : 'bell-off'} className="icon !h-[15px] !w-[15px] text-white" />
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[12.5px] font-bold text-heading">Notification Access</span>
                 <span className="block text-[11px] text-slate">
@@ -207,77 +160,6 @@ export function FollowUpsScreen() {
         </Card>
       )}
 
-      {/* NEW MEMBER WELCOME */}
-      <section className="mt-8 motion-safe:animate-[fade-rise_0.4s_ease-out_both]">
-        <h2 className="mb-3 flex items-center gap-1.5 text-[15px] font-bold text-heading">
-          <Icon name="heart" className="icon !h-[15px] !w-[15px] text-brass-deep" />
-          New Members
-        </h2>
-        <p className="mb-4 text-[12.5px] text-slate">Welcome newly registered members with a personal message.</p>
-
-        {isError && (
-          <p className="py-6 text-center text-[13px] text-slate">Could not load members — check your connection.</p>
-        )}
-
-        {!isError && isLoading && <Skeleton className="h-16 w-full rounded-2xl" />}
-
-        {!isError && !isLoading && (
-          <>
-            <div className="relative mb-3">
-              <Icon
-                name="search"
-                className="icon !h-[14px] !w-[14px] pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate"
-              />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name or member ID…"
-                className="w-full rounded-full border border-hairline bg-surface py-3 pl-10 pr-4 text-[13px] text-heading outline-none placeholder:text-slate focus:border-ink"
-              />
-            </div>
-
-            <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setFilter(f.key)}
-                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-[12px] font-bold transition-colors ${
-                    filter === f.key ? 'bg-ink-deep text-white' : 'bg-surface text-heading shadow-card hover:bg-paper'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {filteredNewMembers.length === 0 ? (
-              <Card className="p-6 text-center">
-                <p className="text-[12.5px] text-slate">No new members to show.</p>
-              </Card>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {filteredNewMembers.map((e) => {
-                  const { day, month } = dateParts(e.joinedDate)
-                  return (
-                    <MemberCard
-                      key={e.member.id}
-                      member={e.member}
-                      type="new-member"
-                      dateDay={day}
-                      dateMonth={month}
-                      countdownLabel={formatPastLabel(e.joinedDate, now)}
-                      completed={isWished(e.member.id, 'visitor')}
-                      onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
-                      onSend={() => navigate(`/send-wish/welcome/${e.member.id}?occasion=visitor`)}
-                      sendLabel="Send Wishes"
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </section>
     </div>
   )
 }

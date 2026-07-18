@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import type { MemberStatus } from '../components/ui/StatusPill'
-import { IdCardFlipper } from '../features/members/IdCardFlipper'
+import { IdCardFull } from '../features/members/IdCardFull'
 import { useDraftMember } from '../features/members/DraftMemberContext'
 
 export function IdCardPreviewScreen() {
@@ -30,18 +30,16 @@ export function IdCardPreviewScreen() {
         Back to form
       </button>
 
-      <div className="relative flex flex-1 items-center justify-center">
-        <div className="w-full max-w-[560px]">
-          <IdCardFlipper
-            name={data.fullName}
-            memberId={previewMemberId}
-            mobile={data.mobile}
-            bloodGroup={data.bloodGroup}
-            status={status}
-            statusLabel={isVisitor ? 'Visitor' : 'Member'}
-            sinceYear={data.joiningDate ? data.joiningDate.slice(0, 4) : undefined}
-          />
-        </div>
+      <div className="relative flex flex-1 items-start justify-center">
+        <IdCardFull
+          name={data.fullName}
+          memberId={previewMemberId}
+          mobile={data.mobile}
+          bloodGroup={data.bloodGroup}
+          status={status}
+          statusLabel={isVisitor ? 'Visitor' : 'Member'}
+          sinceYear={data.joiningDate ? data.joiningDate.slice(0, 4) : undefined}
+        />
       </div>
     </div>
   )

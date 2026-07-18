@@ -2,6 +2,7 @@ import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { LiveBadge } from '../notifications/scheduleView'
 import {
   useNotificationSettings,
@@ -90,8 +91,11 @@ export function AccessSettingsScreen() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="font-display text-[20px] font-bold text-heading">Access Settings</h1>
-        <p className="mt-1 text-[12.5px] text-slate">
+        <div className="flex items-center gap-1">
+          <MobileBackButton />
+          <h1 className="font-display text-[20px] font-bold text-heading">Access Settings</h1>
+        </div>
+        <p className="mt-1 text-[12.5px] text-slate md:pl-0">
           Control which automatic notifications go out, and who can take attendance.
         </p>
       </div>
@@ -113,22 +117,31 @@ export function AccessSettingsScreen() {
 
       {settings && (
         <>
-          {/* Master switch — the one-button deactivate-all. */}
-          <Card className="mb-4 p-4">
+          {/* Master switch — the one-button deactivate-all. Deliberately given a
+              distinct highlighted treatment (brass when active, red when off) so
+              it stands apart from the individual switches below. */}
+          <div
+            className={`mb-4 rounded-2xl border p-4 shadow-card transition-colors ${
+              settings.enabled
+                ? 'border-brass/40 bg-gradient-to-br from-brass/15 via-surface to-surface'
+                : 'border-status-alert-fg/30 bg-status-alert-bg'
+            }`}
+          >
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="flex items-center gap-1.5 text-[14px] font-bold text-heading">
-                  <Icon
-                    name={settings.enabled ? 'bell' : 'bell-off'}
-                    className={`icon !h-[14px] !w-[14px] ${
-                      settings.enabled ? 'text-status-regular-fg' : 'text-status-alert-fg'
-                    }`}
-                  />
-                  All Notifications
-                </h2>
-                <p className="mt-1 text-[11.5px] leading-relaxed text-slate">
-                  One switch to deactivate everything at once — nothing below sends while this is off.
-                </p>
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    settings.enabled ? 'bg-gradient-to-br from-brass to-brass-deep' : 'bg-status-alert-fg'
+                  }`}
+                >
+                  <Icon name={settings.enabled ? 'bell' : 'bell-off'} className="icon !h-[16px] !w-[16px] text-white" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-[14px] font-bold text-heading">All Notifications</h2>
+                  <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate">
+                    One switch to deactivate everything at once — nothing below sends while this is off.
+                  </p>
+                </div>
               </div>
               <ToggleSwitch
                 checked={settings.enabled}
@@ -155,7 +168,7 @@ export function AccessSettingsScreen() {
                 Could not save — check your connection and try again.
               </p>
             )}
-          </Card>
+          </div>
 
           {/* Individual switches — one per automatic notification (18 total). */}
           <div className={`space-y-4 ${settings.enabled ? '' : 'opacity-60'}`}>

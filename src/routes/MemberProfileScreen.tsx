@@ -6,7 +6,7 @@ import { Reveal } from '../components/ui/Reveal'
 import { Skeleton, SkeletonIdCard } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
-import { IdCardFlipper } from '../features/members/IdCardFlipper'
+import { IdCardFull } from '../features/members/IdCardFull'
 import {
   buildMemberProfileUrl,
   buildRemovalMessage,
@@ -217,8 +217,8 @@ export function MemberProfileScreen() {
         <h3 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
           Digital Membership Card
         </h3>
-        <div className="motion-safe:animate-[float-soft_6s_ease-in-out_infinite] mx-auto max-w-[420px]">
-          <IdCardFlipper
+        <div className="mx-auto max-w-[420px]">
+          <IdCardFull
             name={member.name}
             memberId={member.memberId}
             mobile={member.phone}

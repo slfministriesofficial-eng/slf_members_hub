@@ -1284,11 +1284,11 @@ function runPersonalGreetings(now, dateKey, cache) {
     const dob = parseSheetDate(member.dob)
     if (disabled.indexOf('birthday') === -1 && matchesAnnualDate(dob, now)) {
       sendPersonalOnce(cache, dateKey, 'birthday', member.memberId, tokens, {
-        title: '🎂 Happy Birthday!',
+        title: '🎂 Happy Birthday, ' + name + '!',
         body:
           'Dear ' +
           name +
-          ',\nMay our Lord Jesus Christ bless you with abundant joy, good health, wisdom, peace, and many more blessed years of life.\n\nWishing you a very Happy Birthday!\n\n' +
+          ',\n\nWishing you a very happy birthday! May the Lord Jesus Christ fill your life with joy, good health, wisdom, and peace, and bless you abundantly in the days ahead.\n\nHave a blessed and joyful day!\n\n' +
           SIGN_OFF_LINES,
       })
     }
@@ -1300,7 +1300,7 @@ function runPersonalGreetings(now, dateKey, cache) {
         body:
           'Dear ' +
           coupleName(member) +
-          ',\nMay God continue to bless your marriage with love, peace, joy, and abundant grace.\n\nWishing you both a blessed Wedding Anniversary.\n\n' +
+          ',\n\nHappy Wedding Anniversary! May God continue to bless your marriage with love, joy, peace, and His abundant grace.\n\nWishing you both a blessed and joyful celebration.\n\n' +
           SIGN_OFF_LINES,
       })
     }
@@ -1312,7 +1312,7 @@ function runPersonalGreetings(now, dateKey, cache) {
         body:
           'Dear ' +
           coupleName(member) +
-          ",\nToday marks another wonderful year as members of Sarah Living Faith Ministries, Vijayawada.\n\nThank you for your faithful fellowship, service, and commitment to God's Kingdom. May the Lord continue to bless your family abundantly.\n\n" +
+          ',\n\nHappy Membership Anniversary! We thank God for your faithful fellowship and service as part of the Sarah Living Faith Ministries family.\n\nMay the Lord continue to bless you and your family abundantly.\n\n' +
           SIGN_OFF_LINES,
       })
     }
@@ -1324,7 +1324,7 @@ function runPersonalGreetings(now, dateKey, cache) {
         body:
           'Dear ' +
           name +
-          ',\nToday marks your Baptism Anniversary. May the Lord strengthen your faith and continue to guide you in your walk with Christ.\n\nMay His grace and peace be with you always.\n\n' +
+          ',\n\nHappy Baptism Anniversary! May the Lord strengthen your faith and continue to guide you in your walk with Christ.\n\nMay His grace and peace be with you always.\n\n' +
           SIGN_OFF_LINES,
       })
     }

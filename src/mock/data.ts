@@ -148,13 +148,6 @@ export const CARE_ITEMS: CareItem[] = [
   },
 ]
 
-export const DASHBOARD_STATS = {
-  totalMembers: 428,
-  birthdaysThisWeek: 6,
-  followUpsDue: 12,
-  absenteesFlagged: 3,
-}
-
 export const CURRENT_ADMIN = {
   name: 'Pastor Anand Kumar',
   initials: 'AK',

@@ -5,6 +5,7 @@ import { Dropdown } from '../components/ui/Dropdown'
 import { Avatar } from '../components/ui/Avatar'
 import { StatusPill } from '../components/ui/StatusPill'
 import { Skeleton } from '../components/ui/Skeleton'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { useMembers } from '../features/members/MembersContext'
 import { MINISTRY_OPTIONS } from '../features/members/types'
 import { buildRemovalMessage, normalizeWhatsappNumber, openWhatsappWithText } from '../templates/whatsapp'
@@ -180,7 +181,10 @@ export function MembersScreen() {
           very top row, matching the small-screen layout spec; the subtitle sits
           on its own line below, kept to one line rather than wrapping. */}
       <div className="mb-1 flex items-center justify-between gap-3 md:hidden">
-        <h1 className="font-display text-[22px] font-bold text-heading">Members</h1>
+        <div className="flex min-w-0 items-center gap-1">
+          <MobileBackButton />
+          <h1 className="font-display text-[22px] font-bold text-heading">Members</h1>
+        </div>
         <button onClick={() => navigate('/members/new')} className="flex shrink-0 items-center gap-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
             <Icon name="plus" className="icon !h-[16px] !w-[16px] text-white" />

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { Dropdown } from '../components/ui/Dropdown'
-import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { SkeletonIdCard, SkeletonListRow } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MINISTRY_OPTIONS } from '../features/members/types'
-import { IdCardFlipper } from '../features/members/IdCardFlipper'
+import { IdCardFull } from '../features/members/IdCardFull'
 import { IdCard } from '../features/members/IdCard'
 import { IdCardBack } from '../features/members/IdCardBack'
 import { normalizeWhatsappNumber, openWhatsappChat } from '../templates/whatsapp'
@@ -78,7 +78,6 @@ export function MembershipCardsScreen() {
   const [ministryFilter, setMinistryFilter] = useState('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
-  const [flipped, setFlipped] = useState(false)
   const [zoom, setZoom] = useState(100)
   const [switching, setSwitching] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -150,7 +149,6 @@ export function MembershipCardsScreen() {
     setSwitching(true)
     switchTimeout.current = setTimeout(() => {
       setSelectedId(id)
-      setFlipped(false)
       setZoom(100)
       setSwitching(false)
     }, 350)
@@ -223,7 +221,10 @@ export function MembershipCardsScreen() {
     <div>
       <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="font-display text-[20px] font-bold text-heading md:text-[24px]">Membership Cards</h1>
+          <div className="flex items-center gap-1">
+            <MobileBackButton />
+            <h1 className="font-display text-[20px] font-bold text-heading md:text-[24px]">Membership Cards</h1>
+          </div>
           <p className="mt-1 text-[12.5px] text-slate">Manage, preview and share digital membership cards.</p>
         </div>
         <div className="grid grid-cols-3 gap-2.5 md:w-[340px] md:shrink-0">
@@ -437,7 +438,7 @@ export function MembershipCardsScreen() {
                   className="mx-auto w-full max-w-[420px] transition-transform duration-200"
                   style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                 >
-                  <IdCardFlipper
+                  <IdCardFull
                     name={selected.name}
                     memberId={selected.memberId}
                     mobile={selected.phone}
@@ -445,23 +446,10 @@ export function MembershipCardsScreen() {
                     status={selected.status}
                     statusLabel={selected.statusLabel}
                     sinceYear={selected.joinDate.slice(-4)}
-                    flipped={flipped}
-                    onFlipChange={setFlipped}
-                    hideToggle
                   />
                 </div>
               )}
             </div>
-
-            {!isLoading && !switching && selected && (
-              <div className="mx-auto mt-2 max-w-[260px]">
-                <SegmentedControl
-                  options={['Front', 'Back']}
-                  value={flipped ? 'Back' : 'Front'}
-                  onChange={(v) => setFlipped(v === 'Back')}
-                />
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -475,8 +463,8 @@ export function MembershipCardsScreen() {
           >
             <Icon name="x" className="icon !h-[18px] !w-[18px] text-heading" />
           </button>
-          <div className="w-[92vw] max-w-[640px]">
-            <IdCardFlipper
+          <div className="max-h-[88vh] w-[92vw] max-w-[440px] overflow-y-auto">
+            <IdCardFull
               name={selected.name}
               memberId={selected.memberId}
               mobile={selected.phone}
@@ -484,8 +472,6 @@ export function MembershipCardsScreen() {
               status={selected.status}
               statusLabel={selected.statusLabel}
               sinceYear={selected.joinDate.slice(-4)}
-              flipped={flipped}
-              onFlipChange={setFlipped}
             />
           </div>
         </div>

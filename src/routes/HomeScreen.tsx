@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
@@ -17,7 +18,7 @@ import {
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
-import { DASHBOARD_STATS } from '../mock/data'
+import { fetchAttendanceSummary } from '../attendance/api'
 import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
 import { useMembers } from '../features/members/MembersContext'
 import { getInitials } from '../utils/initials'
@@ -118,6 +119,16 @@ export function HomeScreen() {
   const recentActivity = useMemo(() => getRecentActivity(members, PREVIEW_LIMIT), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
 
+  // Last recorded service (summary is newest-first) — powers the real
+  // "Last Sunday" attendance stat. Undefined if the endpoint isn't deployed.
+  const { data: attendanceSummary } = useQuery({
+    queryKey: ['attendance-summary'],
+    queryFn: fetchAttendanceSummary,
+  })
+  const lastService = attendanceSummary && attendanceSummary.length > 0 ? attendanceSummary[0] : null
+  const lastServiceRate =
+    lastService && members.length > 0 ? Math.round((lastService.count / members.length) * 100) : null
+
   // "Wish sent" ticks on the This-week cards — now backend-backed, so a wish
   // sent on any device shows here too (see completedWishes). The store keys by
   // the member's internal id, which equals the SLF memberId the cards carry.
@@ -132,13 +143,18 @@ export function HomeScreen() {
     return internalId ? isWished(internalId, occasion) : false
   }
 
-  // Follow-ups/absentees have no real backend yet (no attendance log to source them
-  // from) — left as mock until that's built, unlike the stats above which are real.
-  const stats = [
+  // All four are real: members + this-week birthdays from the roster,
+  // follow-ups from the live alert counts, and last-service attendance from the
+  // recorded attendance log ('—' until the first Sunday is marked).
+  const stats: { label: string; value: string | number; tone: string }[] = [
     { label: 'Total members', value: members.length, tone: 'ink' },
     { label: 'Birthdays this week', value: birthdaysThisWeek, tone: 'regular' },
-    { label: 'Follow-ups due', value: DASHBOARD_STATS.followUpsDue, tone: 'ink' },
-    { label: 'Absentees flagged', value: DASHBOARD_STATS.absenteesFlagged, tone: 'alert' },
+    { label: 'Follow-ups due', value: alertCounts.followUpsPending, tone: 'ink' },
+    {
+      label: lastServiceRate !== null ? `Last Sunday · ${lastServiceRate}%` : 'Last Sunday present',
+      value: lastService ? lastService.count : '—',
+      tone: 'regular',
+    },
   ]
 
   return (
@@ -201,8 +217,8 @@ export function HomeScreen() {
         </div>
       )}
 
-      {/* Stats row — desktop only, mobile already gets this via the hero + quick actions */}
-      <div className="mb-5 hidden gap-3 md:grid md:grid-cols-4">
+      {/* Stats row — 2-up on mobile, 4-up on desktop; all real data. */}
+      <div className="mb-5 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
         {isLoading ? (
           <>
             <SkeletonStatCard />

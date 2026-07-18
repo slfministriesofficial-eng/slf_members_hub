@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
 import {
@@ -51,9 +52,12 @@ export function BirthdaysScreen() {
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
       <div className="mb-5">
-        <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">
-          Birthdays &amp; Anniversaries
-        </h1>
+        <div className="flex items-center gap-1">
+          <MobileBackButton />
+          <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">
+            Birthdays &amp; Anniversaries
+          </h1>
+        </div>
         <p className="mt-1 text-[12.5px] text-slate">
           Celebrate and bless our church family on their special occasions.
         </p>

@@ -1,10 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
 import { useTheme } from '../theme/ThemeContext'
 import { getInitials } from '../utils/initials'
+import { useMembers } from '../features/members/MembersContext'
+import { fetchAttendanceTakers } from '../attendance/api'
 import { useNotifications } from '../notifications/useNotifications'
 import { sendTestNotification, copyToken } from '../notifications/NotificationService'
 
@@ -63,6 +67,8 @@ function ListRow({
 }
 
 const MOBILE_QUICK_LINKS = [
+  { icon: 'users', label: 'Members', to: '/members' },
+  { icon: 'cal-check', label: 'Attendance', to: '/attendance' },
   { icon: 'flag', label: 'Follow-ups', to: '/follow-ups' },
   { icon: 'cake', label: 'Birthdays & Anniversaries', to: '/birthdays' },
   { icon: 'megaphone', label: 'Announcements', to: '/announcements' },
@@ -70,11 +76,15 @@ const MOBILE_QUICK_LINKS = [
 ]
 
 export function MoreScreen() {
-  const [digest, setDigest] = useState(true)
   const { adminName, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
+  const { members } = useMembers()
   const name = adminName || 'Admin'
+
+  // Real count of active attendance takers (drops the old hardcoded "1 active").
+  const { data: takers } = useQuery({ queryKey: ['attendance-takers'], queryFn: fetchAttendanceTakers })
+  const activeTakers = takers ? takers.filter((t) => t.active).length : null
 
   const { permission, token, supported, lastUpdated, enabling, denied, enableNotifications, disableNotifications } =
     useNotifications()
@@ -119,6 +129,33 @@ export function MoreScreen() {
     setNotifToast(copied ? 'Token copied to clipboard.' : 'No token to copy yet.')
   }
 
+  /** Download the full member roster as a CSV (real export — no server needed). */
+  function exportMembersCsv() {
+    if (members.length === 0) {
+      setNotifToast('No members to export yet.')
+      return
+    }
+    const headers = [
+      'Member ID', 'Name', 'Gender', 'Date of Birth', 'Blood Group',
+      'Phone', 'WhatsApp', 'Email', 'Ministry', 'Status', 'Join Date',
+    ]
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines = members.map((m) =>
+      [m.memberId, m.name, m.gender, m.dob, m.bloodGroup, m.phone, m.whatsapp, m.email, m.ministry, m.statusLabel, m.joinDate]
+        .map(esc)
+        .join(','),
+    )
+    const csv = [headers.map(esc).join(','), ...lines].join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `slf-members-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    setNotifToast(`Exported ${members.length} members to CSV.`)
+  }
+
   function formatUpdated(iso: string | null): string {
     if (!iso) return '—'
     const d = new Date(iso)
@@ -128,7 +165,8 @@ export function MoreScreen() {
 
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-center gap-1">
+        <MobileBackButton />
         <h1 className="font-display text-[20px] font-bold text-heading">More</h1>
       </div>
 
@@ -154,19 +192,30 @@ export function MoreScreen() {
 
       <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Insights</h2>
       <Card className="mb-5">
-        <ListRow icon="chart" label="Reports & Analytics" />
-        <ListRow icon="download" label="Export members / reports" />
+        <button onClick={() => navigate('/reports')} className="block w-full text-left">
+          <ListRow icon="chart" label="Reports & Analytics" />
+        </button>
+        <button onClick={exportMembersCsv} className="block w-full text-left">
+          <ListRow icon="download" label="Export members (CSV)" />
+        </button>
       </Card>
 
-      <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Access &amp; safety</h2>
+      <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Access &amp; controls</h2>
       <Card className="mb-5">
-        <ListRow icon="shield" label="Attendance Taker access" value="1 active" />
-        <ListRow icon="cloud" label="Weekly data backup" value="Sun 2 AM" />
-        <ListRow
-          icon="bell"
-          label="Daily email digest"
-          right={<Switch on={digest} onToggle={() => setDigest((d) => !d)} />}
-        />
+        <button onClick={() => navigate('/access')} className="block w-full text-left">
+          <ListRow icon="bell" label="Notification Settings" />
+        </button>
+        <button onClick={() => navigate('/access')} className="block w-full text-left">
+          <ListRow
+            icon="shield"
+            label="Attendance Taker access"
+            value={activeTakers !== null ? `${activeTakers} active` : undefined}
+          />
+        </button>
+      </Card>
+
+      <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Preferences</h2>
+      <Card className="mb-5">
         <ListRow
           icon="moon"
           label="Dark mode"

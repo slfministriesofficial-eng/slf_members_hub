@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { useMembers } from '../features/members/MembersContext'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { cleanTitle, useNotificationHistory, useTokenCount } from '../notifications/scheduleView'
@@ -32,7 +33,8 @@ export function AnnouncementsScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      <div className="mb-1">
+      <div className="mb-1 flex items-center gap-1">
+        <MobileBackButton />
         <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Announcements</h1>
       </div>
       <p className="mb-5 text-[12.5px] text-slate">

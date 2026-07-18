@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '../components/ui/Icon'
+import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { useMembers } from '../features/members/MembersContext'
 import { getAttendanceMarks } from '../utils/attendanceMarks'
 import { fetchAttendanceTakers, fetchAttendanceSummary } from '../attendance/api'
@@ -33,8 +34,11 @@ export function AttendanceHubScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      <div className="mb-1 flex items-baseline justify-between gap-3">
-        <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Attendance</h1>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1">
+          <MobileBackButton />
+          <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Attendance</h1>
+        </div>
         <span className="shrink-0 text-[11.5px] font-semibold text-slate">{formatFullDate(now)}</span>
       </div>
       <p className="mb-5 text-[12.5px] text-slate">

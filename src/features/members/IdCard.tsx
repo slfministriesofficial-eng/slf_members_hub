@@ -48,7 +48,7 @@ export function IdCard({
         <Icon name="cross" className="icon !h-36 !w-36 text-ink" />
       </div>
 
-      <div className="relative flex h-full flex-col px-5 pt-4">
+      <div className="relative flex h-full flex-col px-5 pt-3.5">
         {/* header: logo · wordmark · QR */}
         <div className="flex items-start justify-between gap-3">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full shadow-md ring-[3px] ring-brass/70">
@@ -75,8 +75,8 @@ export function IdCard({
           </div>
 
           <div className="flex shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-brass/70 bg-white p-1.5 shadow-md">
-            <QrCode value={profileUrl} className="h-[64px] w-[64px]" />
-            <span className="text-[7px] font-bold uppercase tracking-wide text-slate">Scan to verify</span>
+            <QrCode value={profileUrl} className="h-[84px] w-[84px]" />
+            <span className="text-[7.5px] font-bold uppercase tracking-wide text-slate">Scan to verify</span>
           </div>
         </div>
 
@@ -95,7 +95,7 @@ export function IdCard({
         <div className="flex-1" />
 
         {/* bottom navy band */}
-        <div className="relative -mx-5 mt-3 overflow-hidden rounded-t-[32px] bg-gradient-to-br from-ink-deep to-ink px-5 pb-4 pt-3.5">
+        <div className="relative -mx-5 mt-3 overflow-hidden rounded-t-[32px] bg-gradient-to-br from-ink-deep to-ink px-5 pb-3.5 pt-3.5">
           <div
             className="pointer-events-none absolute inset-0 opacity-20"
             style={{
@@ -125,14 +125,17 @@ function StatBadge({
   value: string
   mono?: boolean
 }) {
+  // Horizontal: text (label over value) on the LEFT, icon on the RIGHT.
   return (
-    <div className="flex flex-col items-center gap-1.5 px-1 text-center">
-      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-brass/60">
+    <div className="flex items-center justify-between gap-2 px-2.5">
+      <div className="min-w-0">
+        <div className="text-[8px] font-bold uppercase tracking-wide text-brass">{label}</div>
+        <div className={`truncate text-[13px] font-bold text-white ${mono ? 'font-mono tracking-wide' : ''}`}>
+          {value}
+        </div>
+      </div>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brass/60">
         <Icon name={icon} className="icon !h-[14px] !w-[14px] text-brass" />
-      </span>
-      <span className="text-[8px] font-bold uppercase tracking-wide text-brass">{label}</span>
-      <span className={`truncate text-[13px] font-bold text-white ${mono ? 'font-mono tracking-wide' : ''}`}>
-        {value}
       </span>
     </div>
   )

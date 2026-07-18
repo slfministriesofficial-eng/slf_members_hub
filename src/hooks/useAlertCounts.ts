@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMembers } from '../features/members/MembersContext'
-import { deriveBirthdays, deriveAnniversaries, deriveNewMembers } from '../utils/celebrations'
+import { deriveBirthdays, deriveAnniversaries } from '../utils/celebrations'
 import { getCompletedKeys, wishKey, primeCompletedWishes } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
@@ -111,8 +111,6 @@ export type AlertCounts = {
   celebrationsToday: number
   /** This week's (next 7 days) birthdays + anniversaries still needing wishes. */
   celebrationsWeek: number
-  /** New members still awaiting a welcome message. */
-  followUpsPending: number
 }
 
 /**
@@ -147,15 +145,11 @@ export function useAlertCounts(): AlertCounts {
     )
     const celebrations = [...birthdays, ...anniversaries]
     const seen = getSeenMemberIds()
-    const seenFollowUps = getSeenFollowUpIds()
 
     return {
       newMembers: seen === null ? 0 : members.filter((m) => !seen.has(m.id)).length,
       celebrationsToday: celebrations.filter((e) => e.daysAway === 0).length,
       celebrationsWeek: celebrations.filter((e) => e.daysAway <= 7).length,
-      followUpsPending: deriveNewMembers(members).filter(
-        (e) => !completed.has(wishKey(e.member.id, 'visitor')) && !seenFollowUps.has(e.member.id),
-      ).length,
     }
     // version is the external-event invalidation counter — see the listener above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,7 +165,6 @@ export function useAlertCounts(): AlertCounts {
  */
 export function badgeForRoute(counts: AlertCounts, to: string): number {
   if (to === '/members') return counts.newMembers
-  if (to === '/follow-ups') return counts.followUpsPending
   if (to === '/birthdays') return counts.celebrationsToday
   return 0
 }
@@ -214,7 +207,6 @@ export function useAlertItems(): { items: AlertItem[]; total: number; clearAll: 
     const completed = getCompletedKeys()
     const seenCelebrations = getSeenCelebrationIds()
     const seenMembers = getSeenMemberIds()
-    const seenFollowUps = getSeenFollowUpIds()
 
     const birthdays = deriveBirthdays(members).map((e) => ({ ...e, kind: 'Birthday', occasion: 'birthday' as const }))
     const anniversaries = deriveAnniversaries(members).map((e) => ({
@@ -229,9 +221,6 @@ export function useAlertItems(): { items: AlertItem[]; total: number; clearAll: 
         !seenCelebrations.has(e.member.id),
     )
 
-    const pendingWelcomes = deriveNewMembers(members).filter(
-      (e) => !completed.has(wishKey(e.member.id, 'visitor')) && !seenFollowUps.has(e.member.id),
-    )
     const unseenMembers = seenMembers === null ? [] : members.filter((m) => !seenMembers.has(m.id))
 
     const items: AlertItem[] = []
@@ -244,15 +233,6 @@ export function useAlertItems(): { items: AlertItem[]; total: number; clearAll: 
         to: '/birthdays',
       })
     }
-    if (pendingWelcomes.length > 0) {
-      items.push({
-        key: 'welcomes',
-        icon: 'heart',
-        title: `${pendingWelcomes.length} welcome message${pendingWelcomes.length === 1 ? '' : 's'} pending`,
-        subtitle: firstNames(pendingWelcomes.map((e) => e.member.name.split(' ')[0])),
-        to: '/follow-ups',
-      })
-    }
     if (unseenMembers.length > 0) {
       items.push({
         key: 'new-members',
@@ -263,13 +243,12 @@ export function useAlertItems(): { items: AlertItem[]; total: number; clearAll: 
       })
     }
 
-    const total = celebrationsToday.length + pendingWelcomes.length + unseenMembers.length
+    const total = celebrationsToday.length + unseenMembers.length
 
     const clearAll = () => {
       markMembersSeen(members)
       const weekIds = [...birthdays, ...anniversaries].filter((e) => e.daysAway <= 7).map((e) => e.member.id)
       markCelebrationsSeen(weekIds)
-      markFollowUpsSeen(deriveNewMembers(members).map((e) => e.member.id))
     }
 
     return { items, total, clearAll }
