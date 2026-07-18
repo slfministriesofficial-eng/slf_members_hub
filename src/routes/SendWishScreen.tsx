@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
 import { Card } from '../components/ui/Card'
@@ -17,7 +17,8 @@ import {
   NEW_MEMBER_TEMPLATES,
   CUSTOM_MESSAGE_TEMPLATES,
 } from '../templates/whatsapp'
-import { markCompleted } from '../utils/completedWishes'
+import { markCompleted, type WishOccasion } from '../utils/completedWishes'
+import { useAuth } from '../auth/AuthContext'
 
 type WishKind = 'birthday' | 'anniversary' | 'welcome' | 'custom'
 
@@ -38,8 +39,23 @@ export function SendWishScreen() {
   const kind: WishKind =
     rawKind === 'anniversary' || rawKind === 'welcome' || rawKind === 'custom' ? rawKind : 'birthday'
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { getMember } = useMembers()
+  const { adminName, takerEmail } = useAuth()
   const member = memberId ? getMember(memberId) : undefined
+
+  // Which of the five celebrations this wish is for (for the per-occasion
+  // "Wished" tick). Taken from the ?occasion= param the lists pass; for the
+  // dedicated flows it's derivable from the flow kind. 'custom' with no
+  // occasion is a generic message and records no tick.
+  const OCCASION_BY_KIND: Record<WishKind, WishOccasion | null> = {
+    birthday: 'birthday',
+    anniversary: 'wedding',
+    welcome: 'visitor',
+    custom: null,
+  }
+  const occasionParam = searchParams.get('occasion') as WishOccasion | null
+  const occasion: WishOccasion | null = occasionParam ?? OCCASION_BY_KIND[kind]
 
   const templates =
     kind === 'birthday'
@@ -96,9 +112,10 @@ export function SendWishScreen() {
   function sendWish() {
     if (!validNumber) return
     openWhatsappWithText(validNumber, message)
-    // Custom messages aren't tied to any pending birthday/anniversary/welcome
-    // list, so they shouldn't mark the member "completed" on one.
-    if (kind !== 'custom') markCompleted(member!.id)
+    // Record the "Wished" tick against this specific occasion (birthday /
+    // wedding / baptism / membership / visitor). A generic custom message with
+    // no occasion isn't tied to any celebration, so it records nothing.
+    if (occasion) markCompleted(member!.id, occasion, adminName || takerEmail || '')
     goBack()
   }
 

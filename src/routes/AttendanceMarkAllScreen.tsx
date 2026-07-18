@@ -5,14 +5,15 @@ import { Avatar } from '../components/ui/Avatar'
 import { Skeleton } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
-import { getAttendanceMarks, togglePresence, type AttendanceMarksMap } from '../utils/attendanceMarks'
+import { getAttendanceMarks, togglePresence, syncAttendance, type AttendanceMarksMap } from '../utils/attendanceMarks'
+import { useAuth } from '../auth/AuthContext'
 import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import type { Member } from '../mock/types'
 
 const FILTER_CHIPS: { key: 'all' | 'present' | 'absent'; label: string }[] = [
   { key: 'all', label: 'All Members' },
-  { key: 'present', label: 'Present' },
-  { key: 'absent', label: 'Absent' },
+  { key: 'present', label: 'Checked In' },
+  { key: 'absent', label: 'Not Checked In' },
 ]
 
 function normalize(value: string): string {
@@ -23,20 +24,29 @@ function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
-// A focused, searchable "check everyone off" list — separated from the
-// summary dashboard (AttendanceScreen) so a volunteer taking attendance gets
-// a distraction-free tool: search, a present/absent filter, and one checkbox
-// per member. Checking it marks present immediately (no separate save step);
-// unchecking marks absent — there's no third "not marked yet" state anymore.
-export function AttendanceMarkAllScreen() {
+function formatToday(): string {
+  const d = new Date()
+  return `${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`
+}
+
+// A focused, searchable "check everyone off" list — search, a present/absent
+// filter, and one checkbox per member. Checking marks present immediately (no
+// separate save step); unchecking marks absent. When `home` is set it's the
+// attendance taker's landing page: no back header (the TakerShell provides
+// chrome) and rows don't open profiles (that route is admin-only for them).
+export function AttendanceMarkAllScreen({ home = false }: { home?: boolean }) {
   const { members, isLoading, isError } = useMembers()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [filterKey, setFilterKey] = useState<'all' | 'present' | 'absent'>('all')
   const [marks, setMarks] = useState<AttendanceMarksMap>(getAttendanceMarks)
+  const { takerEmail, adminName } = useAuth()
+  const markedBy = takerEmail || adminName || 'admin'
 
-  function toggle(memberId: string) {
-    setMarks(togglePresence(memberId))
+  function toggle(member: Member) {
+    const next = togglePresence(member.id)
+    setMarks(next)
+    syncAttendance(member.memberId, member.name, Boolean(next[member.id]), markedBy)
   }
 
   const filtered = useMemo(() => {
@@ -61,7 +71,14 @@ export function AttendanceMarkAllScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      <PageBackHeader title="All Members" onBack={() => navigate(-1)} />
+      {home ? (
+        <div className="mb-4">
+          <h1 className="font-display text-[20px] font-bold text-heading">Today's Attendance</h1>
+          <p className="mt-0.5 text-[12px] text-slate">{formatToday()} · tap to check members in</p>
+        </div>
+      ) : (
+        <PageBackHeader title="All Members" onBack={() => navigate(-1)} />
+      )}
 
       <div className="mb-3 flex items-center gap-2 rounded-2xl bg-surface px-3.5 py-2.5 shadow-card transition-shadow focus-within:shadow-elev">
         <Icon name="search" className="icon !h-[17px] !w-[17px] text-slate" />
@@ -117,8 +134,8 @@ export function AttendanceMarkAllScreen() {
               key={member.id}
               member={member}
               present={Boolean(marks[member.id])}
-              onToggle={() => toggle(member.id)}
-              onOpenProfile={() => navigate(`/celebration-profile/attendance/${member.id}`)}
+              onToggle={() => toggle(member)}
+              onOpenProfile={home ? undefined : () => navigate(`/celebration-profile/attendance/${member.id}`)}
             />
           ))}
         </div>
@@ -160,21 +177,21 @@ function MemberRow({
   member: Member
   present: boolean
   onToggle: () => void
-  onOpenProfile: () => void
+  onOpenProfile?: () => void
 }) {
   const sinceYear = member.joinDate.slice(-4)
 
   return (
     <div
       onClick={onOpenProfile}
-      role="button"
-      tabIndex={0}
+      role={onOpenProfile ? 'button' : undefined}
+      tabIndex={onOpenProfile ? 0 : undefined}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpenProfile()
+        if (onOpenProfile && e.key === 'Enter') onOpenProfile()
       }}
-      className={`flex cursor-pointer items-center gap-2.5 rounded-2xl border-l-4 bg-surface p-3 shadow-card transition-shadow active:shadow-elev ${
-        present ? 'border-l-status-regular-fg' : 'border-l-hairline'
-      }`}
+      className={`flex items-center gap-2.5 rounded-2xl border-l-4 bg-surface p-3 shadow-card transition-shadow ${
+        onOpenProfile ? 'cursor-pointer active:shadow-elev' : ''
+      } ${present ? 'border-l-status-regular-fg' : 'border-l-hairline'}`}
     >
       <Checkbox checked={present} onChange={onToggle} ariaLabel={`Mark ${member.name} present`} />
       <Avatar initials={member.initials} color={member.color} size={40} />
@@ -193,9 +210,9 @@ function MemberRow({
           present ? 'bg-status-regular-bg text-status-regular-fg' : 'bg-status-alert-bg text-status-alert-fg'
         }`}
       >
-        {present ? 'Present' : 'Absent'}
+        {present ? 'Checked In' : 'Not Checked In'}
       </span>
-      <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />
+      {onOpenProfile && <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />}
     </div>
   )
 }

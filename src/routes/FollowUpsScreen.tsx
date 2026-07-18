@@ -6,7 +6,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MemberCard } from '../features/members/MemberCard'
 import { deriveNewMembers, formatPastLabel, dateParts, isSameCalendarMonth } from '../utils/celebrations'
-import { getCompletedIds } from '../utils/completedWishes'
+import { useCompletedWishes } from '../utils/completedWishes'
 import {
   findNextTrigger,
   NextNotificationCard,
@@ -46,7 +46,7 @@ export function FollowUpsScreen() {
   const { members, isLoading, isError } = useMembers()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
-  const [completedIds] = useState<Set<string>>(getCompletedIds)
+  const isWished = useCompletedWishes()
   // Shared cached query — the Access page's switches invalidate it, so this
   // page reflects a flipped switch immediately.
   const { data: schedule, isError: scheduleError } = useUpcomingSchedule()
@@ -87,8 +87,8 @@ export function FollowUpsScreen() {
   // Once welcomed, someone drops off every filter except "Completed" itself.
   const filteredNewMembers = useMemo(() => {
     return newMembers.filter((e) => matchesSearch(e.member, query)).filter((e) => {
-      if (filter === 'completed') return completedIds.has(e.member.id)
-      if (completedIds.has(e.member.id)) return false
+      if (filter === 'completed') return isWished(e.member.id, 'visitor')
+      if (isWished(e.member.id, 'visitor')) return false
       switch (filter) {
         case 'today':
           return e.daysAgo === 0
@@ -100,7 +100,7 @@ export function FollowUpsScreen() {
           return true
       }
     })
-  }, [newMembers, query, filter, now, completedIds])
+  }, [newMembers, query, filter, now, isWished])
 
   return (
     <div>
@@ -266,9 +266,9 @@ export function FollowUpsScreen() {
                       dateDay={day}
                       dateMonth={month}
                       countdownLabel={formatPastLabel(e.joinedDate, now)}
-                      completed={completedIds.has(e.member.id)}
+                      completed={isWished(e.member.id, 'visitor')}
                       onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
-                      onSend={() => navigate(`/send-wish/welcome/${e.member.id}`)}
+                      onSend={() => navigate(`/send-wish/welcome/${e.member.id}?occasion=visitor`)}
                       sendLabel="Send Wishes"
                     />
                   )

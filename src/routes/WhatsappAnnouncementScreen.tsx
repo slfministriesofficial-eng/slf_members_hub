@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { openWhatsappBroadcast } from '../templates/whatsapp'
-import type { Template } from '../templates/push/announcements'
+import { TEMPLATES, type Template } from '../templates/push/announcements'
+import { TELUGU_TEMPLATES } from '../templates/push/announcements-telugu'
 import {
   MAX_MESSAGE_LENGTH,
   FIELD_CLASS,
   LABEL_CLASS,
   StepSection,
   TemplateChips,
+  LanguageToggle,
+  type TemplateLanguage,
   LinksEditor,
   SummaryRow,
   DateTimeChecklist,
@@ -31,6 +34,7 @@ const ACCENT = 'bg-[#25D366]' // this flow's identity color (WhatsApp green)
 export function WhatsappAnnouncementScreen() {
   const navigate = useNavigate()
   const [templateKey, setTemplateKey] = useState<string | null>(null)
+  const [lang, setLang] = useState<TemplateLanguage>('en')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [links, setLinks] = useState<LinkEntry[]>([{ label: '', url: '' }])
@@ -60,6 +64,19 @@ export function WhatsappAnnouncementScreen() {
     setPreviewOverride(null)
   }
 
+  /** Switch template language — re-applies the selected template in the new one. */
+  function changeLanguage(next: TemplateLanguage) {
+    setLang(next)
+    if (templateKey) {
+      const tpl = (next === 'te' ? TELUGU_TEMPLATES : TEMPLATES).find((t) => t.key === templateKey)
+      if (tpl) {
+        setTitle(tpl.title)
+        setMessage(tpl.message)
+        setPreviewOverride(null)
+      }
+    }
+  }
+
   /** Gate: every announcement must carry a date and a time before it opens WhatsApp. */
   function handleOpenWhatsapp() {
     if (!canSend) return
@@ -83,8 +100,19 @@ export function WhatsappAnnouncementScreen() {
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
           {/* THE THREE STEPS */}
           <div className="min-w-0 space-y-4">
-            <StepSection step={1} title="Choose a template" hint="optional" accent={ACCENT}>
-              <TemplateChips selectedKey={templateKey} accent={ACCENT} onApply={applyTemplate} />
+            <StepSection
+              step={1}
+              title="Choose a template"
+              hint="optional"
+              accent={ACCENT}
+              action={<LanguageToggle lang={lang} accent={ACCENT} onChange={changeLanguage} />}
+            >
+              <TemplateChips
+                selectedKey={templateKey}
+                accent={ACCENT}
+                templates={lang === 'te' ? TELUGU_TEMPLATES : TEMPLATES}
+                onApply={applyTemplate}
+              />
             </StepSection>
 
             <StepSection step={2} title="Write your message" accent={ACCENT}>
@@ -124,7 +152,15 @@ export function WhatsappAnnouncementScreen() {
               {/* Members must know WHEN — live check that the message carries
                   a date and a time; opening WhatsApp is blocked until both are in.
                   (Skipped for emergency notices, where it's optional.) */}
-              {requireWhen && <DateTimeChecklist text={preview} />}
+              {requireWhen && (
+                <DateTimeChecklist
+                  text={message}
+                  onChange={(next) => {
+                    setMessage(next)
+                    setPreviewOverride(null)
+                  }}
+                />
+              )}
             </StepSection>
 
             <StepSection step={3} title="Add links" hint="optional — YouTube, Meet, Zoom, etc." accent={ACCENT}>

@@ -126,6 +126,30 @@ function doGet(e) {
     return jsonResponse(getNotificationHistory())
   }
 
+  // Attendance-taker magic-link login check — the app calls this with the
+  // token from the invite link on every launch, so a revoked taker is locked
+  // out immediately. Returns only {ok, email} — never any token value.
+  if (e.parameter && e.parameter.verifyTaker) {
+    return jsonResponse(verifyAttendanceTaker(e.parameter.verifyTaker))
+  }
+
+  // The admin's Attendance Takers list (emails + status, NO tokens).
+  if (e.parameter && e.parameter.takers === 'list') {
+    return jsonResponse(listAttendanceTakers())
+  }
+
+  // Attendance history: ?attendance=summary → dates + counts;
+  // ?attendance=YYYY-MM-DD → who was present that day.
+  if (e.parameter && e.parameter.attendance) {
+    return jsonResponse(getAttendance(e.parameter.attendance))
+  }
+
+  // Member IDs already wished this year — powers the "Wished" ticks on the
+  // This-week / birthdays lists, shared across every device.
+  if (e.parameter && e.parameter.wishes === 'sent') {
+    return jsonResponse(getWishesSent())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -165,6 +189,10 @@ function doPost(e) {
     if (body.action === 'setNotificationsEnabled') return jsonResponse(setNotificationsEnabled(body))
     if (body.action === 'setMemberMuted') return jsonResponse(setMemberMuted(body))
     if (body.action === 'setNotificationKeyEnabled') return jsonResponse(setNotificationKeyEnabled(body))
+    if (body.action === 'grantTaker') return jsonResponse(grantAttendanceTaker(body))
+    if (body.action === 'revokeTaker') return jsonResponse(revokeAttendanceTaker(body))
+    if (body.action === 'saveAttendance') return jsonResponse(saveAttendance(body))
+    if (body.action === 'markWishSent') return jsonResponse(markWishSent(body))
 
     return jsonResponse({ error: 'Unknown action: ' + body.action })
   } catch (err) {
@@ -546,6 +574,10 @@ const YOUTUBE_LIVE_URL = 'https://youtube.com/@slfministriesvijayawada?si=FxNYdC
 // The church's real pinned location — used as the tap target / "View Location"
 // button on in-person service reminders. Mirrors CHURCH_INFO.mapsLinkUrl.
 const MAPS_LINK = 'https://maps.app.goo.gl/Vn86Nrbk2NbsnyTh6'
+// The Daily Family Prayer now happens in a WhatsApp group. Paste the group's
+// invite link (https://chat.whatsapp.com/…) here to give the three prayer
+// notifications an "Open WhatsApp" button. Left blank → prayer sends text-only.
+const WHATSAPP_GROUP_LINK = ''
 
 /**
  * Remove WhatsApp-style *bold* markers from push text. Templates carry `*` so
@@ -561,14 +593,15 @@ function stripPushMarkdown(text) {
 
 /**
  * Classify a tap-target URL so the service worker can label its action button
- * ('Watch Live' / 'View Location' / 'Open Link').
+ * ('Watch Live' / 'View Location' / 'Open WhatsApp' / 'Open Link').
  * @param {string} url
- * @returns {string} 'youtube' | 'location' | 'link' | ''
+ * @returns {string} 'youtube' | 'location' | 'whatsapp' | 'link' | ''
  */
 function computeLinkType(url) {
   if (!url) return ''
   if (/youtu\.?be|youtube\.com/i.test(url)) return 'youtube'
   if (/maps\.app\.goo\.gl|google\.[^/]+\/maps|goo\.gl\/maps/i.test(url)) return 'location'
+  if (/chat\.whatsapp\.com|wa\.me|whatsapp\.com/i.test(url)) return 'whatsapp'
   return 'link'
 }
 
@@ -796,118 +829,163 @@ function getNotificationHistory() {
 // day: 0 = Sunday ... 6 = Saturday, or '*' for every day. time: 'HH:mm' on a
 // 15-minute boundary. url: where tapping the notification takes the member.
 
-// Bodies read as a natural description (time + venue woven into the sentence,
-// not stacked date/time/venue lines) and close with the church signature.
+// Bodies are BILINGUAL — one English line, the same message in Telugu below it,
+// closing with the church signature. They read as a natural description (time +
+// venue woven into the sentence, not stacked date/time/venue lines).
 // NO *asterisks* — those are WhatsApp bold and are stripped from push anyway.
-// In-person service reminders carry the maps link (→ "View Location" button);
-// online prayer and all LIVE alerts carry the YouTube link (→ "Watch Live").
+// LINK RULE: pre-event reminders carry the maps link (→ "View Location" button);
+// LIVE alerts carry the YouTube link (→ "Watch Live"); the Daily Family Prayer
+// happens in a WhatsApp group, so it carries WHATSAPP_GROUP_LINK (→ "Open
+// WhatsApp", or no button while that link is blank) — never YouTube.
 const CHURCH_SIGN_OFF = 'Sarah Living Faith Ministries'
+
+/** Compose a bilingual push body: English, then Telugu, then the signature. */
+function bilingualBody(en, te) {
+  return en + '\n' + te + '\n\n' + CHURCH_SIGN_OFF
+}
+
 const SCHEDULE = [
-  // Sunday Worship Service — in-person, Sunday 10:00 AM
+  // Sunday Worship Service (ఆదివారం ఆరాధన) — in-person, Sunday 10:00 AM
   {
     key: 'sun-worship-r1',
     day: 6,
     time: '20:00',
-    title: '⛪ Tomorrow: Sunday Worship',
-    body: 'Join us tomorrow, Sunday at 10:00 AM at SLF Ministries, Tadigadapa, for worship, prayer, and God’s Word. We look forward to worshipping with you.\n\n' + CHURCH_SIGN_OFF,
+    title: '⛪ Tomorrow: Sunday Worship (ఆదివారం ఆరాధన)',
+    body: bilingualBody(
+      'Join us tomorrow, Sunday at 10:00 AM at SLF Ministries, Tadigadapa, for worship, prayer, and God’s Word.',
+      'రేపు ఆదివారం ఉదయం 10:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో జరిగే ఆరాధనకు మిమ్మల్ని, మీ కుటుంబాన్ని ప్రేమతో ఆహ్వానిస్తున్నాము.'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'sun-worship-r2',
     day: 0,
     time: '09:30',
-    title: '⏰ Worship Starts in 30 Minutes',
-    body: 'Sunday Worship begins at 10:00 AM at SLF Ministries, Tadigadapa. See you soon!\n\n' + CHURCH_SIGN_OFF,
+    title: '⏰ Worship Starts in 30 Minutes (ఆదివారం ఆరాధన)',
+    body: bilingualBody(
+      'Sunday Worship begins at 10:00 AM at SLF Ministries, Tadigadapa. Starting in just 30 minutes! See you soon!',
+      'ఆదివారం ఆరాధన ఉదయం 10:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో ప్రారంభమవుతుంది. ఇంకా 30 నిమిషాల్లో ప్రారంభమవుతుంది. త్వరలో కలుద్దాం!'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'sun-worship-live',
     day: 0,
     time: '10:00',
-    title: '🔴 Sunday Worship is LIVE',
-    body: 'Our Sunday Worship has begun — join us live now as we worship the Lord together.\n\n' + CHURCH_SIGN_OFF,
+    title: '🔴 Sunday Worship is LIVE (ఆదివారం ఆరాధన)',
+    body: bilingualBody(
+      'Our Sunday Worship has begun — join us live now as we worship the Lord together.',
+      'మన ఆదివారం ఆరాధన ప్రారంభమైంది — ప్రభువును కలిసి ఆరాధించేందుకు ఇప్పుడే లైవ్‌లో చేరండి.'
+    ),
     url: YOUTUBE_LIVE_URL,
     live: true,
   },
 
-  // Bible Study — Wednesday 8:00 PM
+  // బైబిల్ Study — Wednesday 8:00 PM
   {
     key: 'bible-r1',
     day: 3,
     time: '17:00',
-    title: '📖 Bible Study Tonight',
-    body: 'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, as we grow together in God’s Word. Come and be blessed.\n\n' + CHURCH_SIGN_OFF,
+    title: '📖 బైబిల్ Study Tonight',
+    body: bilingualBody(
+      'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, as we grow together in God’s Word.',
+      'ఈ రాత్రి 8:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో జరిగే బైబిల్ Studyలో పాల్గొని, దేవుని వాక్యంలో కలిసి ఎదుగుదాం.'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'bible-r2',
     day: 3,
     time: '19:30',
-    title: '⏰ Bible Study in 30 Minutes',
-    body: 'Bible Study begins at 8:00 PM at SLF Ministries, Tadigadapa. Get ready to join us.\n\n' + CHURCH_SIGN_OFF,
+    title: '⏰ బైబిల్ Study in 30 Minutes',
+    body: bilingualBody(
+      'బైబిల్ Study begins at 8:00 PM at SLF Ministries, Tadigadapa. Starting in just 30 minutes! See you soon!',
+      'బైబిల్ Study రాత్రి 8:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో ప్రారంభమవుతుంది. ఇంకా 30 నిమిషాల్లో ప్రారంభమవుతుంది. త్వరలో కలుద్దాం!'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'bible-live',
     day: 3,
     time: '20:00',
-    title: '🔴 Bible Study is LIVE',
-    body: 'Bible Study has begun — join us now as we open God’s Word together.\n\n' + CHURCH_SIGN_OFF,
+    title: '🔴 బైబిల్ Study is LIVE',
+    body: bilingualBody(
+      'బైబిల్ Study has begun — join us now as we open God’s Word together.',
+      'బైబిల్ Study ప్రారంభమైంది — దేవుని వాక్యాన్ని కలిసి ధ్యానించేందుకు ఇప్పుడే చేరండి.'
+    ),
     url: YOUTUBE_LIVE_URL,
     live: true,
   },
 
-  // Saturday Evening Service — in-person, Saturday 8:00 PM
+  // Saturday Evening Service (సిద్ధపాటు ప్రార్థన) — in-person, Saturday 8:00 PM
   {
     key: 'sat-eve-r1',
     day: 6,
     time: '17:00',
-    title: '🌆 Saturday Evening Service',
-    body: 'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, for worship and fellowship. We look forward to seeing you.\n\n' + CHURCH_SIGN_OFF,
+    title: '🌆 Saturday Evening Service (సిద్ధపాటు ప్రార్థన)',
+    body: bilingualBody(
+      'Join us tonight at 8:00 PM at SLF Ministries, Tadigadapa, for సిద్ధపాటు ప్రార్థన as we prepare our hearts for Sunday’s worship.',
+      'ఈ రాత్రి 8:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో జరిగే సిద్ధపాటు ప్రార్థనలో పాల్గొని, ఆదివారం ఆరాధనకు మన హృదయాలను సిద్ధపరచుకుందాం.'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'sat-eve-r2',
     day: 6,
     time: '19:30',
-    title: '⏰ Service in 30 Minutes',
-    body: 'Saturday Evening Service begins at 8:00 PM at SLF Ministries, Tadigadapa. See you soon!\n\n' + CHURCH_SIGN_OFF,
+    title: '⏰ సిద్ధపాటు ప్రార్థన in 30 Minutes',
+    body: bilingualBody(
+      'సిద్ధపాటు ప్రార్థన begins at 8:00 PM at SLF Ministries, Tadigadapa. Starting in just 30 minutes! See you soon!',
+      'సిద్ధపాటు ప్రార్థన రాత్రి 8:00 గంటలకు SLF మినిస్ట్రీస్, తాడిగడపలో ప్రారంభమవుతుంది. ఇంకా 30 నిమిషాల్లో ప్రారంభమవుతుంది. త్వరలో కలుద్దాం!'
+    ),
     url: MAPS_LINK,
   },
   {
     key: 'sat-eve-live',
     day: 6,
     time: '20:00',
-    title: '🔴 Saturday Service is LIVE',
-    body: 'Saturday Evening Service has begun — join us now for worship and God’s Word.\n\n' + CHURCH_SIGN_OFF,
+    title: '🔴 సిద్ధపాటు ప్రార్థన is LIVE',
+    body: bilingualBody(
+      'సిద్ధపాటు ప్రార్థన has begun — join us now as we prepare our hearts for Sunday’s worship.',
+      'సిద్ధపాటు ప్రార్థన ప్రారంభమైంది — ఆదివారం ఆరాధనకు హృదయాలను సిద్ధపరచుకునేందుకు ఇప్పుడే చేరండి.'
+    ),
     url: YOUTUBE_LIVE_URL,
     live: true,
   },
 
-  // SLF Family Online Prayer — online, every day 6:30 PM
+  // Daily Family Prayer — WhatsApp group, every day 6:30 PM (no YouTube)
   {
     key: 'prayer-r1',
     day: '*',
     time: '17:30',
-    title: '🙏 Family Online Prayer Today',
-    body: 'Join the SLF family today at 6:30 PM for our Online Prayer, live on YouTube. Invite your family to pray with us.\n\n' + CHURCH_SIGN_OFF,
-    url: YOUTUBE_LIVE_URL,
+    title: '🙏 Family Prayer Today',
+    body: bilingualBody(
+      'Join the SLF family today at 6:30 PM for our Family Prayer in the WhatsApp group.',
+      'ఈరోజు సాయంత్రం 6:30 గంటలకు వాట్సాప్ గ్రూప్‌లో జరిగే మన కుటుంబ ప్రార్థనలో కలిసి చేరండి.'
+    ),
+    url: WHATSAPP_GROUP_LINK,
   },
   {
     key: 'prayer-r2',
     day: '*',
     time: '18:15',
-    title: '⏰ Prayer Begins in 15 Minutes',
-    body: 'Our Family Online Prayer begins at 6:30 PM, live on YouTube. Get ready to join us.\n\n' + CHURCH_SIGN_OFF,
-    url: YOUTUBE_LIVE_URL,
+    title: '⏰ Prayer in 15 Minutes',
+    body: bilingualBody(
+      'Our Family Prayer begins at 6:30 PM in the WhatsApp group. Starting in just 15 minutes! Get ready to join us.',
+      'మన కుటుంబ ప్రార్థన సాయంత్రం 6:30 గంటలకు వాట్సాప్ గ్రూప్‌లో ప్రారంభమవుతుంది. ఇంకా 15 నిమిషాల్లో ప్రారంభమవుతుంది. సిద్ధంగా ఉండండి.'
+    ),
+    url: WHATSAPP_GROUP_LINK,
   },
   {
     key: 'prayer-live',
     day: '*',
     time: '18:30',
-    title: '🔴 Family Prayer is LIVE',
-    body: 'Our Family Online Prayer has begun — join us now as we seek the Lord together.\n\n' + CHURCH_SIGN_OFF,
-    url: YOUTUBE_LIVE_URL,
+    title: '🔴 Family Prayer Has Begun',
+    body: bilingualBody(
+      'Our Family Prayer has begun — join the WhatsApp group now as we seek the Lord together.',
+      'మన కుటుంబ ప్రార్థన ప్రారంభమైంది — ప్రభువును కలిసి వెదకేందుకు ఇప్పుడే వాట్సాప్ గ్రూప్‌లో చేరండి.'
+    ),
+    url: WHATSAPP_GROUP_LINK,
     live: true,
   },
 ]
@@ -1459,4 +1537,352 @@ function getFcmStatusByMember() {
   }
 
   return { members: Object.keys(byMember).map(function (key) { return byMember[key] }) }
+}
+
+// ============================== ATTENDANCE TAKERS ==============================
+// A volunteer given a magic link (sent over WhatsApp) can open the app scoped
+// to ONLY the attendance + add-member screens. The link carries a random token
+// that maps to their email in this sheet; the app verifies it on every launch,
+// so revoking access takes effect immediately. Tokens are NEVER returned by the
+// list endpoint — only grantAttendanceTaker() hands the token back, once, so
+// the admin can build the invite link right after granting.
+
+const TAKERS_SHEET_NAME = 'Attendance Takers'
+const TAKERS_HEADERS = ['Email', 'Token', 'Granted On', 'Active', 'Name', 'WhatsApp']
+
+/**
+ * Get (or create on first use) the attendance-takers sheet. Also upgrades a
+ * sheet created before the Name/WhatsApp columns existed.
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the sheet
+ */
+function getTakersSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = spreadsheet.getSheetByName(TAKERS_SHEET_NAME)
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(TAKERS_SHEET_NAME)
+    sheet.appendRow(TAKERS_HEADERS)
+  } else if (sheet.getLastColumn() < TAKERS_HEADERS.length) {
+    sheet.getRange(1, 1, 1, TAKERS_HEADERS.length).setValues([TAKERS_HEADERS])
+  }
+  return sheet
+}
+
+/**
+ * "grantTaker" action — grant (or re-activate) an attendance taker by email.
+ * Re-granting an existing email keeps their token and just re-activates them,
+ * so an already-sent link keeps working; name/WhatsApp are updated when
+ * provided. Returns the token ONCE so the admin can build the invite link.
+ * @param {{email: string, name?: string, whatsapp?: string}} body
+ * @returns {{ok: boolean, email: string, token: string, name: string, whatsapp: string}}
+ */
+function grantAttendanceTaker(body) {
+  const email = (body.email || '').toString().trim().toLowerCase()
+  if (!email || email.indexOf('@') === -1) throw new Error('Valid email required')
+  const name = (body.name || '').toString().trim()
+  const whatsapp = (body.whatsapp || '').toString().trim()
+
+  const sheet = getTakersSheet()
+  const rows = sheet.getDataRange().getValues()
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === email) {
+      const token = rows[i][1] ? String(rows[i][1]) : Utilities.getUuid()
+      const keptName = name || (rows[i][4] ? String(rows[i][4]) : '')
+      const keptWhats = whatsapp || (rows[i][5] ? String(rows[i][5]) : '')
+      sheet
+        .getRange(i + 1, 1, 1, TAKERS_HEADERS.length)
+        .setValues([[email, token, rows[i][2] || formatDate(new Date()), 'Yes', keptName, "'" + keptWhats]])
+      return { ok: true, email: email, token: token, name: keptName, whatsapp: keptWhats }
+    }
+  }
+
+  const token = Utilities.getUuid()
+  sheet.appendRow([email, token, formatDate(new Date()), 'Yes', name, "'" + whatsapp])
+  return { ok: true, email: email, token: token, name: name, whatsapp: whatsapp }
+}
+
+/**
+ * "revokeTaker" action — deactivate an attendance taker. Their token stops
+ * verifying immediately, so their next app launch is locked out.
+ * @param {{email: string}} body
+ * @returns {{ok: boolean, revoked: boolean}}
+ */
+function revokeAttendanceTaker(body) {
+  const email = (body.email || '').toString().trim().toLowerCase()
+  if (!email) throw new Error('Missing email')
+
+  const sheet = getTakersSheet()
+  const rows = sheet.getDataRange().getValues()
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === email) {
+      sheet.getRange(i + 1, 4).setValue('No')
+      return { ok: true, revoked: true }
+    }
+  }
+  return { ok: true, revoked: false }
+}
+
+/**
+ * Verify an attendance-taker token (magic-link login). Active tokens only.
+ * @param {string} token the token from the invite link
+ * @returns {{ok: boolean, email?: string}}
+ */
+function verifyAttendanceTaker(token) {
+  if (!token) return { ok: false }
+  const sheet = getTakersSheet()
+  const rows = sheet.getDataRange().getValues()
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]) === String(token) && String(rows[i][3]).toLowerCase() === 'yes') {
+      return { ok: true, email: String(rows[i][0]), name: rows[i][4] ? String(rows[i][4]) : '' }
+    }
+  }
+  return { ok: false }
+}
+
+/**
+ * "takers=list" endpoint — the admin's roster. Deliberately omits tokens so
+ * this (public) GET can never leak a working login link.
+ * @returns {{items: Array<{email: string, grantedOn: string, active: boolean}>}}
+ */
+function listAttendanceTakers() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAKERS_SHEET_NAME)
+  if (!sheet) return { items: [] }
+  const rows = sheet.getDataRange().getValues()
+  const items = []
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    items.push({
+      email: String(rows[i][0]),
+      grantedOn: rows[i][2] ? String(rows[i][2]) : '',
+      active: String(rows[i][3]).toLowerCase() === 'yes',
+      name: rows[i][4] ? String(rows[i][4]) : '',
+      whatsapp: rows[i][5] ? String(rows[i][5]) : '',
+    })
+  }
+  return { items: items }
+}
+
+// ============================== ATTENDANCE RECORDS ==============================
+// One row per member marked PRESENT on a given date. Un-ticking a member
+// deletes their row, so a row's existence == present, and the row count for a
+// date == that day's attendance. Kept for the current + previous calendar
+// month (~2 months); older rows are pruned automatically on read and write.
+
+const ATTENDANCE_SHEET_NAME = 'Attendance'
+const ATTENDANCE_HEADERS = ['Date', 'Member ID', 'Member Name', 'Present', 'Marked By', 'Marked At']
+
+/**
+ * Get (or create on first use) the attendance sheet.
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the sheet
+ */
+function getAttendanceSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = spreadsheet.getSheetByName(ATTENDANCE_SHEET_NAME)
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(ATTENDANCE_SHEET_NAME)
+    sheet.appendRow(ATTENDANCE_HEADERS)
+  }
+  return sheet
+}
+
+/**
+ * Delete attendance rows older than the previous calendar month (keeps ~2
+ * months: current + previous). Bottom-up so row indices stay valid.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet the attendance sheet
+ */
+function pruneAttendanceWindow(sheet) {
+  const now = new Date()
+  // First day of the previous month — anything before this is dropped.
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const rows = sheet.getDataRange().getValues()
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const d = parseSheetDate(rows[i][0])
+    if (d && d.getTime() < cutoff.getTime()) sheet.deleteRow(i + 1)
+  }
+}
+
+/**
+ * "saveAttendance" action — mark one member present or absent for a date.
+ * Present → upsert the row; absent → delete it if present. Idempotent, so a
+ * double-tap or retry never creates duplicate rows.
+ * @param {{date: string, memberId: string, memberName?: string, present: boolean, markedBy?: string}} body
+ * @returns {{ok: boolean, present: boolean}}
+ */
+function saveAttendance(body) {
+  const date = (body.date || '').toString().trim()
+  const memberId = (body.memberId || '').toString().trim()
+  if (!date) throw new Error('Missing date')
+  if (!memberId) throw new Error('Missing memberId')
+  const present = body.present === true || body.present === 'true'
+
+  const sheet = getAttendanceSheet()
+  const rows = sheet.getDataRange().getValues()
+  let existingRow = -1
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === date && String(rows[i][1]) === memberId) {
+      existingRow = i + 1
+      break
+    }
+  }
+
+  if (present) {
+    const values = [
+      "'" + date,
+      "'" + memberId,
+      body.memberName || '',
+      'Yes',
+      body.markedBy || '',
+      new Date().toISOString(),
+    ]
+    if (existingRow === -1) sheet.appendRow(values)
+    else sheet.getRange(existingRow, 1, 1, ATTENDANCE_HEADERS.length).setValues([values])
+  } else if (existingRow !== -1) {
+    sheet.deleteRow(existingRow)
+  }
+
+  pruneAttendanceWindow(sheet)
+  return { ok: true, present: present }
+}
+
+/**
+ * "attendance" endpoint. 'summary' → each date with a present-count (newest
+ * first); 'member-<MemberID>' → the dates that member was present; a
+ * 'YYYY-MM-DD' date → the members present that day.
+ * @param {string} query 'summary', 'member-<id>', or a date
+ * @returns {{items: Object[]}}
+ */
+function getAttendance(query) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ATTENDANCE_SHEET_NAME)
+  if (!sheet) return { items: [] }
+  pruneAttendanceWindow(sheet)
+  const rows = sheet.getDataRange().getValues()
+
+  if (query === 'summary') {
+    const counts = {}
+    for (let i = 1; i < rows.length; i++) {
+      const date = String(rows[i][0])
+      if (!date) continue
+      counts[date] = (counts[date] || 0) + 1
+    }
+    const items = Object.keys(counts).map(function (date) {
+      return { date: date, count: counts[date] }
+    })
+    items.sort(function (a, b) {
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0
+    })
+    return { items: items }
+  }
+
+  // 'member-SLF-0007' → every date that member was marked present.
+  if (query && query.indexOf('member-') === 0) {
+    const memberId = query.slice('member-'.length)
+    const dates = []
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][1]) === memberId) dates.push({ date: String(rows[i][0]) })
+    }
+    dates.sort(function (a, b) {
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0
+    })
+    return { items: dates }
+  }
+
+  const items = []
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) !== query) continue
+    items.push({
+      memberId: String(rows[i][1]),
+      memberName: rows[i][2] ? String(rows[i][2]) : '',
+      markedBy: rows[i][4] ? String(rows[i][4]) : '',
+      markedAt: rows[i][5] ? String(rows[i][5]) : '',
+    })
+  }
+  return { items: items }
+}
+
+// ============================== WISHES SENT ==============================
+// One row per member wished this year (birthday / anniversary / visitor
+// welcome) — powers the "Wished" ticks on the dashboard's This-week strip and
+// the celebration lists, shared across EVERY device (previously device-local,
+// so a wish sent on a phone never showed on the laptop). Keyed by member + year
+// so the tick clears automatically next year. Kept for the current + previous
+// year; older rows are pruned on read/write.
+
+const WISHES_SHEET_NAME = 'Wishes Sent'
+const WISHES_HEADERS = ['Member ID', 'Kind', 'Year', 'Sent At', 'Sent By']
+
+/**
+ * Get (or create on first use) the wishes-sent sheet. If an older version of
+ * the sheet exists without the "Kind" column, it's reset (the ticks simply
+ * regenerate as wishes are sent — no meaningful data is lost).
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the sheet
+ */
+function getWishesSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = spreadsheet.getSheetByName(WISHES_SHEET_NAME)
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(WISHES_SHEET_NAME)
+    sheet.appendRow(WISHES_HEADERS)
+    return sheet
+  }
+  const header = sheet.getRange(1, 1, 1, WISHES_HEADERS.length).getValues()[0]
+  if (String(header[1]) !== 'Kind') {
+    sheet.clear()
+    sheet.appendRow(WISHES_HEADERS)
+  }
+  return sheet
+}
+
+/**
+ * Drop rows older than the previous year (keeps current + previous).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet the wishes sheet
+ */
+function pruneWishesWindow(sheet) {
+  const minYear = new Date().getFullYear() - 1
+  const rows = sheet.getDataRange().getValues()
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const y = Number(rows[i][2])
+    if (y && y < minYear) sheet.deleteRow(i + 1)
+  }
+}
+
+/**
+ * "markWishSent" action — record that a member was wished for an occasion this
+ * year. Idempotent (member + kind + year) so re-sending never duplicates a row.
+ * @param {{memberId: string, kind?: string, year?: number, sentBy?: string}} body
+ * @returns {{ok: boolean}}
+ */
+function markWishSent(body) {
+  const memberId = (body.memberId || '').toString().trim()
+  if (!memberId) throw new Error('Missing memberId')
+  const kind = (body.kind || 'general').toString().trim()
+  const year = Number(body.year) || new Date().getFullYear()
+
+  const sheet = getWishesSheet()
+  const rows = sheet.getDataRange().getValues()
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === memberId && String(rows[i][1]) === kind && Number(rows[i][2]) === year) {
+      return { ok: true }
+    }
+  }
+  sheet.appendRow(["'" + memberId, kind, year, new Date().toISOString(), body.sentBy || ''])
+  pruneWishesWindow(sheet)
+  return { ok: true }
+}
+
+/**
+ * "wishes=sent" endpoint — member + occasion pairs wished in the current year.
+ * @returns {{items: Array<{memberId: string, kind: string}>}}
+ */
+function getWishesSent() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WISHES_SHEET_NAME)
+  if (!sheet) return { items: [] }
+  pruneWishesWindow(sheet)
+  const currentYear = new Date().getFullYear()
+  const rows = sheet.getDataRange().getValues()
+  const items = []
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] && Number(rows[i][2]) === currentYear) {
+      items.push({ memberId: String(rows[i][0]), kind: rows[i][1] ? String(rows[i][1]) : 'general' })
+    }
+  }
+  return { items: items }
 }

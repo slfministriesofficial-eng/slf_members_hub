@@ -13,14 +13,14 @@ import {
   formatUpcomingLabel,
   dateParts,
 } from '../utils/celebrations'
-import { getCompletedIds } from '../utils/completedWishes'
+import { useCompletedWishes } from '../utils/completedWishes'
 import { markCelebrationsSeen } from '../hooks/useAlertCounts'
 
 export function BirthdaysScreen() {
   const { members, isLoading, isError } = useMembers()
   const navigate = useNavigate()
   const [anniversariesOpen, setAnniversariesOpen] = useState(false)
-  const [completedIds] = useState<Set<string>>(getCompletedIds)
+  const isWished = useCompletedWishes()
 
   const now = useMemo(() => new Date(), [])
   const birthdays = useMemo(() => deriveBirthdays(members), [members])
@@ -45,8 +45,8 @@ export function BirthdaysScreen() {
   const todaysBaptisms = annualEvents.filter((e) => e.kind === 'baptism' && e.daysAway === 0)
   const todaysMembership = annualEvents.filter((e) => e.kind === 'membership' && e.daysAway === 0)
 
-  const birthdaysToShow = todaysBirthdays.filter((e) => !completedIds.has(e.member.id))
-  const anniversariesToShow = todaysAnniversaries.filter((e) => !completedIds.has(e.member.id))
+  const birthdaysToShow = todaysBirthdays.filter((e) => !isWished(e.member.id, 'birthday'))
+  const anniversariesToShow = todaysAnniversaries.filter((e) => !isWished(e.member.id, 'wedding'))
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
@@ -151,9 +151,9 @@ export function BirthdaysScreen() {
                       dateMonth={month}
                       subLabel={e.age !== null ? `${e.age} yrs` : undefined}
                       countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-                      completed={completedIds.has(e.member.id)}
+                      completed={isWished(e.member.id, 'birthday')}
                       onView={() => navigate(`/celebration-profile/birthday/${e.member.id}`)}
-                      onSend={() => navigate(`/send-wish/birthday/${e.member.id}`)}
+                      onSend={() => navigate(`/send-wish/birthday/${e.member.id}?occasion=birthday`)}
                       sendLabel="Send Wishes"
                     />
                   )
@@ -196,9 +196,9 @@ export function BirthdaysScreen() {
                           subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
                           coupleName={e.member.spouse}
                           countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-                          completed={completedIds.has(e.member.id)}
+                          completed={isWished(e.member.id, 'wedding')}
                           onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
-                          onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
+                          onSend={() => navigate(`/send-wish/anniversary/${e.member.id}?occasion=wedding`)}
                           sendLabel="Send Wishes"
                         />
                       )

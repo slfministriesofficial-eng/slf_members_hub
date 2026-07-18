@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../components/ui/Icon'
 import { TEMPLATES, type Template } from '../../templates/push/announcements'
 import { sanitizeWhatsappMessage } from '../../templates/whatsapp'
@@ -53,12 +53,15 @@ export function StepSection({
   title,
   hint,
   accent,
+  action,
   children,
 }: {
   step: number
   title: string
   hint?: string
   accent: string
+  /** Optional control rendered at the right edge of the step header. */
+  action?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -70,29 +73,67 @@ export function StepSection({
           {step}
         </span>
         <h2 className="text-[13.5px] font-bold text-heading">{title}</h2>
-        {hint && <span className="text-[11px] text-faint">{hint}</span>}
+        {hint && <span className="min-w-0 truncate text-[11px] text-faint">{hint}</span>}
+        {action && <span className="ml-auto shrink-0">{action}</span>}
       </div>
       {children}
     </section>
   )
 }
 
+export type TemplateLanguage = 'en' | 'te'
+
+/** Small English ⇄ Telugu segmented toggle for the template language. */
+export function LanguageToggle({
+  lang,
+  onChange,
+  accent,
+}: {
+  lang: TemplateLanguage
+  onChange: (lang: TemplateLanguage) => void
+  accent: string
+}) {
+  const options: { value: TemplateLanguage; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'te', label: 'తెలుగు' },
+  ]
+  return (
+    <span className="inline-flex rounded-full border border-hairline bg-paper p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+            lang === opt.value ? `text-white ${accent}` : 'text-heading hover:bg-paper-2'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </span>
+  )
+}
+
 /**
  * Template starter chips with a visible selected state — same starters on
- * all three pages. `accent` colors the active chip in the flow's color.
+ * all three pages. `accent` colors the active chip in the flow's color;
+ * `templates` swaps the set (English by default, Telugu via the toggle).
  */
 export function TemplateChips({
   selectedKey,
   accent,
+  templates = TEMPLATES,
   onApply,
 }: {
   selectedKey: string | null
   accent: string
+  templates?: Template[]
   onApply: (template: Template) => void
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {TEMPLATES.map((tpl) => (
+      {templates.map((tpl) => (
         <button
           key={tpl.key}
           onClick={() => onApply(tpl)}
@@ -110,9 +151,16 @@ export function TemplateChips({
 }
 
 // Source patterns (shared by detection, the checklist chips, and the preview
-// highlighter) for "when is this happening" mentions in a message.
-const DATE_RE_SRC = String.raw`\b(?:sun|mon|tues|wednes|thurs|fri|satur)day\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s*\d{1,2}(?:st|nd|rd|th)?)?\b|\btoday\b|\btomorrow\b|\btonight\b|\b\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?\b`
-const TIME_RE_SRC = String.raw`\b\d{1,2}[:.]\d{2}\s*(?:a\.?m\.?|p\.?m\.?)?|\b\d{1,2}\s*(?:a\.?m\.?|p\.?m\.?)\b|\bnoon\b|\bmidnight\b`
+// highlighter) for "when is this happening" mentions in a message — English
+// and Telugu both. Telugu words get no \b guards (JS \b is ASCII-only, so it
+// would never match next to Telugu letters). Telugu "మే" (May) alone would
+// false-match inside common words (మేము…), so it only counts next to a digit.
+const DATE_RE_SRC = String.raw`\b(?:sun|mon|tues|wednes|thurs|fri|satur)day\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s*\d{1,2}(?:st|nd|rd|th)?)?\b|\btoday\b|\btomorrow\b|\btonight\b|\b\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?\b|ఆదివారం|సోమవారం|మంగళవారం|బుధవారం|గురువారం|శుక్రవారం|శనివారం|జనవరి|ఫిబ్రవరి|మార్చి|ఏప్రిల్|జూన్|జూలై|ఆగస్టు|సెప్టెంబర్|అక్టోబర్|నవంబర్|డిసెంబర్|ఈరోజు|ఈ రోజు|రేపు|ఈ రాత్రి|\d{1,2}\s*మే|మే\s*\d{1,2}`
+const TIME_RE_SRC = String.raw`\b\d{1,2}[:.]\d{2}\s*(?:a\.?m\.?|p\.?m\.?)?|\b\d{1,2}\s*(?:a\.?m\.?|p\.?m\.?)\b|\bnoon\b|\bmidnight\b|\d{1,2}\s*గంటల`
+
+// Fill-in slots the admin must replace — English and Telugu template variants.
+const PLACEHOLDER_RE_SRC = String.raw`\[(?:date|time|తేదీ|సమయం)\]`
+const DETAILS_PLACEHOLDER_RE_SRC = String.raw`\[enter announcement details here\]|\[వివరాలు ఇక్కడ రాయండి\]`
 
 /** First date-like mention in the text ("Sunday", "20 July", "18/07"), or null. */
 export function extractDate(text: string): string | null {
@@ -141,7 +189,7 @@ export function detectTime(text: string): boolean {
  * the admin can verify the WHEN details at a glance in the preview.
  */
 export function HighlightWhen({ text }: { text: string }) {
-  const re = new RegExp(`\\[date\\]|\\[time\\]|${TIME_RE_SRC}|${DATE_RE_SRC}`, 'gi')
+  const re = new RegExp(`${PLACEHOLDER_RE_SRC}|${TIME_RE_SRC}|${DATE_RE_SRC}`, 'gi')
   const parts: React.ReactNode[] = []
   let last = 0
   let match: RegExpExecArray | null
@@ -178,7 +226,7 @@ export function HighlightWhen({ text }: { text: string }) {
  * @returns an error string to show the admin, or null when the message is ok
  */
 export function messageValidationError(text: string, requireWhen = true): string | null {
-  if (/\[date\]|\[time\]|\[enter announcement details here\]/i.test(text)) {
+  if (new RegExp(`${PLACEHOLDER_RE_SRC}|${DETAILS_PLACEHOLDER_RE_SRC}`, 'i').test(text)) {
     return 'Replace the [square-bracket] placeholders with the actual details before sending.'
   }
   if (!requireWhen) return null
@@ -197,7 +245,7 @@ export function messageValidationError(text: string, requireWhen = true): string
  */
 function HighlightMessage({ text }: { text: string }) {
   const re = new RegExp(
-    `\\[date\\]|\\[time\\]|\\[enter announcement details here\\]|${TIME_RE_SRC}|${DATE_RE_SRC}`,
+    `${PLACEHOLDER_RE_SRC}|${DETAILS_PLACEHOLDER_RE_SRC}|${TIME_RE_SRC}|${DATE_RE_SRC}`,
     'gi',
   )
   const parts: React.ReactNode[] = []
@@ -272,40 +320,132 @@ export function MessageArea({
   )
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /**
- * Live "Date · Sunday / Time · 6:30 PM" chips under the message field — shows
- * the exact values the checker detected, so the admin can verify at a glance.
+ * Where the newly picked value goes, in priority order:
+ * 1. an unfilled [placeholder]
+ * 2. the exact value inserted by the previous pick (so re-picking EDITS it)
+ * 3. the first date/time-looking mention (hand-typed)
+ * 4. appended as a labeled line at the end
  */
-export function DateTimeChecklist({ text }: { text: string }) {
-  const hasPlaceholderDate = /\[date\]/i.test(text)
-  const hasPlaceholderTime = /\[time\]/i.test(text)
+function insertPickedValue(
+  text: string,
+  value: string,
+  placeholderRe: RegExp,
+  previousValue: string | null,
+  kindReSrc: string,
+  label: string,
+): string {
+  if (placeholderRe.test(text)) return text.replace(placeholderRe, value)
+  if (previousValue && text.includes(previousValue)) {
+    return text.replace(new RegExp(escapeRegex(previousValue)), value)
+  }
+  const existing = new RegExp(kindReSrc, 'i')
+  if (existing.test(text)) return text.replace(existing, value)
+  return text.trim() ? `${text.trimEnd()}\n${label}: ${value}` : `${label}: ${value}`
+}
+
+/**
+ * Live "Date · Sunday / Time · 6:30 PM" chips under the message field.
+ * While a value is missing, tapping the chip opens the native calendar/time
+ * picker and the selection replaces the [Date]/[తేదీ] or [Time]/[సమయం]
+ * placeholder in the message (appended when there's no placeholder). Telugu
+ * messages get the picked date formatted in Telugu automatically.
+ */
+export function DateTimeChecklist({ text, onChange }: { text: string; onChange?: (next: string) => void }) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const timeInputRef = useRef<HTMLInputElement>(null)
+  // What the picker inserted last time — so re-picking swaps exactly that
+  // value instead of touching look-alike words elsewhere in the message.
+  const [lastPickedDate, setLastPickedDate] = useState<string | null>(null)
+  const [lastPickedTime, setLastPickedTime] = useState<string | null>(null)
+
+  const hasPlaceholderDate = /\[(?:date|తేదీ)\]/i.test(text)
+  const hasPlaceholderTime = /\[(?:time|సమయం)\]/i.test(text)
   const dateValue = hasPlaceholderDate ? null : extractDate(text)
   const timeValue = hasPlaceholderTime ? null : extractTime(text)
+  const isTelugu = /[ఀ-౿]/.test(text)
+
+  function openPicker(input: HTMLInputElement | null) {
+    if (!input) return
+    try {
+      input.showPicker()
+    } catch {
+      input.click() // older browsers without showPicker()
+    }
+  }
+
+  function applyDate(value: string) {
+    if (!value || !onChange) return
+    const picked = new Date(`${value}T00:00:00`)
+    if (Number.isNaN(picked.getTime())) return
+    const formatted = picked.toLocaleDateString(isTelugu ? 'te-IN' : 'en-US', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    })
+    onChange(
+      insertPickedValue(text, formatted, /\[(?:date|తేదీ)\]/i, lastPickedDate, DATE_RE_SRC, isTelugu ? 'తేదీ' : 'Date'),
+    )
+    setLastPickedDate(formatted)
+  }
+
+  function applyTime(value: string) {
+    if (!value || !onChange) return
+    const [h, m] = value.split(':').map(Number)
+    if (Number.isNaN(h) || Number.isNaN(m)) return
+    const period = h >= 12 ? 'PM' : 'AM'
+    const hour12 = h % 12 === 0 ? 12 : h % 12
+    const formatted = `${hour12}:${String(m).padStart(2, '0')} ${period}`
+    onChange(
+      insertPickedValue(text, formatted, /\[(?:time|సమయం)\]/i, lastPickedTime, TIME_RE_SRC, isTelugu ? 'సమయం' : 'Time'),
+    )
+    setLastPickedTime(formatted)
+  }
+
   const items = [
-    { label: 'date', value: dateValue },
-    { label: 'time', value: timeValue },
-  ]
+    { key: 'date', value: dateValue, addLabel: 'Add date', doneLabel: 'Date', icon: 'cal-check' },
+    { key: 'time', value: timeValue, addLabel: 'Add time', doneLabel: 'Time', icon: 'clock' },
+  ] as const
+
   return (
     <div className="mt-2 flex flex-wrap gap-2">
-      {items.map((item) => (
-        <span
-          key={item.label}
-          className={`inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold ${
-            item.value ? 'bg-status-regular-bg text-status-regular-fg' : 'bg-tint-amber-bg text-tint-amber-fg'
-          }`}
-        >
-          <Icon name={item.value ? 'check' : 'clock'} className="icon !h-[10px] !w-[10px] shrink-0" />
-          <span className="truncate">
-            {item.value ? (
-              <>
-                {item.label === 'date' ? 'Date' : 'Time'} · {item.value}
-              </>
-            ) : (
-              `Add ${item.label}`
-            )}
+      {items.map((item) => {
+        const inputRef = item.key === 'date' ? dateInputRef : timeInputRef
+        return (
+          <span key={item.key} className="relative">
+            {/* Always tappable — green (done) chips reopen the picker so a
+                wrong pick can be corrected; the new value replaces the old. */}
+            <button
+              type="button"
+              onClick={() => openPicker(inputRef.current)}
+              title={item.value ? `Change ${item.key}` : undefined}
+              className={`inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-transform hover:scale-105 ${
+                item.value
+                  ? 'bg-status-regular-bg text-status-regular-fg'
+                  : 'bg-tint-amber-bg text-tint-amber-fg'
+              }`}
+            >
+              <Icon name={item.value ? 'check' : item.icon} className="icon !h-[10px] !w-[10px] shrink-0" />
+              <span className="truncate">{item.value ? `${item.doneLabel} · ${item.value}` : item.addLabel}</span>
+              {item.value && <Icon name="pencil" className="icon !h-[9px] !w-[9px] shrink-0 opacity-70" />}
+            </button>
+            {/* Invisible native input anchored to the chip — showPicker() opens
+                the browser's calendar/clock; display:none would break it. */}
+            <input
+              ref={inputRef}
+              type={item.key === 'date' ? 'date' : 'time'}
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => (item.key === 'date' ? applyDate(e.target.value) : applyTime(e.target.value))}
+              className="pointer-events-none absolute bottom-0 left-0 h-px w-px opacity-0"
+            />
           </span>
-        </span>
-      ))}
+        )
+      })}
     </div>
   )
 }

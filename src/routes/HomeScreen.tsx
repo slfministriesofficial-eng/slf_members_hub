@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
@@ -24,7 +24,7 @@ import { getInitials } from '../utils/initials'
 import { getFormattedDate } from '../utils/date'
 import { getUpcomingDates } from '../utils/upcomingDates'
 import { getRecentActivity } from '../utils/recentActivity'
-import { getCompletedIds } from '../utils/completedWishes'
+import { useCompletedWishes } from '../utils/completedWishes'
 import type { UpcomingEventKind } from '../mock/types'
 
 const QUICK_ACTIONS = [
@@ -118,24 +118,18 @@ export function HomeScreen() {
   const recentActivity = useMemo(() => getRecentActivity(members, PREVIEW_LIMIT), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
 
-  // "Wish sent" ticks on the This-week cards. Wishes are marked completed by
-  // the member's internal id (SendWishScreen), while the cards carry the
-  // SLF-xxxx memberId — so map one to the other. Refreshes live when a wish
-  // is sent anywhere (the 'slf-alerts-changed' event completedWishes fires).
-  const [completedWishIds, setCompletedWishIds] = useState<Set<string>>(getCompletedIds)
-  useEffect(() => {
-    const refresh = () => setCompletedWishIds(getCompletedIds())
-    window.addEventListener('slf-alerts-changed', refresh)
-    return () => window.removeEventListener('slf-alerts-changed', refresh)
-  }, [])
+  // "Wish sent" ticks on the This-week cards — now backend-backed, so a wish
+  // sent on any device shows here too (see completedWishes). The store keys by
+  // the member's internal id, which equals the SLF memberId the cards carry.
+  const isWished = useCompletedWishes()
   const memberIdToInternalId = useMemo(() => {
     const map = new Map<string, string>()
     members.forEach((m) => map.set(m.memberId, m.id))
     return map
   }, [members])
-  function isWishSent(memberId: string): boolean {
+  function isWishSent(memberId: string, occasion: UpcomingEventKind): boolean {
     const internalId = memberIdToInternalId.get(memberId)
-    return internalId ? completedWishIds.has(internalId) : false
+    return internalId ? isWished(internalId, occasion) : false
   }
 
   // Follow-ups/absentees have no real backend yet (no attendance log to source them
@@ -284,12 +278,15 @@ export function HomeScreen() {
           ) : (
             <div className="-mx-4 mb-2 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:mb-0 md:flex-col md:gap-2.5 md:overflow-visible md:px-0 md:pb-0">
               {upcoming.slice(0, PREVIEW_LIMIT).map((item) => {
-                const wishSent = isWishSent(item.memberId)
+                const wishSent = isWishSent(item.memberId, item.kind)
                 const internalId = memberIdToInternalId.get(item.memberId)
                 return (
                   <button
                     key={item.id}
-                    onClick={() => internalId && navigate(`/send-wish/${wishKindFor(item.kind)}/${internalId}`)}
+                    onClick={() =>
+                      internalId &&
+                      navigate(`/send-wish/${wishKindFor(item.kind)}/${internalId}?occasion=${item.kind}`)
+                    }
                     className="relative w-[118px] shrink-0 rounded-2xl bg-surface p-3 text-center transition-shadow hover:shadow-card md:flex md:w-full md:items-center md:gap-3 md:p-3 md:text-left"
                   >
                     {/* Green tick once a wish has been sent to this member — so

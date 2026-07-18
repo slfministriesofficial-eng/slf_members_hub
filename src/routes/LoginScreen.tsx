@@ -26,12 +26,16 @@ export function LoginScreen() {
   }
 
   const inputClass =
-    'w-full rounded-full border border-hairline bg-white py-3 pl-11 pr-4 text-[14px] text-ink outline-none transition-all placeholder:text-slate/60 focus:border-brass focus:ring-2 focus:ring-brass/15 lg:py-[clamp(0.9rem,1.8dvh,1.25rem)] lg:pl-14 lg:pr-5 lg:text-[16px]'
+    'w-full rounded-full border border-hairline bg-white py-3 pl-11 pr-4 text-[14px] text-ink outline-none transition-all placeholder:text-slate/60 focus:border-brass focus:ring-2 focus:ring-brass/15 lg:py-3.5 lg:pl-12 lg:text-[15px]'
 
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white">
-      {/* ── Mobile: curved header ── */}
-      <header className="relative shrink-0 overflow-hidden px-5 pb-12 pt-0 text-center lg:flex lg:h-[clamp(20rem,44dvh,29rem)] lg:flex-col lg:items-center lg:justify-center lg:pb-[clamp(3.5rem,8dvh,5.5rem)] lg:pt-0">
+    // Mobile/tablet: curved gold header stacked above the form (the design as
+    // drawn). Desktop (lg+): the same header becomes a full-height branding
+    // panel on the left with the form centered on the right — the layout
+    // adapts purely from the viewport, no separate pages.
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white lg:flex-row">
+      {/* ── Gold branding header / left panel ── */}
+      <header className="relative shrink-0 overflow-hidden px-5 pb-12 pt-0 text-center lg:flex lg:h-full lg:w-1/2 lg:shrink lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:pb-0">
         {/* Animated background */}
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="motion-safe:animate-[gradient-drift_10s_ease_infinite] absolute inset-0 bg-gradient-to-br from-brass via-[#d4a040] to-brass-deep bg-[length:250%_250%]" />
@@ -48,38 +52,48 @@ export function LoginScreen() {
         <img
           src={slfLogo}
           alt="Sarah Living Faith Ministries"
-          className="relative z-10 mx-auto -mb-14 h-72 w-72 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.25)] max-[380px]:h-64 max-[380px]:w-64 lg:-mb-[clamp(3rem,7dvh,4rem)] lg:h-[clamp(18rem,34dvh,22rem)] lg:w-[clamp(18rem,34dvh,22rem)]"
+          className="relative z-20 mx-auto -mb-16 h-80 w-80 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.25)] max-[380px]:h-72 max-[380px]:w-72 lg:-mb-20 lg:h-[clamp(22rem,52dvh,32rem)] lg:w-[clamp(22rem,52dvh,32rem)]"
         />
 
-        <h1 className="relative z-10 font-display text-[24px] font-bold leading-tight text-white lg:text-[30px]">Welcome Back</h1>
-        <p className="relative z-10 mt-0.5 text-[13px] font-semibold text-white/90 lg:text-[16px]">SLF Members Hub</p>
+        {/* z-20 — the white curve below is z-10, so the titles always stay
+            visible on top of it instead of being swallowed by the curve.
+            "SLF Members Hub" is the headline (big editorial serif); the
+            greeting is the small kicker line above it. */}
+        <p className="relative z-20 text-[13px] font-bold uppercase tracking-[0.22em] text-white/85 lg:text-[14px]">
+          Welcome Back
+        </p>
+        <h1 className="relative z-20 mt-1 font-display text-[30px] font-bold leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.25)] max-[380px]:text-[26px] lg:mt-2 lg:text-[44px]">
+          SLF Members Hub
+        </h1>
 
+        {/* Curved white sheet — mobile only; the desktop split layout has a
+            straight edge between the panels. */}
         <div
           aria-hidden
-          className="absolute -bottom-10 left-1/2 z-10 h-20 w-[145%] -translate-x-1/2 rounded-t-[100%] bg-white lg:-bottom-14 lg:h-28 lg:w-[130%]"
+          className="absolute -bottom-10 left-1/2 z-10 h-20 w-[145%] -translate-x-1/2 rounded-t-[100%] bg-white lg:hidden"
         />
       </header>
 
-      {/* ── Form area ── */}
-      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white px-5 pb-4 pt-0 lg:items-center lg:px-12 lg:pb-[clamp(1rem,3dvh,2.5rem)]">
+      {/* ── Form area: below the header on mobile, right panel on desktop ── */}
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-5 pb-4 pt-0 lg:h-full lg:items-center lg:justify-center lg:px-12 lg:pb-8 lg:pt-8">
         <div
           aria-hidden
           className="pointer-events-none absolute right-0 top-0 hidden h-64 w-64 rounded-full bg-brass/10 blur-3xl lg:block"
         />
 
-        <div className="motion-safe:animate-[fade-rise_0.5s_ease-out] relative flex min-h-0 w-full max-w-[420px] flex-1 flex-col lg:max-w-[560px]">
-          <div className="flex min-h-0 flex-1 flex-col justify-start pt-2 lg:pt-[clamp(0.25rem,1.5dvh,1rem)]">
+        <div className="motion-safe:animate-[fade-rise_0.5s_ease-out] relative flex min-h-0 w-full max-w-[420px] flex-1 flex-col self-center lg:max-w-[440px] lg:flex-none">
+          <div className="flex min-h-0 flex-1 flex-col justify-start pt-2 lg:flex-none lg:pt-0">
             {error && (
               <div className="motion-safe:animate-[fade-rise_0.3s_ease-out] mb-3 rounded-2xl border border-status-alert-fg/15 bg-status-alert-bg px-4 py-2.5 text-[12.5px] font-semibold text-status-alert-fg lg:mb-5 lg:py-3 lg:text-[13px]">
                 {error}
               </div>
             )}
 
-            <h2 className="relative z-20 -mt-1 mb-1.5 text-center font-display text-[20px] font-bold text-ink lg:-mt-[clamp(0.25rem,1dvh,0.75rem)] lg:mb-[clamp(0.75rem,1.6dvh,1.25rem)] lg:text-[28px]">
+            <h2 className="relative z-20 -mt-1 mb-1.5 text-center font-display text-[20px] font-extrabold text-ink lg:mb-6 lg:mt-0 lg:text-[28px]">
               Login to SLF Hub
             </h2>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3 lg:gap-[clamp(0.9rem,2dvh,1.5rem)]">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3 lg:gap-4">
               <label className="block">
                 <span className="mb-1 block text-[12px] font-semibold text-ink lg:mb-2 lg:text-[13px] lg:font-bold lg:uppercase lg:tracking-[0.14em] lg:text-slate">
                   Full name
@@ -151,7 +165,7 @@ export function LoginScreen() {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-1 flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brass to-brass-deep py-3.5 text-[14px] font-bold text-white shadow-[0_10px_28px_rgba(184,134,58,0.35)] transition-all hover:brightness-105 disabled:opacity-70 disabled:hover:brightness-100 lg:mt-2 lg:py-[clamp(0.9rem,1.8dvh,1.25rem)] lg:text-[16px]"
+                className="mt-1 flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brass to-brass-deep py-3.5 text-[14px] font-bold text-white shadow-[0_10px_28px_rgba(184,134,58,0.35)] transition-all hover:brightness-105 disabled:opacity-70 disabled:hover:brightness-100 lg:mt-2 lg:py-4 lg:text-[15px]"
               >
                 {loading && (
                   <span className="motion-safe:animate-[spin-slow_0.7s_linear_infinite] h-4 w-4 rounded-full border-2 border-white/30 border-t-white" />

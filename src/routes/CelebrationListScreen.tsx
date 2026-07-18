@@ -19,7 +19,7 @@ import {
   type AnnualEventEntry,
   type NewMemberEntry,
 } from '../utils/celebrations'
-import { getCompletedIds } from '../utils/completedWishes'
+import { useCompletedWishes, type WishOccasion } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
 type ListType = 'birthdays' | 'anniversaries' | 'baptisms' | 'membership' | 'visitors'
@@ -106,10 +106,10 @@ export function CelebrationListScreen() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
   const [view, setView] = useState<ViewMode>(getInitialView)
-  // Tracks who's already been wished — persisted in sessionStorage (no
-  // backend field for this) so it survives navigating to the Send Wish page
-  // and back, not just local state that would reset on remount.
-  const [completedIds] = useState<Set<string>>(getCompletedIds)
+  // Who's already been wished this year — backend-backed and shared across
+  // devices (see completedWishes); refreshes live when a wish is sent. Tracked
+  // per occasion, so this list's own occasion is what each check uses.
+  const isWished = useCompletedWishes()
 
   function changeView(next: ViewMode) {
     setView(next)
@@ -145,9 +145,12 @@ export function CelebrationListScreen() {
 
   // Once wished, someone drops off every filter except "Completed" itself —
   // reviewing who's done lives there instead of a badge on the pending view.
-  function matchesFilter<T extends { daysAway: number; isThisMonth: boolean; member: Member }>(e: T): boolean {
-    if (filter === 'completed') return completedIds.has(e.member.id)
-    if (completedIds.has(e.member.id)) return false
+  function matchesFilter<T extends { daysAway: number; isThisMonth: boolean; member: Member }>(
+    e: T,
+    occasion: WishOccasion,
+  ): boolean {
+    if (filter === 'completed') return isWished(e.member.id, occasion)
+    if (isWished(e.member.id, occasion)) return false
     switch (filter) {
       case 'week':
         return e.daysAway >= 0 && e.daysAway <= 7
@@ -159,12 +162,12 @@ export function CelebrationListScreen() {
   }
 
   const topBirthdays = useMemo(
-    () => birthdays.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
-    [birthdays, query, filter, completedIds],
+    () => birthdays.filter((e) => matchesSearch(e.member, query)).filter((e) => matchesFilter(e, 'birthday')),
+    [birthdays, query, filter, isWished],
   )
   const topAnniversaries = useMemo(
-    () => anniversaries.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
-    [anniversaries, query, filter, completedIds],
+    () => anniversaries.filter((e) => matchesSearch(e.member, query)).filter((e) => matchesFilter(e, 'wedding')),
+    [anniversaries, query, filter, isWished],
   )
 
   // Always-visible forward-looking section — everyone within 60 days who
@@ -175,48 +178,48 @@ export function CelebrationListScreen() {
     const topIds = new Set(topBirthdays.map((e) => e.member.id))
     return birthdays
       .filter((e) => matchesSearch(e.member, query))
-      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
-  }, [birthdays, query, filter, topBirthdays, completedIds])
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !isWished(e.member.id, 'birthday'))
+  }, [birthdays, query, filter, topBirthdays, isWished])
 
   const upcomingAnniversaries = useMemo(() => {
     if (filter === 'completed') return []
     const topIds = new Set(topAnniversaries.map((e) => e.member.id))
     return anniversaries
       .filter((e) => matchesSearch(e.member, query))
-      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
-  }, [anniversaries, query, filter, topAnniversaries, completedIds])
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !isWished(e.member.id, 'wedding'))
+  }, [anniversaries, query, filter, topAnniversaries, isWished])
 
   const topBaptisms = useMemo(
-    () => baptisms.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
-    [baptisms, query, filter, completedIds],
+    () => baptisms.filter((e) => matchesSearch(e.member, query)).filter((e) => matchesFilter(e, 'baptism')),
+    [baptisms, query, filter, isWished],
   )
   const upcomingBaptisms = useMemo(() => {
     if (filter === 'completed') return []
     const topIds = new Set(topBaptisms.map((e) => e.member.id))
     return baptisms
       .filter((e) => matchesSearch(e.member, query))
-      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
-  }, [baptisms, query, filter, topBaptisms, completedIds])
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !isWished(e.member.id, 'baptism'))
+  }, [baptisms, query, filter, topBaptisms, isWished])
 
   const topMembership = useMemo(
-    () => membershipAnnivs.filter((e) => matchesSearch(e.member, query)).filter(matchesFilter),
-    [membershipAnnivs, query, filter, completedIds],
+    () => membershipAnnivs.filter((e) => matchesSearch(e.member, query)).filter((e) => matchesFilter(e, 'membership')),
+    [membershipAnnivs, query, filter, isWished],
   )
   const upcomingMembership = useMemo(() => {
     if (filter === 'completed') return []
     const topIds = new Set(topMembership.map((e) => e.member.id))
     return membershipAnnivs
       .filter((e) => matchesSearch(e.member, query))
-      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
-  }, [membershipAnnivs, query, filter, topMembership, completedIds])
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 60 && !topIds.has(e.member.id) && !isWished(e.member.id, 'membership'))
+  }, [membershipAnnivs, query, filter, topMembership, isWished])
 
   // Visitors look BACKWARD: today / last 7 days / this calendar month.
   const topVisitors = useMemo(() => {
     return visitors
       .filter((e) => matchesSearch(e.member, query))
       .filter((e) => {
-        if (filter === 'completed') return completedIds.has(e.member.id)
-        if (completedIds.has(e.member.id)) return false
+        if (filter === 'completed') return isWished(e.member.id, 'visitor')
+        if (isWished(e.member.id, 'visitor')) return false
         switch (filter) {
           case 'week':
             return e.daysAgo <= 7
@@ -226,14 +229,14 @@ export function CelebrationListScreen() {
             return e.daysAgo === 0
         }
       })
-  }, [visitors, query, filter, completedIds, now])
+  }, [visitors, query, filter, isWished, now])
   const recentVisitors = useMemo(() => {
     if (filter === 'completed') return []
     const topIds = new Set(topVisitors.map((e) => e.member.id))
     return visitors
       .filter((e) => matchesSearch(e.member, query))
-      .filter((e) => e.daysAgo > 0 && e.daysAgo <= 60 && !topIds.has(e.member.id) && !completedIds.has(e.member.id))
-  }, [visitors, query, filter, topVisitors, completedIds])
+      .filter((e) => e.daysAgo > 0 && e.daysAgo <= 60 && !topIds.has(e.member.id) && !isWished(e.member.id, 'visitor'))
+  }, [visitors, query, filter, topVisitors, isWished])
 
   const isEmpty =
     (type === 'birthdays' && topBirthdays.length === 0 && upcomingBirthdays.length === 0) ||
@@ -253,9 +256,9 @@ export function CelebrationListScreen() {
         dateMonth={month}
         subLabel={e.age !== null ? `${e.age} yrs` : undefined}
         countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-        completed={completedIds.has(e.member.id)}
+        completed={isWished(e.member.id, 'birthday')}
         onView={() => navigate(`/celebration-profile/birthday/${e.member.id}`)}
-        onSend={() => navigate(`/send-wish/birthday/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/birthday/${e.member.id}?occasion=birthday`)}
         sendLabel="Send Wishes"
       />
     )
@@ -273,9 +276,9 @@ export function CelebrationListScreen() {
         subLabel={e.yearsMarried !== null ? `${e.yearsMarried} yrs married` : undefined}
         coupleName={e.member.spouse}
         countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-        completed={completedIds.has(e.member.id)}
+        completed={isWished(e.member.id, 'wedding')}
         onView={() => navigate(`/celebration-profile/anniversary/${e.member.id}`)}
-        onSend={() => navigate(`/send-wish/anniversary/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/anniversary/${e.member.id}?occasion=wedding`)}
         sendLabel="Send Wishes"
       />
     )
@@ -294,9 +297,9 @@ export function CelebrationListScreen() {
         dateMonth={month}
         subLabel={e.years !== null ? `${e.years} yr${e.years === 1 ? '' : 's'}` : undefined}
         countdownLabel={formatUpcomingLabel(e.nextDate, now)}
-        completed={completedIds.has(e.member.id)}
+        completed={isWished(e.member.id, cardType)}
         onView={() => navigate(`/members/${e.member.id}`)}
-        onSend={() => navigate(`/send-wish/custom/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/custom/${e.member.id}?occasion=${cardType}`)}
         sendLabel="Send Wishes"
       />
     )
@@ -313,9 +316,9 @@ export function CelebrationListScreen() {
         dateMonth={month}
         subLabel="First visit"
         countdownLabel={formatPastLabel(e.joinedDate, now)}
-        completed={completedIds.has(e.member.id)}
+        completed={isWished(e.member.id, 'visitor')}
         onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
-        onSend={() => navigate(`/send-wish/welcome/${e.member.id}`)}
+        onSend={() => navigate(`/send-wish/welcome/${e.member.id}?occasion=visitor`)}
         sendLabel="Send Welcome"
       />
     )

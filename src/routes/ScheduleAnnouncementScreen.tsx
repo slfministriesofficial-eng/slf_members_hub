@@ -5,7 +5,8 @@ import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { schedulePushBroadcast } from '../notifications/api'
 import { useTokenCount } from '../notifications/scheduleView'
-import type { Template } from '../templates/push/announcements'
+import { TEMPLATES, type Template } from '../templates/push/announcements'
+import { TELUGU_TEMPLATES } from '../templates/push/announcements-telugu'
 import { CHURCH_INFO } from '../constants/church'
 import {
   MAX_MESSAGE_LENGTH,
@@ -13,6 +14,8 @@ import {
   LABEL_CLASS,
   StepSection,
   TemplateChips,
+  LanguageToggle,
+  type TemplateLanguage,
   SummaryRow,
   DateTimeChecklist,
   HighlightWhen,
@@ -43,6 +46,7 @@ export function ScheduleAnnouncementScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [templateKey, setTemplateKey] = useState<string | null>(null)
+  const [lang, setLang] = useState<TemplateLanguage>('en')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
@@ -77,16 +81,33 @@ export function ScheduleAnnouncementScreen() {
     setMessage(template.message)
   }
 
+  /** Switch template language — re-applies the selected template in the new one. */
+  function changeLanguage(next: TemplateLanguage) {
+    setLang(next)
+    if (templateKey) {
+      const tpl = (next === 'te' ? TELUGU_TEMPLATES : TEMPLATES).find((t) => t.key === templateKey)
+      if (tpl) {
+        setTitle(tpl.title)
+        setMessage(tpl.message)
+      }
+    }
+  }
+
   /**
    * The exact data-only push payload the dispatcher will send. Asterisks are
    * stripped — templates carry `*bold*` for WhatsApp, but a push shows them as
-   * literal characters, so the preview and the sent text are both cleaned.
+   * literal characters. The notification TITLE is the only line a phone
+   * renders bold, so the church's full name always takes that slot (Telugu
+   * name for Telugu messages); the admin's typed title leads the body.
    */
   function buildPushContent(): { title: string; body: string; url?: string } {
-    const bodyLines = [message.trim()]
+    const isTelugu = /[ఀ-౿]/.test(message)
+    const bodyLines: string[] = []
+    if (title.trim()) bodyLines.push(title.trim(), '')
+    bodyLines.push(message.trim())
     if (link.trim()) bodyLines.push('', `Open the link: ${link.trim()}`)
     return {
-      title: (title.trim() || CHURCH_INFO.shortName).replace(/\*/g, ''),
+      title: isTelugu ? 'సారా లివింగ్ ఫెయిత్ మినిస్ట్రీస్' : CHURCH_INFO.name,
       body: bodyLines.join('\n').replace(/\*/g, '').trim(),
       url: link.trim() || undefined,
     }
@@ -145,8 +166,19 @@ export function ScheduleAnnouncementScreen() {
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
           {/* THE FOUR STEPS */}
           <div className="min-w-0 space-y-4">
-            <StepSection step={1} title="Choose a template" hint="optional" accent={ACCENT}>
-              <TemplateChips selectedKey={templateKey} accent={ACCENT} onApply={applyTemplate} />
+            <StepSection
+              step={1}
+              title="Choose a template"
+              hint="optional"
+              accent={ACCENT}
+              action={<LanguageToggle lang={lang} accent={ACCENT} onChange={changeLanguage} />}
+            >
+              <TemplateChips
+                selectedKey={templateKey}
+                accent={ACCENT}
+                templates={lang === 'te' ? TELUGU_TEMPLATES : TEMPLATES}
+                onApply={applyTemplate}
+              />
             </StepSection>
 
             <StepSection step={2} title="Write your message" accent={ACCENT}>
@@ -176,7 +208,7 @@ export function ScheduleAnnouncementScreen() {
               {/* Members must know WHEN — live check that the message carries
                   a date and a time; scheduling is blocked until both are in.
                   (Skipped for emergency notices, where it's optional.) */}
-              {requireWhen && <DateTimeChecklist text={message} />}
+              {requireWhen && <DateTimeChecklist text={message} onChange={setMessage} />}
             </StepSection>
 
             <StepSection

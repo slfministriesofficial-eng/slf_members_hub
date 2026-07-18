@@ -1,8 +1,11 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
+import { TakerShell } from './components/layout/TakerShell'
 import { SplashScreen } from './components/layout/SplashScreen'
 import { useAuth } from './auth/AuthContext'
 import { LoginScreen } from './routes/LoginScreen'
+import { AttendanceLoginScreen } from './routes/AttendanceLoginScreen'
+import { AttendanceHistoryScreen } from './routes/AttendanceHistoryScreen'
 import { WelcomeTransition } from './routes/WelcomeTransition'
 import { PublicMemberProfileScreen } from './routes/PublicMemberProfileScreen'
 import { HomeScreen } from './routes/HomeScreen'
@@ -11,8 +14,9 @@ import { MembersAllScreen } from './routes/MembersAllScreen'
 import { MemberProfileScreen } from './routes/MemberProfileScreen'
 import { AddMemberScreen } from './routes/AddMemberScreen'
 import { IdCardPreviewScreen } from './routes/IdCardPreviewScreen'
-import { AttendanceScreen } from './routes/AttendanceScreen'
+import { AttendanceHubScreen } from './routes/AttendanceHubScreen'
 import { AttendanceMarkAllScreen } from './routes/AttendanceMarkAllScreen'
+import { AttendanceAccessScreen } from './routes/AttendanceAccessScreen'
 import { FollowUpsScreen } from './routes/FollowUpsScreen'
 import { BirthdaysScreen } from './routes/BirthdaysScreen'
 import { CelebrationListScreen } from './routes/CelebrationListScreen'
@@ -31,7 +35,11 @@ import { ActivityScreen } from './routes/ActivityScreen'
 import { NotificationsSentScreen } from './routes/NotificationsSentScreen'
 
 function App() {
-  const { isAuthenticated, showWelcome } = useAuth()
+  const { isAuthenticated, role, showWelcome, authChecking } = useAuth()
+
+  // Hold everything until a stored attendance-taker token finishes verifying,
+  // so a signed-in taker never flashes the admin login screen on launch.
+  if (authChecking) return <SplashScreen />
 
   return (
     <>
@@ -41,9 +49,24 @@ function App() {
         {/* Public — this is where every membership card's QR code points, so it
             has to be reachable without logging in, before the auth gate below. */}
         <Route path="/member" element={<PublicMemberProfileScreen />} />
+        {/* Public magic-link — the attendance taker's WhatsApp invite lands here
+            and signs them in, so it must be reachable before the auth gate. */}
+        <Route path="/attend/:token" element={<AttendanceLoginScreen />} />
 
         {!isAuthenticated ? (
           <Route path="*" element={<LoginScreen />} />
+        ) : role === 'attendance-taker' ? (
+          // Locked-down role: attendance + add-member only; everything else
+          // redirects to /attendance so there's no way to reach admin surfaces.
+          <>
+            <Route path="/members/new" element={<AddMemberScreen />} />
+            <Route path="/members/new/id-card" element={<IdCardPreviewScreen />} />
+            <Route element={<TakerShell />}>
+              {/* Taker lands straight on the full marking list — no hub. */}
+              <Route path="/attendance" element={<AttendanceMarkAllScreen home />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/attendance" replace />} />
+          </>
         ) : (
           <>
             {/* Standalone, no sidebar/bottom-nav — a focused task shouldn't tempt a distracted exit mid-form */}
@@ -56,8 +79,10 @@ function App() {
               <Route path="/members" element={<MembersScreen />} />
               <Route path="/members/all" element={<MembersAllScreen />} />
               <Route path="/members/:id" element={<MemberProfileScreen />} />
-              <Route path="/attendance" element={<AttendanceScreen />} />
+              <Route path="/attendance" element={<AttendanceHubScreen />} />
               <Route path="/attendance/all" element={<AttendanceMarkAllScreen />} />
+              <Route path="/attendance/access" element={<AttendanceAccessScreen />} />
+              <Route path="/attendance/history" element={<AttendanceHistoryScreen />} />
               <Route path="/follow-ups" element={<FollowUpsScreen />} />
               <Route path="/birthdays" element={<BirthdaysScreen />} />
               <Route path="/birthdays/:type" element={<CelebrationListScreen />} />

@@ -6,13 +6,16 @@ import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { sendPushBroadcast } from '../notifications/api'
 import { useTokenCount } from '../notifications/scheduleView'
 import { CHURCH_INFO } from '../constants/church'
-import type { Template } from '../templates/push/announcements'
+import { TEMPLATES, type Template } from '../templates/push/announcements'
+import { TELUGU_TEMPLATES } from '../templates/push/announcements-telugu'
 import {
   MAX_MESSAGE_LENGTH,
   FIELD_CLASS,
   LABEL_CLASS,
   StepSection,
   TemplateChips,
+  LanguageToggle,
+  type TemplateLanguage,
   LinksEditor,
   SummaryRow,
   ConfirmSendModal,
@@ -37,6 +40,7 @@ export function SendNotificationScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [templateKey, setTemplateKey] = useState<string | null>(null)
+  const [lang, setLang] = useState<TemplateLanguage>('en')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [links, setLinks] = useState<LinkEntry[]>([{ label: '', url: '' }])
@@ -52,6 +56,18 @@ export function SendNotificationScreen() {
     setMessage(template.message)
   }
 
+  /** Switch template language — re-applies the selected template in the new one. */
+  function changeLanguage(next: TemplateLanguage) {
+    setLang(next)
+    if (templateKey) {
+      const tpl = (next === 'te' ? TELUGU_TEMPLATES : TEMPLATES).find((t) => t.key === templateKey)
+      if (tpl) {
+        setTitle(tpl.title)
+        setMessage(tpl.message)
+      }
+    }
+  }
+
   function clearForm() {
     setTemplateKey(null)
     setTitle('')
@@ -59,16 +75,24 @@ export function SendNotificationScreen() {
     setLinks([{ label: '', url: '' }])
   }
 
-  /** The clean data-only push payload — `*bold*` stripped (that's WhatsApp's). */
+  /**
+   * The clean data-only push payload — `*bold*` stripped (that's WhatsApp's).
+   * The notification TITLE is the only line a phone renders bold, so the
+   * church's full name always takes that slot (Telugu name for Telugu
+   * messages); the admin's typed title leads the body underneath.
+   */
   function buildPushContent(): { title: string; body: string; url?: string } {
     const validLinks = links.filter((l) => l.url.trim())
-    const bodyLines = [message.trim()]
+    const isTelugu = /[ఀ-౿]/.test(message)
+    const bodyLines: string[] = []
+    if (title.trim()) bodyLines.push(title.trim(), '')
+    bodyLines.push(message.trim())
     validLinks.forEach((l, i) => {
       const label = l.label.trim() || defaultLinkLabel(i)
       bodyLines.push('', `${label}: ${l.url.trim()}`)
     })
     return {
-      title: (title.trim() || CHURCH_INFO.shortName).replace(/\*/g, ''),
+      title: isTelugu ? 'సారా లివింగ్ ఫెయిత్ మినిస్ట్రీస్' : CHURCH_INFO.name,
       body: bodyLines.join('\n').replace(/\*/g, '').trim(),
       url: validLinks[0]?.url.trim(),
     }
@@ -125,8 +149,19 @@ export function SendNotificationScreen() {
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
           {/* THE THREE STEPS */}
           <div className="min-w-0 space-y-4">
-            <StepSection step={1} title="Choose a template" hint="optional" accent={ACCENT}>
-              <TemplateChips selectedKey={templateKey} accent={ACCENT} onApply={applyTemplate} />
+            <StepSection
+              step={1}
+              title="Choose a template"
+              hint="optional"
+              accent={ACCENT}
+              action={<LanguageToggle lang={lang} accent={ACCENT} onChange={changeLanguage} />}
+            >
+              <TemplateChips
+                selectedKey={templateKey}
+                accent={ACCENT}
+                templates={lang === 'te' ? TELUGU_TEMPLATES : TEMPLATES}
+                onApply={applyTemplate}
+              />
             </StepSection>
 
             <StepSection step={2} title="Write your message" accent={ACCENT}>
@@ -156,7 +191,7 @@ export function SendNotificationScreen() {
               {/* Members must know WHEN — live check that the message carries
                   a date and a time; sending is blocked until both are in.
                   (Skipped for emergency notices, where it's optional.) */}
-              {requireWhen && <DateTimeChecklist text={message} />}
+              {requireWhen && <DateTimeChecklist text={message} onChange={setMessage} />}
             </StepSection>
 
             <StepSection

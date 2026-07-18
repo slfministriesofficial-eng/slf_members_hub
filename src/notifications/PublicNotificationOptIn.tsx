@@ -9,7 +9,19 @@ import {
   wasPermissionDenied,
 } from './NotificationService'
 
-type OptInState = 'checking' | 'notconfigured' | 'unsupported' | 'blocked' | 'ready' | 'enabling' | 'enabled'
+type OptInState =
+  | 'checking'
+  | 'notconfigured'
+  | 'unsupported'
+  | 'blocked'
+  | 'ready'
+  | 'enabling'
+  | 'enabled'
+  | 'error'
+
+/** getToken() can hang if the permission prompt is ignored or FCM stalls —
+ *  after this long we stop waiting and let the member try again. */
+const ENABLE_TIMEOUT_MS = 25_000
 
 /**
  * "Get Church Notifications" card for the public member-profile page (the
@@ -47,21 +59,26 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
     }
   }, [])
 
-  /** Prompt once, register the token for this member, reflect the outcome. */
+  /** Prompt once, register the token for this member, reflect the outcome.
+   *  Guarded by a timeout so a hung getToken() can never freeze on "Enabling…". */
   async function handleEnable() {
     setState('enabling')
     try {
-      const result = await enableNotifications(memberId, 'member')
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('enable-timeout')), ENABLE_TIMEOUT_MS),
+      )
+      const result = await Promise.race([enableNotifications(memberId, 'member'), timeout])
       if (result.permission === 'granted' && result.token) {
         setState('enabled')
       } else if (result.permission === 'denied') {
         setState('blocked')
       } else {
-        setState('ready')
+        // Permission left unanswered, or granted but no token came back.
+        setState('error')
       }
     } catch (error) {
       console.error('[Notifications] Public opt-in failed:', error)
-      setState('ready')
+      setState('error')
     }
   }
 
@@ -100,15 +117,27 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
           </p>
         )}
 
-        {(state === 'ready' || state === 'enabling') && (
-          <button
-            onClick={handleEnable}
-            disabled={state === 'enabling'}
-            className="mx-auto flex items-center justify-center gap-1.5 rounded-full bg-ink px-6 py-3 text-[13.5px] font-bold text-white transition-transform hover:scale-105 disabled:opacity-50"
-          >
-            <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
-            {state === 'enabling' ? 'Enabling…' : 'Enable Notifications'}
-          </button>
+        {(state === 'ready' || state === 'enabling' || state === 'error') && (
+          <>
+            {state === 'error' && (
+              <p className="mx-auto mb-3 max-w-[380px] text-[12.5px] leading-relaxed text-status-alert-fg">
+                We couldn't finish enabling notifications. When the browser asks, choose{' '}
+                <strong>Allow</strong>, then try again.
+              </p>
+            )}
+            <button
+              onClick={handleEnable}
+              disabled={state === 'enabling'}
+              className="mx-auto flex items-center justify-center gap-1.5 rounded-full bg-ink px-6 py-3 text-[13.5px] font-bold text-white transition-transform hover:scale-105 disabled:opacity-50"
+            >
+              <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
+              {state === 'enabling'
+                ? 'Enabling…'
+                : state === 'error'
+                  ? 'Try Again'
+                  : 'Enable Notifications'}
+            </button>
+          </>
         )}
 
         {state === 'enabled' && (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { getTimeGreeting } from '../utils/initials'
 import { useAuth } from '../auth/AuthContext'
+import slfLogo from '../assets/slf_logo_cropped.png'
 
 const SLOGAN = 'Your entire church, in one pocket.'
 const CONTENT_MS = 4000
@@ -22,8 +23,10 @@ function useParticles(count: number) {
 }
 
 export function WelcomeTransition() {
-  const { adminName, dismissWelcome } = useAuth()
-  const name = adminName || 'Admin'
+  const { adminName, takerName, role, dismissWelcome } = useAuth()
+  const isTaker = role === 'attendance-taker'
+  const name = isTaker ? takerName || 'Friend' : adminName || 'Admin'
+  const subtitle = isTaker ? "You're all set to take attendance" : null
   const greeting = useMemo(getTimeGreeting, [])
   const particles = useParticles(12)
   const [revealing, setRevealing] = useState(false)
@@ -78,10 +81,13 @@ export function WelcomeTransition() {
           revealing ? 'opacity-0' : 'opacity-100'
         }`}
       >
-        <div className="relative mb-7 flex items-center justify-center">
-          <div className="motion-safe:animate-[pulse-soft_1.8s_ease-in-out_infinite] absolute h-24 w-24 rounded-full bg-brass/45 blur-2xl" />
-          <div className="motion-safe:animate-[scale-in_0.6s_ease-out_both] relative flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-            <span className="h-3 w-3 rounded-full bg-brass" />
+        {/* The church logo in a breathing gold glow, wrapped by a slowly
+            turning dashed halo — replaces the old placeholder tile. */}
+        <div className="relative mb-8 flex items-center justify-center">
+          <div className="motion-safe:animate-[pulse-soft_1.8s_ease-in-out_infinite] absolute h-40 w-40 rounded-full bg-brass/40 blur-2xl" />
+          <div className="motion-safe:animate-[spin-slow_18s_linear_infinite] absolute h-[8.25rem] w-[8.25rem] rounded-full border-2 border-dashed border-brass/45 lg:h-[9.5rem] lg:w-[9.5rem]" />
+          <div className="motion-safe:animate-[scale-in_0.6s_ease-out_both] relative h-[6.5rem] w-[6.5rem] overflow-hidden rounded-full bg-white shadow-[0_0_44px_rgba(212,169,76,0.5)] ring-2 ring-brass/80 lg:h-[7.5rem] lg:w-[7.5rem]">
+            <img src={slfLogo} alt="Sarah Living Faith Ministries" className="h-full w-full object-cover" />
           </div>
         </div>
 
@@ -97,7 +103,11 @@ export function WelcomeTransition() {
         <div className="motion-safe:animate-[fade-rise_0.5s_ease-out_1000ms_both] relative mt-5 h-[2px] w-10 rounded-full bg-brass/70" />
 
         <p className="motion-safe:animate-[fade-rise_0.5s_ease-out_1100ms_both] relative mt-5 text-[15px] font-semibold text-white/90">
-          Welcome to <span className="font-bold text-brass">SLF Members Hub</span>
+          {subtitle ?? (
+            <>
+              Welcome to <span className="font-bold text-brass">SLF Members Hub</span>
+            </>
+          )}
         </p>
 
         <p className="motion-safe:animate-[fade-rise_0.6s_ease-out_1300ms_both] relative mt-3 text-[13px] italic text-white/60 [text-shadow:0_0_16px_rgba(212,169,76,0.35)]">

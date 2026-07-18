@@ -44,6 +44,7 @@ const messaging = firebase.messaging()
 function actionLabelFor(linkType) {
   if (linkType === 'youtube') return 'Watch Live'
   if (linkType === 'location') return 'View Location'
+  if (linkType === 'whatsapp') return 'Open WhatsApp'
   return 'Open Link'
 }
 
@@ -62,7 +63,7 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon: '/pwa-192.png',
+    icon: '/notification-logo.png',
     // No badge on purpose: Android renders the badge as a monochrome alpha
     // silhouette, which turned the round full-color logo into a black blob.
     // Without one, Android shows a clean default glyph instead.

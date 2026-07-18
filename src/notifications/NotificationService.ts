@@ -231,8 +231,8 @@ export function onForegroundMessage(onPayload?: (payload: MessagePayload) => voi
       const registration = await registerMessagingServiceWorker()
       await registration.showNotification(title, {
         body,
-        icon: '/pwa-192.png',
-        badge: '/pwa-192.png',
+        icon: '/notification-logo.png',
+        // No badge — Android renders it as a monochrome silhouette (a black blob).
         tag: payload.data?.tag ?? 'slf-members-hub',
         data: { url: payload.data?.url ?? '/' },
       })
@@ -254,8 +254,8 @@ export async function sendTestNotification(): Promise<boolean> {
     const registration = await registerMessagingServiceWorker()
     await registration.showNotification('SLF Members Hub', {
       body: 'Test notification — everything is working!',
-      icon: '/pwa-192.png',
-      badge: '/pwa-192.png',
+      icon: '/notification-logo.png',
+      // No badge — Android renders it as a monochrome silhouette (a black blob).
       tag: 'slf-test',
       data: { url: '/' },
     })

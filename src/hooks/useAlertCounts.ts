@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMembers } from '../features/members/MembersContext'
 import { deriveBirthdays, deriveAnniversaries, deriveNewMembers } from '../utils/celebrations'
-import { getCompletedIds } from '../utils/completedWishes'
+import { getCompletedKeys, wishKey, primeCompletedWishes } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
 const SEEN_MEMBERS_KEY = 'slf-seen-member-ids'
@@ -128,17 +128,24 @@ export function useAlertCounts(): AlertCounts {
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1)
     window.addEventListener(ALERTS_CHANGED_EVENT, bump)
+    // Pull the shared "wished this year" set from the backend so badges match
+    // what was wished on other devices (fires ALERTS_CHANGED_EVENT when ready).
+    primeCompletedWishes()
     return () => window.removeEventListener(ALERTS_CHANGED_EVENT, bump)
   }, [])
 
   return useMemo(() => {
-    const completed = getCompletedIds()
+    const completed = getCompletedKeys()
     const seenCelebrations = getSeenCelebrationIds()
-    // A badge clears when the celebration is either wished OR its page was
-    // viewed today — "I saw it" is enough to stop the blinking.
-    const celebrations = [...deriveBirthdays(members), ...deriveAnniversaries(members)].filter(
-      (e) => !completed.has(e.member.id) && !seenCelebrations.has(e.member.id),
+    // A badge clears when the celebration is either wished (per its own
+    // occasion) OR its page was viewed today — "I saw it" stops the blinking.
+    const birthdays = deriveBirthdays(members).filter(
+      (e) => !completed.has(wishKey(e.member.id, 'birthday')) && !seenCelebrations.has(e.member.id),
     )
+    const anniversaries = deriveAnniversaries(members).filter(
+      (e) => !completed.has(wishKey(e.member.id, 'wedding')) && !seenCelebrations.has(e.member.id),
+    )
+    const celebrations = [...birthdays, ...anniversaries]
     const seen = getSeenMemberIds()
     const seenFollowUps = getSeenFollowUpIds()
 
@@ -147,7 +154,7 @@ export function useAlertCounts(): AlertCounts {
       celebrationsToday: celebrations.filter((e) => e.daysAway === 0).length,
       celebrationsWeek: celebrations.filter((e) => e.daysAway <= 7).length,
       followUpsPending: deriveNewMembers(members).filter(
-        (e) => !completed.has(e.member.id) && !seenFollowUps.has(e.member.id),
+        (e) => !completed.has(wishKey(e.member.id, 'visitor')) && !seenFollowUps.has(e.member.id),
       ).length,
     }
     // version is the external-event invalidation counter — see the listener above.
@@ -197,24 +204,33 @@ export function useAlertItems(): { items: AlertItem[]; total: number; clearAll: 
   useEffect(() => {
     const bump = () => setVersion((v) => v + 1)
     window.addEventListener(ALERTS_CHANGED_EVENT, bump)
+    // Pull the shared "wished this year" set from the backend so badges match
+    // what was wished on other devices (fires ALERTS_CHANGED_EVENT when ready).
+    primeCompletedWishes()
     return () => window.removeEventListener(ALERTS_CHANGED_EVENT, bump)
   }, [])
 
   return useMemo(() => {
-    const completed = getCompletedIds()
+    const completed = getCompletedKeys()
     const seenCelebrations = getSeenCelebrationIds()
     const seenMembers = getSeenMemberIds()
     const seenFollowUps = getSeenFollowUpIds()
 
-    const birthdays = deriveBirthdays(members)
-    const anniversaries = deriveAnniversaries(members)
-    const celebrationsToday = [
-      ...birthdays.map((e) => ({ ...e, kind: 'Birthday' })),
-      ...anniversaries.map((e) => ({ ...e, kind: 'Anniversary' })),
-    ].filter((e) => e.daysAway === 0 && !completed.has(e.member.id) && !seenCelebrations.has(e.member.id))
+    const birthdays = deriveBirthdays(members).map((e) => ({ ...e, kind: 'Birthday', occasion: 'birthday' as const }))
+    const anniversaries = deriveAnniversaries(members).map((e) => ({
+      ...e,
+      kind: 'Anniversary',
+      occasion: 'wedding' as const,
+    }))
+    const celebrationsToday = [...birthdays, ...anniversaries].filter(
+      (e) =>
+        e.daysAway === 0 &&
+        !completed.has(wishKey(e.member.id, e.occasion)) &&
+        !seenCelebrations.has(e.member.id),
+    )
 
     const pendingWelcomes = deriveNewMembers(members).filter(
-      (e) => !completed.has(e.member.id) && !seenFollowUps.has(e.member.id),
+      (e) => !completed.has(wishKey(e.member.id, 'visitor')) && !seenFollowUps.has(e.member.id),
     )
     const unseenMembers = seenMembers === null ? [] : members.filter((m) => !seenMembers.has(m.id))
 
