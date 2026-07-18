@@ -1,12 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { schedulePushBroadcast } from '../notifications/api'
-import { TEMPLATES, type Template } from '../templates/push/announcements'
+import { useTokenCount } from '../notifications/scheduleView'
+import type { Template } from '../templates/push/announcements'
 import { CHURCH_INFO } from '../constants/church'
+import {
+  MAX_MESSAGE_LENGTH,
+  FIELD_CLASS,
+  LABEL_CLASS,
+  StepSection,
+  TemplateChips,
+  SummaryRow,
+  DateTimeChecklist,
+  HighlightWhen,
+  MessageArea,
+  messageValidationError,
+} from '../features/announcements/shared'
 import logo from '../assets/slf_logo_cropped.png'
+
+const ACCENT = 'bg-brass-deep' // this flow's identity color (brass)
 
 /** "17 Jul, 6:30 PM" for a datetime-local value. */
 function formatScheduleLabel(value: string): string {
@@ -19,15 +34,15 @@ function formatScheduleLabel(value: string): string {
 }
 
 /**
- * Dedicated page for scheduling an announcement push — reached from the
- * Schedule button on the Announcements page. Compose (same templates as the
- * main composer), pick a future date & time, preview exactly how the
- * notification will look on a member's phone, and confirm. The Apps Script
- * dispatcher delivers it within ~5 minutes of the chosen time.
+ * Schedule composer — "Schedule Notification" on the Announcements hub.
+ * Same numbered-step form as the quick-send page, plus a delivery date &
+ * time; the Apps Script dispatcher delivers within ~5 minutes of the chosen
+ * time.
  */
 export function ScheduleAnnouncementScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [templateKey, setTemplateKey] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
@@ -36,20 +51,28 @@ export function ScheduleAnnouncementScreen() {
   const [error, setError] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [scheduledFor, setScheduledFor] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  // Auto-resizes to the message length — same behavior as the main composer.
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [message])
+  const { data: deviceCount } = useTokenCount()
 
   const sendAtValid = sendAt !== '' && new Date(sendAt).getTime() > Date.now()
   const canSchedule = message.trim().length > 0 && sendAtValid
+  // Emergency notices are exempt from the date/time requirement — an urgent
+  // update doesn't always have a "when".
+  const requireWhen = templateKey !== 'emergency-update'
+
+  /** Gate: every announcement must carry a date and a time before it schedules. */
+  function handleScheduleClick() {
+    if (!canSchedule || scheduling) return
+    const validationError = messageValidationError(message, requireWhen)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    setError(null)
+    setShowConfirm(true)
+  }
 
   function applyTemplate(template: Template) {
+    setTemplateKey(template.key)
     setTitle(template.title)
     setMessage(template.message)
   }
@@ -96,6 +119,7 @@ export function ScheduleAnnouncementScreen() {
   }
 
   function resetForm() {
+    setTemplateKey(null)
     setTitle('')
     setMessage('')
     setLink('')
@@ -104,99 +128,93 @@ export function ScheduleAnnouncementScreen() {
   }
 
   const pushPreview = buildPushContent()
+  const scheduleLabel = scheduling
+    ? 'Scheduling…'
+    : sendAtValid
+      ? `Schedule for ${formatScheduleLabel(sendAt)}`
+      : 'Schedule Notification'
 
   return (
     <>
-      <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-32 md:pb-24">
+      <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] overflow-x-clip pb-16 md:pb-24">
         <PageBackHeader title="Schedule Notification" onBack={() => navigate('/announcements')} />
-        <p className="-mt-2 mb-4 pl-11 text-[12px] text-slate">
+        <p className="-mt-2 mb-5 pl-11 text-[12px] text-slate">
           Compose now, deliver later — sent automatically at the chosen time.
         </p>
 
-        <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
-          {/* COMPOSER */}
-          <div className="rounded-2xl bg-surface p-4 shadow-card md:p-5">
-            <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {TEMPLATES.map((tpl) => (
-                <button
-                  key={tpl.key}
-                  onClick={() => applyTemplate(tpl)}
-                  className="shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 py-2 text-[12px] font-bold text-heading transition-colors hover:bg-paper-2"
-                >
-                  {tpl.label}
-                </button>
-              ))}
-            </div>
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6">
+          {/* THE FOUR STEPS */}
+          <div className="min-w-0 space-y-4">
+            <StepSection step={1} title="Choose a template" hint="optional" accent={ACCENT}>
+              <TemplateChips selectedKey={templateKey} accent={ACCENT} onApply={applyTemplate} />
+            </StepSection>
 
-            <label className="mb-3 block">
-              <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                Notification Title
-              </span>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Sunday Service Reminder"
-                className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-              />
-            </label>
+            <StepSection step={2} title="Write your message" accent={ACCENT}>
+              <label className="mb-3 block">
+                <span className={LABEL_CLASS}>Notification Title</span>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Sunday Service Reminder"
+                  className={FIELD_CLASS}
+                />
+              </label>
 
-            <label className="mb-3 block">
-              <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                Message
-              </span>
-              <textarea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={1}
-                placeholder="Write your announcement…"
-                className="w-full resize-none overflow-hidden rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-              />
-            </label>
+              <label className="block">
+                <span className="mb-1.5 flex items-center justify-between text-[12px] font-bold text-heading">
+                  Message
+                  <span
+                    className={`text-[11px] font-semibold ${
+                      message.length > MAX_MESSAGE_LENGTH ? 'text-status-alert-fg' : 'text-faint'
+                    }`}
+                  >
+                    {message.length} / {MAX_MESSAGE_LENGTH}
+                  </span>
+                </span>
+                <MessageArea value={message} onChange={setMessage} placeholder="Write your announcement…" />
+              </label>
+              {/* Members must know WHEN — live check that the message carries
+                  a date and a time; scheduling is blocked until both are in.
+                  (Skipped for emergency notices, where it's optional.) */}
+              {requireWhen && <DateTimeChecklist text={message} />}
+            </StepSection>
 
-            <label className="mb-3 block">
-              <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                <Icon name="link" className="icon !h-[11px] !w-[11px]" />
-                Link <span className="font-normal capitalize text-faint">(optional — opens when tapped)</span>
-              </span>
-              <input
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                placeholder="https://…"
-                className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-              />
-            </label>
+            <StepSection
+              step={3}
+              title="Add a link"
+              hint="optional — opens when the notification is tapped"
+              accent={ACCENT}
+            >
+              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={FIELD_CLASS} />
+            </StepSection>
 
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                <Icon name="cal-check" className="icon !h-[11px] !w-[11px]" />
-                Send Date &amp; Time
-              </span>
+            <StepSection step={4} title="Pick the delivery time" accent={ACCENT}>
               <input
                 type="datetime-local"
                 value={sendAt}
                 onChange={(e) => setSendAt(e.target.value)}
-                className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors focus:border-ink"
+                className={FIELD_CLASS}
               />
               {sendAt !== '' && !sendAtValid && (
-                <p className="mt-1.5 text-[11px] font-semibold text-status-alert-fg">
+                <p className="mt-2 text-[11.5px] font-semibold text-status-alert-fg">
                   The scheduled time must be in the future.
                 </p>
               )}
               {sendAtValid && (
-                <p className="mt-1.5 text-[11px] text-slate">
-                  Will be delivered around {formatScheduleLabel(sendAt)} (within 5 minutes of the chosen time).
+                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] font-semibold text-status-regular-fg">
+                  <Icon name="check" className="icon !h-[12px] !w-[12px]" />
+                  Delivers around {formatScheduleLabel(sendAt)} (within 5 minutes).
                 </p>
               )}
-            </label>
+            </StepSection>
           </div>
 
-          {/* NOTIFICATION PREVIEW */}
-          <div className="mt-5 lg:sticky lg:top-6 lg:mt-0">
+          {/* PREVIEW + DELIVERY SUMMARY */}
+          <div className="mt-5 min-w-0 space-y-4 lg:sticky lg:top-6 lg:mt-0">
             <div className="rounded-2xl bg-surface p-4 shadow-card md:p-5">
-              <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate">
+              <h2 className="mb-3 flex items-center gap-1.5 text-[12px] font-bold text-heading">
                 <Icon name="bell" className="icon !h-[13px] !w-[13px] text-brass-deep" />
-                Notification Preview
+                Live Preview
               </h2>
               <div className="rounded-2xl bg-gradient-to-br from-ink-deep via-ink to-ink-soft p-4">
                 <div className="rounded-2xl bg-white/95 p-3.5 shadow-elev">
@@ -210,34 +228,52 @@ export function ScheduleAnnouncementScreen() {
                     </span>
                   </div>
                   <p className="mt-1.5 truncate text-[12.5px] font-bold text-[#202124]">{pushPreview.title}</p>
-                  <p className="mt-0.5 line-clamp-3 whitespace-pre-line text-[11.5px] leading-snug text-[#5F6368]">
-                    {pushPreview.body || 'Your announcement message will appear here.'}
+                  {/* [overflow-wrap:anywhere] keeps long unbroken URLs inside
+                      the bubble; HighlightWhen marks the date/time in gold so
+                      the admin verifies the WHEN at a glance. */}
+                  <p className="mt-0.5 line-clamp-4 whitespace-pre-line text-[11.5px] leading-snug text-[#5F6368] [overflow-wrap:anywhere]">
+                    {pushPreview.body ? (
+                      <HighlightWhen text={pushPreview.body} />
+                    ) : (
+                      'Your announcement message will appear here.'
+                    )}
                   </p>
                 </div>
               </div>
-              <p className="mt-2.5 text-[11px] text-slate">
-                How the notification will appear on a member's phone at the scheduled time.
-              </p>
+            </div>
+
+            <div className="rounded-2xl bg-surface p-4 shadow-card md:p-5">
+              <h2 className="mb-1 text-[12px] font-bold text-heading">Delivery</h2>
+              <SummaryRow icon="cal-check" label="Delivers" value={sendAtValid ? formatScheduleLabel(sendAt) : 'Pick a time'} />
+              <SummaryRow icon="clock" label="Accuracy" value="Within 5 minutes" />
+              <SummaryRow
+                icon="bell"
+                label="Reaches"
+                value={deviceCount != null ? `${deviceCount} device${deviceCount === 1 ? '' : 's'}` : '—'}
+              />
             </div>
           </div>
         </div>
+
       </div>
 
-      {/* Fixed sibling (not descendant) of the animated wrapper — ancestor
-          transforms would otherwise break position:fixed. */}
-      <div className="fixed inset-x-4 bottom-20 z-40 md:inset-x-auto md:bottom-6 md:left-1/2 md:w-[420px] md:-translate-x-1/2">
+      {/* SCHEDULE — pinned to the bottom of the screen, always visible while
+          the form scrolls. Sits above the mobile tab bar; on desktop it spans
+          the content area beside the sidebar. Fixed sibling of the animated
+          wrapper (an ancestor transform would break position:fixed). */}
+      <div className="fixed inset-x-4 bottom-20 z-40 md:bottom-5 md:left-[16.5rem] md:right-10">
         {error && (
-          <p className="mb-2 rounded-xl bg-status-alert-bg px-3.5 py-2 text-center text-[12px] font-semibold text-status-alert-fg shadow-card">
+          <p className="mb-2 rounded-xl bg-status-alert-bg px-3.5 py-2.5 text-center text-[12.5px] font-semibold text-status-alert-fg shadow-card">
             {error}
           </p>
         )}
         <button
-          onClick={() => canSchedule && !scheduling && setShowConfirm(true)}
+          onClick={handleScheduleClick}
           disabled={!canSchedule || scheduling}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-ink py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-ink-deep disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-brass-deep py-4 text-[14.5px] font-bold text-white shadow-elev transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Icon name="cal-check" className="icon !h-[15px] !w-[15px]" />
-          {scheduling ? 'Scheduling…' : sendAtValid ? `Schedule for ${formatScheduleLabel(sendAt)}` : 'Schedule Notification'}
+          {scheduleLabel}
         </button>
       </div>
 
@@ -265,7 +301,7 @@ export function ScheduleAnnouncementScreen() {
               </button>
               <button
                 onClick={confirmSchedule}
-                className="flex-1 rounded-xl bg-ink py-3 text-[13px] font-bold text-white transition-colors hover:bg-ink-deep"
+                className="flex-1 rounded-xl bg-brass-deep py-3 text-[13px] font-bold text-white transition-all hover:brightness-110"
               >
                 Schedule
               </button>
@@ -287,7 +323,7 @@ export function ScheduleAnnouncementScreen() {
             <div className="mt-5 flex flex-col gap-2.5">
               <button
                 onClick={resetForm}
-                className="flex items-center justify-center gap-1.5 rounded-full bg-ink py-3 text-[13.5px] font-bold text-white transition-colors hover:bg-ink-deep"
+                className="flex items-center justify-center gap-1.5 rounded-full bg-brass-deep py-3 text-[13.5px] font-bold text-white transition-all hover:brightness-110"
               >
                 <Icon name="cal-check" className="icon !h-[14px] !w-[14px]" />
                 Schedule Another

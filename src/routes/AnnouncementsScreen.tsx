@@ -1,98 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
+import { Card } from '../components/ui/Card'
 import { useMembers } from '../features/members/MembersContext'
-import { openWhatsappBroadcast, sanitizeWhatsappMessage } from '../templates/whatsapp'
-import { fetchTokenCount, sendPushBroadcast } from '../notifications/api'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
-import { CHURCH_INFO } from '../constants/church'
-import { TEMPLATES, type Template } from '../templates/push/announcements'
+import { cleanTitle, useNotificationHistory, useTokenCount } from '../notifications/scheduleView'
 
-const MAX_MESSAGE_LENGTH = 1000
-
-type LinkEntry = { label: string; url: string }
-
-function defaultLinkLabel(index: number): string {
-  return index === 0 ? 'Join Here' : `Link ${index + 1}`
-}
-
-// *word* is WhatsApp's own bold markdown, applied by the WhatsApp client
-// itself once the message is opened there — not styled by us. Template
-// messages already carry their own greeting/signature, so this only adds
-// the bold title on top and, if given, a link block at the bottom. Built
-// from an array of lines joined with "\n" and run through the shared
-// sanitizer so the preview is always exactly what gets sent.
-function buildAnnouncementMessage(title: string, message: string, links: LinkEntry[]): string {
-  const validLinks = links.filter((l) => l.url.trim())
-  const lines: string[] = []
-  if (title.trim()) {
-    lines.push(`*${title.trim()}*`, '')
-  }
-  lines.push(message.trim() || 'Your announcement message will appear here.')
-  validLinks.forEach((l, i) => {
-    const label = l.label.trim() || defaultLinkLabel(i)
-    lines.push('', `*${label}:*`, l.url.trim())
-  })
-  return sanitizeWhatsappMessage(lines.join('\n'))
-}
-
+/**
+ * Announcements hub — the three ways to reach members, each as a clear card
+ * that opens its own focused flow:
+ *   1. Send Quick Notification  → instant push to every registered device
+ *   2. Schedule Notification    → composed now, delivered automatically later
+ *   3. Send on WhatsApp         → share to a group/broadcast list via WhatsApp
+ */
 export function AnnouncementsScreen() {
   const navigate = useNavigate()
   const { members, isLoading } = useMembers()
-  const [title, setTitle] = useState('')
-  const [message, setMessage] = useState('')
-  const [links, setLinks] = useState<LinkEntry[]>([{ label: '', url: '' }])
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
-  // Once the admin edits the preview directly, it stops following title/message/link
-  // changes and becomes the source of truth for what actually gets sent.
-  const [previewOverride, setPreviewOverride] = useState<string | null>(null)
-  // Push-notification delivery state: how many devices are registered, the
-  // in-flight flag, the delivered count for the success modal, and any error.
-  const [deviceCount, setDeviceCount] = useState<number | null>(null)
-  const [sending, setSending] = useState(false)
-  const [sentCount, setSentCount] = useState<number | null>(null)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const previewRef = useRef<HTMLTextAreaElement>(null)
+  const { data: deviceCount } = useTokenCount()
+  const { data: history } = useNotificationHistory()
+  const now = useMemo(() => new Date(), [])
 
-  useEffect(() => {
-    let cancelled = false
-    fetchTokenCount()
-      .then((count) => {
-        if (!cancelled) setDeviceCount(count)
-      })
-      .catch(() => {
-        if (!cancelled) setDeviceCount(0)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Auto-resizes so the box always matches the actual message length —
-  // recalculates on every change, including template picks, not just typing.
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [message])
-
-  const preview = previewOverride ?? buildAnnouncementMessage(title, message, links)
-
-  useEffect(() => {
-    const el = previewRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [preview])
-
-  const canSend = preview.trim().length > 0
   const memberCount = isLoading ? 0 : members.length
-
-  // 🔔/🔕 stats — how many of the roster have push enabled vs not. Counted
-  // against real member IDs so admin-device tokens don't inflate the number.
   const { data: notificationStatuses } = useMemberNotificationStatuses()
   const enabledMemberCount =
     notificationStatuses && !isLoading
@@ -100,291 +28,174 @@ export function AnnouncementsScreen() {
       : null
   const disabledMemberCount = enabledMemberCount === null ? null : memberCount - enabledMemberCount
 
-  function applyTemplate(template: Template) {
-    setTitle(template.title)
-    setMessage(template.message)
-    setPreviewOverride(null)
-  }
-
-  function clearForm() {
-    setTitle('')
-    setMessage('')
-    setLinks([{ label: '', url: '' }])
-    setPreviewOverride(null)
-  }
-
-  function updateLink(index: number, field: keyof LinkEntry, value: string) {
-    setLinks((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)))
-  }
-
-  function addLink() {
-    setLinks((prev) => [...prev, { label: '', url: '' }])
-  }
-
-  function removeLink(index: number) {
-    setLinks((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
-  }
-
-  // Push body is plain text (no WhatsApp *bold* markdown). When the admin
-  // hand-edited the preview, that edited text is the source of truth — the
-  // markdown asterisks are just stripped for the notification.
-  function buildPushContent(): { title: string; body: string; url?: string } {
-    const validLinks = links.filter((l) => l.url.trim())
-    const firstLink = validLinks[0]?.url.trim()
-    if (previewOverride !== null) {
-      return {
-        title: title.trim() || CHURCH_INFO.shortName,
-        body: previewOverride.replace(/\*/g, '').trim(),
-        url: firstLink,
-      }
-    }
-    const bodyLines = [message.trim()]
-    validLinks.forEach((l, i) => {
-      const label = l.label.trim() || defaultLinkLabel(i)
-      bodyLines.push('', `${label}: ${l.url.trim()}`)
-    })
-    // Strip `*bold*` here too: a template applied without editing the preview
-    // would otherwise leak literal asterisks into the push.
-    return {
-      title: (title.trim() || CHURCH_INFO.shortName).replace(/\*/g, ''),
-      body: bodyLines.join('\n').replace(/\*/g, '').trim(),
-      url: firstLink,
-    }
-  }
-
-  /** Push the announcement to every registered device via Apps Script → FCM. */
-  async function confirmSend() {
-    setShowConfirm(false)
-    setSendError(null)
-    setSending(true)
-    try {
-      const result = await sendPushBroadcast(buildPushContent())
-      setSentCount(result.sent)
-      setShowSuccess(true)
-    } catch (error) {
-      console.error('[Announcements] Push send failed:', error)
-      setSendError('Could not send the notification — check your connection and try again.')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  /** Secondary path — same composed message via a WhatsApp broadcast. */
-  function sendViaWhatsapp() {
-    openWhatsappBroadcast(preview)
-  }
+  const recentSends = history?.slice(0, 3) ?? null
 
   return (
-    <>
-      <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-32 md:pb-24">
-        {/* HEADER — title + gold-circle action button on the top row, one-line
-            subtitle below, then a stats grid: same pattern as every other page. */}
-        <div className="mb-1 flex items-center justify-between gap-3">
-          {/* Smaller on phones — "Announcements" is a long word and at 22px it
-              collides with the Schedule button on narrow screens. */}
-          <h1 className="min-w-0 truncate font-display text-[18px] font-bold text-heading sm:text-[22px] md:text-[26px]">
-            Announcements
-          </h1>
-          <button onClick={() => navigate('/announcements/schedule')} className="flex shrink-0 items-center gap-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
-              <Icon name="cal-check" className="icon !h-[16px] !w-[16px] text-white" />
-            </span>
-            <span className="text-[12px] font-bold text-brass-deep">Schedule</span>
-          </button>
-        </div>
-        <p className="mb-4 overflow-hidden whitespace-nowrap text-[10px] text-slate md:text-[12.5px]">
-          Send updates and important information to your members.
-        </p>
+    <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
+      <div className="mb-1">
+        <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Announcements</h1>
+      </div>
+      <p className="mb-5 text-[12.5px] text-slate">
+        Send updates and important information to your members.
+      </p>
 
-        <div className="mb-6 grid grid-cols-3 gap-2 md:gap-3">
-          <AnnouncementStatCard icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} />
-          <AnnouncementStatCard
-            icon="bell"
-            label="Notifications Enabled"
-            value={enabledMemberCount === null ? '—' : String(enabledMemberCount)}
-          />
-          <AnnouncementStatCard
-            icon="bell-off"
-            label="Notifications Disabled"
-            value={disabledMemberCount === null ? '—' : String(disabledMemberCount)}
-          />
-        </div>
+      {/* THE THREE WAYS TO SEND — stacked on mobile, three columns on desktop. */}
+      <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <ActionCard
+          icon="bell"
+          iconBg="bg-gradient-to-br from-ink to-ink-deep"
+          buttonBg="bg-ink hover:bg-ink-deep"
+          title="Send Quick Notification"
+          description="Push instantly to every registered device."
+          meta={deviceCount != null ? `Reaches ${deviceCount} device${deviceCount === 1 ? '' : 's'}` : 'Loading devices…'}
+          metaIcon="bell"
+          onClick={() => navigate('/announcements/send')}
+        />
+        <ActionCard
+          icon="cal-check"
+          iconBg="bg-gradient-to-br from-brass to-brass-deep"
+          buttonBg="bg-brass-deep hover:brightness-110"
+          title="Schedule Notification"
+          description="Compose now, deliver automatically later."
+          meta="Delivers within 5 minutes of the chosen time"
+          metaIcon="clock"
+          onClick={() => navigate('/announcements/schedule')}
+        />
+        <ActionCard
+          icon="whatsapp"
+          iconBg="bg-[#25D366]"
+          buttonBg="bg-[#25D366] hover:bg-[#1FAF57]"
+          title="Send on WhatsApp"
+          description="Share to a group or broadcast list."
+          meta="Opens WhatsApp — you pick the group"
+          metaIcon="share"
+          onClick={() => navigate('/announcements/whatsapp')}
+        />
+      </div>
 
-        <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-6">
-          {/* ANNOUNCEMENT COMPOSER */}
-          <div className="motion-safe:animate-[fade-rise_0.35s_ease-out_both] rounded-2xl bg-surface p-4 shadow-card md:p-5">
-            <div className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate">
-              <Icon name="megaphone" className="icon !h-[13px] !w-[13px] text-brass-deep" />
-              Compose Announcement
-            </div>
+      {/* REACH STATS */}
+      <div className="mb-6 grid grid-cols-3 gap-2 md:gap-3">
+        <AnnouncementStatCard icon="users" label="Total Members" value={isLoading ? '—' : String(memberCount)} />
+        <AnnouncementStatCard
+          icon="bell"
+          label="Notifications Enabled"
+          value={enabledMemberCount === null ? '—' : String(enabledMemberCount)}
+        />
+        <AnnouncementStatCard
+          icon="bell-off"
+          label="Notifications Disabled"
+          value={disabledMemberCount === null ? '—' : String(disabledMemberCount)}
+        />
+      </div>
 
-            <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {TEMPLATES.map((tpl) => (
-                <button
-                  key={tpl.key}
-                  onClick={() => applyTemplate(tpl)}
-                  className="shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 py-2 text-[12px] font-bold text-heading transition-colors hover:bg-paper-2"
-                >
-                  {tpl.label}
-                </button>
-              ))}
-            </div>
-
-            <label className="mb-3 block">
-              <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                Announcement Title
-              </span>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Sunday Service Time Change"
-                className="w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-              />
-            </label>
-
-            <label className="mb-3 block">
-              <span className="mb-1.5 flex items-center justify-between text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                Message
-                <span className={message.length > MAX_MESSAGE_LENGTH ? 'text-status-alert-fg' : 'text-faint'}>
-                  {message.length} / {MAX_MESSAGE_LENGTH}
-                </span>
-              </span>
-              <textarea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={1}
-                placeholder="Write your announcement…"
-                className="w-full resize-none overflow-hidden rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-              />
-            </label>
-
-            <div>
-              <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wide text-slate">
-                <Icon name="link" className="icon !h-[11px] !w-[11px]" />
-                Links{' '}
-                <span className="font-normal capitalize text-faint">
-                  (optional — YouTube, Facebook Live, Meet, Zoom, etc.)
-                </span>
-              </span>
-              <div className="space-y-2.5">
-                {links.map((l, i) => (
-                  <div key={i} className="rounded-xl border border-hairline bg-paper p-2.5">
-                    <div className="mb-2 flex items-center gap-2">
-                      <input
-                        value={l.label}
-                        onChange={(e) => updateLink(i, 'label', e.target.value)}
-                        placeholder={`Heading — e.g. ${defaultLinkLabel(i)}`}
-                        className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] font-bold text-heading outline-none transition-colors placeholder:font-normal placeholder:text-slate focus:border-ink"
-                      />
-                      {links.length > 1 && (
-                        <button
-                          onClick={() => removeLink(i)}
-                          aria-label="Remove link"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-status-alert-fg"
-                        >
-                          <Icon name="x" className="icon !h-[13px] !w-[13px]" />
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      value={l.url}
-                      onChange={(e) => updateLink(i, 'url', e.target.value)}
-                      placeholder="https://…"
-                      className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink"
-                    />
-                  </div>
-                ))}
-              </div>
+      {/* RECENTLY SENT — quick confirmation the last sends went out. */}
+      {recentSends && (
+        <section>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-display text-[15.5px] font-bold text-heading">Recently sent</h2>
+            {recentSends.length > 0 && (
               <button
-                onClick={addLink}
-                className="mt-2 flex items-center gap-1.5 rounded-full bg-paper px-3.5 py-2 text-[12px] font-bold text-heading transition-colors hover:bg-paper-2"
+                onClick={() => navigate('/notifications-sent')}
+                className="text-[12px] font-bold text-brass-deep"
               >
-                <Icon name="plus" className="icon !h-[11px] !w-[11px]" />
-                Add Link
+                View all
               </button>
-            </div>
+            )}
           </div>
+          {recentSends.length === 0 ? (
+            <Card className="p-5 text-center">
+              <p className="text-[12.5px] text-slate">Nothing sent yet this month.</p>
+            </Card>
+          ) : (
+            <Card>
+              {recentSends.map((item, i) => (
+                <div
+                  key={`${item.sentAt}-${i}`}
+                  className="flex items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 last:border-b-0"
+                >
+                  <Icon name="megaphone" className="icon !h-[14px] !w-[14px] shrink-0 text-brass-deep" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[12px] font-semibold text-heading">
+                      {cleanTitle(item.title) || 'Notification'}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10px] text-slate">{sentTimeLabel(item.sentAt, now)}</div>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-regular-bg px-2 py-1 text-[10.5px] font-bold text-status-regular-fg">
+                    <Icon name="check" className="icon !h-[10px] !w-[10px]" />
+                    {item.sent} device{item.sent === 1 ? '' : 's'}
+                  </span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </section>
+      )}
+    </div>
+  )
+}
 
-          {/* MESSAGE PREVIEW */}
-          <div className="mt-5 lg:sticky lg:top-6 lg:mt-0">
-            <div className="motion-safe:animate-[fade-rise_0.35s_ease-out_both] rounded-2xl bg-surface p-4 shadow-card md:p-5">
-              <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate">
-                <Icon name="whatsapp" className="icon !h-[13px] !w-[13px] text-[#25D366]" />
-                Message Preview
-                <span className="font-normal capitalize text-faint">(editable)</span>
-              </h2>
-              <textarea
-                ref={previewRef}
-                value={preview}
-                onChange={(e) => setPreviewOverride(e.target.value)}
-                rows={1}
-                className="w-full resize-none overflow-hidden whitespace-pre-line rounded-2xl border border-hairline bg-paper p-4 text-[13px] leading-relaxed text-charcoal outline-none transition-colors focus:border-ink"
-              />
-              <p className="mt-2.5 text-[11px] text-slate">
-                Exactly how members will receive this on WhatsApp — edit it here to fine-tune before sending.
-              </p>
-            </div>
-          </div>
-        </div>
+/** "Today · 6:32 PM" for same-day sends, "15 Jul · 8:00 AM" otherwise. */
+function sentTimeLabel(iso: string, now: Date): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Today · ${time}`
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ` · ${time}`
+}
 
-        {showConfirm && (
-          <ConfirmSendModal
-            count={deviceCount ?? 0}
-            scheduledLabel={null}
-            onCancel={() => setShowConfirm(false)}
-            onConfirm={confirmSend}
-          />
-        )}
-
-        {showSuccess && (
-          <SuccessModal
-            sentCount={sentCount ?? 0}
-            scheduledLabel={null}
-            onSendAnother={() => {
-              setShowSuccess(false)
-              clearForm()
-            }}
-            onBackToDashboard={() => navigate('/')}
-          />
-        )}
+/** One of the three big send-method cards — the bottom button carries the flow color. */
+function ActionCard({
+  icon,
+  iconBg,
+  buttonBg,
+  title,
+  description,
+  meta,
+  metaIcon,
+  onClick,
+}: {
+  icon: string
+  iconBg: string
+  buttonBg: string
+  title: string
+  description: string
+  meta: string
+  metaIcon: string
+  onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onClick()
+      }}
+      className="motion-safe:animate-[fade-rise_0.3s_ease-out_both] flex cursor-pointer flex-col rounded-2xl bg-surface p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elev md:p-5"
+    >
+      <div className="flex items-center gap-3.5 md:flex-col md:items-start md:gap-0">
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl md:mb-3 ${iconBg}`}>
+          <Icon name={icon} className="icon !h-[21px] !w-[21px] text-white" />
+        </span>
+        <span className="min-w-0 flex-1 md:flex-none">
+          <span className="block text-[14.5px] font-bold text-heading">{title}</span>
+          <span className="mt-0.5 block text-[12px] leading-snug text-slate">{description}</span>
+          <span className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-brass-deep">
+            <Icon name={metaIcon} className="icon !h-[11px] !w-[11px]" />
+            {meta}
+          </span>
+        </span>
       </div>
-
-      {/* Rendered as a sibling of the animated wrapper above, not a descendant —
-          a `transform` on an ancestor (even a finished fade-rise animation
-          sitting at translateY(0)) creates its own containing block for
-          position:fixed children, which would make this scroll with the
-          page instead of staying pinned to the viewport. */}
-      <div className="fixed inset-x-4 bottom-20 z-40 md:inset-x-auto md:bottom-6 md:left-1/2 md:w-[420px] md:-translate-x-1/2">
-        {sendError && (
-          <p className="mb-2 rounded-xl bg-status-alert-bg px-3.5 py-2 text-center text-[12px] font-semibold text-status-alert-fg shadow-card">
-            {sendError}
-          </p>
-        )}
-        <div className="flex items-stretch gap-2">
-          <button
-            onClick={() => canSend && !sending && setShowConfirm(true)}
-            disabled={!canSend || sending}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-ink py-3.5 text-[14px] font-bold text-white shadow-elev transition-colors hover:bg-ink-deep disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
-            {sending
-              ? 'Sending…'
-              : `Send Notification${deviceCount !== null ? ` to ${deviceCount} Device${deviceCount === 1 ? '' : 's'}` : ''}`}
-          </button>
-          {/* Secondary path — WhatsApp Broadcast, kept while members transition to push */}
-          <button
-            onClick={() => canSend && sendViaWhatsapp()}
-            disabled={!canSend}
-            aria-label="Send via WhatsApp instead"
-            title="Send via WhatsApp Broadcast"
-            className="flex w-[52px] shrink-0 items-center justify-center rounded-2xl bg-[#25D366] shadow-elev transition-colors hover:bg-[#1FAF57] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon name="whatsapp" className="icon !h-[19px] !w-[19px] text-white" />
-          </button>
-        </div>
-      </div>
-    </>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+        className={`mt-3.5 w-full rounded-full py-2.5 text-[12px] font-bold text-white transition-transform hover:scale-[1.02] ${buttonBg}`}
+      >
+        {title}
+      </button>
+    </div>
   )
 }
 
@@ -400,109 +211,6 @@ function AnnouncementStatCard({ icon, label, value }: { icon: string; label: str
         <div className="font-display text-[16px] font-bold leading-none text-heading md:text-[19px]">{value}</div>
         <div className="mt-1 line-clamp-2 text-[8.5px] font-semibold uppercase leading-tight tracking-wide text-slate md:truncate md:text-[10px]">
           {label}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ConfirmSendModal({
-  count,
-  scheduledLabel,
-  onCancel,
-  onConfirm,
-}: {
-  count: number
-  scheduledLabel: string | null
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [onCancel])
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
-      <div
-        className="motion-safe:animate-[scale-in_0.25s_ease-out_both] w-full max-w-[380px] rounded-[26px] bg-paper p-5 shadow-elev"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-paper-2">
-          <Icon name={scheduledLabel ? 'cal-check' : 'bell'} className="icon !h-[19px] !w-[19px] text-brass-deep" />
-        </span>
-        <h3 className="font-display text-[16.5px] font-bold text-heading">
-          {scheduledLabel
-            ? `Schedule this notification for ${scheduledLabel}?`
-            : `Send this notification to ${count} device${count === 1 ? '' : 's'}?`}
-        </h3>
-        <p className="mt-1.5 text-[13px] text-slate">
-          {scheduledLabel
-            ? 'It will be delivered automatically to every registered device around the chosen time (within 5 minutes).'
-            : 'It will appear instantly as a push notification on every device that has enabled church notifications.'}
-        </p>
-        <div className="mt-4 flex gap-2.5">
-          <button
-            onClick={onCancel}
-            className="flex-1 rounded-xl border border-hairline bg-surface py-3 text-[13px] font-bold text-heading transition-colors hover:bg-paper-2"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 rounded-xl bg-ink py-3 text-[13px] font-bold text-white transition-colors hover:bg-ink-deep"
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SuccessModal({
-  sentCount,
-  scheduledLabel,
-  onSendAnother,
-  onBackToDashboard,
-}: {
-  sentCount: number
-  scheduledLabel: string | null
-  onSendAnother: () => void
-  onBackToDashboard: () => void
-}) {
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-      <div className="motion-safe:animate-[scale-in_0.3s_ease-out_both] w-full max-w-[380px] rounded-[26px] bg-paper p-6 text-center shadow-elev">
-        <span className="motion-safe:animate-[scale-in_0.4s_ease-out_both] mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-status-regular-bg">
-          <Icon name="check" className="icon !h-[28px] !w-[28px] text-status-regular-fg" />
-        </span>
-        <h3 className="font-display text-[19px] font-bold text-heading">
-          {scheduledLabel ? 'Notification Scheduled' : 'Notification Sent'}
-        </h3>
-        <p className="mt-1.5 text-[13px] text-slate">
-          {scheduledLabel
-            ? `Will be delivered to all registered devices around ${scheduledLabel}.`
-            : `Delivered to ${sentCount} device${sentCount === 1 ? '' : 's'}.`}
-        </p>
-        <div className="mt-5 flex flex-col gap-2.5">
-          <button
-            onClick={onSendAnother}
-            className="flex items-center justify-center gap-1.5 rounded-full bg-ink py-3 text-[13.5px] font-bold text-white transition-colors hover:bg-ink-deep"
-          >
-            <Icon name="megaphone" className="icon !h-[14px] !w-[14px]" />
-            Send Another
-          </button>
-          <button
-            onClick={onBackToDashboard}
-            className="flex items-center justify-center gap-1.5 rounded-full border border-hairline bg-surface py-3 text-[13.5px] font-bold text-heading transition-colors hover:bg-paper-2"
-          >
-            <Icon name="home" className="icon !h-[14px] !w-[14px]" />
-            Back to Dashboard
-          </button>
         </div>
       </div>
     </div>
