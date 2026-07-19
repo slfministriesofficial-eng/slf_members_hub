@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
+import { ViewAllButton } from '../components/ui/ViewAllButton'
 import { useMembers } from '../features/members/MembersContext'
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { cleanTitle, useNotificationHistory, useTokenCount } from '../notifications/scheduleView'
@@ -95,14 +96,7 @@ export function AnnouncementsScreen() {
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="font-display text-[15.5px] font-bold text-heading">Recently sent</h2>
-            {recentSends.length > 0 && (
-              <button
-                onClick={() => navigate('/notifications-sent')}
-                className="text-[12px] font-bold text-brass-deep"
-              >
-                View all
-              </button>
-            )}
+            {recentSends.length > 0 && <ViewAllButton onClick={() => navigate('/notifications-sent')} />}
           </div>
           {recentSends.length === 0 ? (
             <Card className="p-5 text-center">

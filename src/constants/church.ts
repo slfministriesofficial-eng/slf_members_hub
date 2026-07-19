@@ -18,8 +18,10 @@ export const CHURCH_INFO = {
   about:
     "SLF Ministries (Sarah Living Faith Ministries) is a Christ-centered church dedicated to sharing the Gospel, building faithful disciples, strengthening families, and serving our community with God's love. Our mission is to lead people into a deeper relationship with Jesus Christ through worship, prayer, biblical teaching, fellowship, and compassionate service.",
   services: [
-    { label: 'Morning Worship', time: '9:00 AM' },
-    { label: 'Evening Worship', time: '6:00 PM' },
+    { label: 'Sunday Worship', time: 'Sun · 10:00 AM' },
+    { label: 'Bible Study', time: 'Wed · 8:00 PM' },
+    { label: 'Saturday Evening Service', time: 'Sat · 8:00 PM' },
+    { label: 'Daily Family Prayer', time: 'Daily · 6:30 PM' },
   ],
   // Second entry is still a placeholder — swap in the real name/title/bio/photo whenever ready.
   leadership: [

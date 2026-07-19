@@ -4,6 +4,8 @@ import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
+import { TopAction } from '../components/ui/TopAction'
+import { ViewAllButton } from '../components/ui/ViewAllButton'
 import {
   findNextTrigger,
   NextNotificationCard,
@@ -56,12 +58,7 @@ export function FollowUpsScreen() {
           <MobileBackButton />
           <h1 className="font-display text-[20px] font-bold text-heading md:text-[26px]">Follow-ups</h1>
         </div>
-        <button onClick={() => navigate('/follow-ups/schedule')} className="flex shrink-0 items-center gap-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
-            <Icon name="cal-check" className="icon !h-[16px] !w-[16px] text-white" />
-          </span>
-          <span className="text-[12px] font-bold text-brass-deep">Schedule</span>
-        </button>
+        <TopAction icon="cal-check" label="Schedule" onClick={() => navigate('/follow-ups/schedule')} />
       </div>
       <p className="mb-4 overflow-hidden whitespace-nowrap text-[10px] text-slate md:text-[12.5px]">
         Stay ahead of what's coming for your members.
@@ -123,12 +120,7 @@ export function FollowUpsScreen() {
             <h2 className="font-display text-[15px] font-bold text-heading">
               Upcoming This Month ({schedule.events.length})
             </h2>
-            <button
-              onClick={() => navigate('/follow-ups/schedule')}
-              className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
-            >
-              View All
-            </button>
+            <ViewAllButton onClick={() => navigate('/follow-ups/schedule')} />
           </div>
 
           {previewEvents.length === 0 ? (

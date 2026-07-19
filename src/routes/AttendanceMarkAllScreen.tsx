@@ -6,14 +6,18 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
 import { getAttendanceMarks, togglePresence, syncAttendance, type AttendanceMarksMap } from '../utils/attendanceMarks'
+import { deriveNewMembers } from '../utils/celebrations'
 import { useAuth } from '../auth/AuthContext'
 import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 import type { Member } from '../mock/types'
 
-const FILTER_CHIPS: { key: 'all' | 'present' | 'absent'; label: string }[] = [
+type FilterKey = 'all' | 'present' | 'absent' | 'newest'
+
+const FILTER_CHIPS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: 'All Members' },
   { key: 'present', label: 'Checked In' },
   { key: 'absent', label: 'Not Checked In' },
+  { key: 'newest', label: 'Newest' },
 ]
 
 function normalize(value: string): string {
@@ -24,22 +28,22 @@ function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
-function formatToday(): string {
-  const d = new Date()
-  return `${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`
-}
-
-// A focused, searchable "check everyone off" list — search, a present/absent
-// filter, and one checkbox per member. Checking marks present immediately (no
-// separate save step); unchecking marks absent. When `home` is set it's the
-// attendance taker's landing page: no back header (the TakerShell provides
-// chrome) and rows don't open profiles (that route is admin-only for them).
-export function AttendanceMarkAllScreen({ home = false }: { home?: boolean }) {
+// A focused, searchable "check everyone off" list — search, present/absent/
+// newest filters, and one checkbox per member. Checking marks present
+// immediately (no separate save step); unchecking marks absent. Tapping a
+// member opens their read-only mini profile.
+export function AttendanceMarkAllScreen() {
   const { members, isLoading, isError } = useMembers()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [filterKey, setFilterKey] = useState<'all' | 'present' | 'absent'>('all')
+  const [filterKey, setFilterKey] = useState<FilterKey>('all')
+  // Members added in the last 7 days — powers the "Newest" filter.
+  const newestIds = useMemo(
+    () => new Set(deriveNewMembers(members).filter((e) => e.daysAgo <= 7).map((e) => e.member.id)),
+    [members],
+  )
   const [marks, setMarks] = useState<AttendanceMarksMap>(getAttendanceMarks)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const { takerEmail, adminName } = useAuth()
   const markedBy = takerEmail || adminName || 'admin'
 
@@ -47,6 +51,12 @@ export function AttendanceMarkAllScreen({ home = false }: { home?: boolean }) {
     const next = togglePresence(member.id)
     setMarks(next)
     syncAttendance(member.memberId, member.name, Boolean(next[member.id]), markedBy)
+      .then(() => setSaveError(null))
+      .catch(() =>
+        setSaveError(
+          "Attendance isn't saving to the sheet — deploy the latest Apps Script version (and check your connection).",
+        ),
+      )
   }
 
   const filtered = useMemo(() => {
@@ -65,19 +75,19 @@ export function AttendanceMarkAllScreen({ home = false }: { home?: boolean }) {
 
       if (filterKey === 'present') return Boolean(marks[m.id])
       if (filterKey === 'absent') return !marks[m.id]
+      if (filterKey === 'newest') return newestIds.has(m.id)
       return true
     })
-  }, [members, query, filterKey, marks])
+  }, [members, query, filterKey, marks, newestIds])
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      {home ? (
-        <div className="mb-4">
-          <h1 className="font-display text-[20px] font-bold text-heading">Today's Attendance</h1>
-          <p className="mt-0.5 text-[12px] text-slate">{formatToday()} · tap to check members in</p>
+      <PageBackHeader title="Mark Attendance" onBack={() => navigate(-1)} />
+
+      {saveError && (
+        <div className="mb-3 rounded-xl bg-status-alert-bg px-3.5 py-2.5 text-[12px] font-semibold leading-relaxed text-status-alert-fg">
+          {saveError}
         </div>
-      ) : (
-        <PageBackHeader title="All Members" onBack={() => navigate(-1)} />
       )}
 
       <div className="mb-3 flex items-center gap-2 rounded-2xl bg-surface px-3.5 py-2.5 shadow-card transition-shadow focus-within:shadow-elev">
@@ -135,7 +145,7 @@ export function AttendanceMarkAllScreen({ home = false }: { home?: boolean }) {
               member={member}
               present={Boolean(marks[member.id])}
               onToggle={() => toggle(member)}
-              onOpenProfile={home ? undefined : () => navigate(`/celebration-profile/attendance/${member.id}`)}
+              onOpenProfile={() => navigate(`/celebration-profile/attendance/${member.id}`)}
             />
           ))}
         </div>

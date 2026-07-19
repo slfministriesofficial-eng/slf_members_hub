@@ -3,6 +3,7 @@ import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Avatar } from '../components/ui/Avatar'
 import { useMembers } from '../features/members/MembersContext'
+import { useAuth } from '../auth/AuthContext'
 import { calculateAge, calculateYearsMarried, dateParts } from '../utils/celebrations'
 import { NotificationStatusBell } from '../notifications/NotificationStatusBell'
 
@@ -56,13 +57,18 @@ export function MemberQuickProfileScreen() {
     rawType === 'anniversary' || rawType === 'new-member' || rawType === 'attendance' ? rawType : 'birthday'
   const navigate = useNavigate()
   const { getMember } = useMembers()
+  const { role } = useAuth()
+  // The attendance taker gets a read-only mini profile — no wish/WhatsApp or
+  // full-profile actions — and Back returns to wherever they came from.
+  const isTaker = role === 'attendance-taker'
   const member = memberId ? getMember(memberId) : undefined
   const meta = TYPE_META[type]
+  const handleClose = () => (isTaker ? navigate(-1) : navigate(meta.backTo))
 
   if (!member) {
     return (
       <div className="pb-10">
-        <ProfileHeader title={meta.title} icon={meta.icon} accent={meta.accent} onClose={() => navigate(meta.backTo)} />
+        <ProfileHeader title={meta.title} icon={meta.icon} accent={meta.accent} onClose={handleClose} />
         <Card className="p-8 text-center">
           <p className="text-[12.5px] text-slate">Member not found.</p>
         </Card>
@@ -83,7 +89,7 @@ export function MemberQuickProfileScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      <ProfileHeader title={meta.title} icon={meta.icon} accent={meta.accent} onClose={() => navigate(meta.backTo)} />
+      <ProfileHeader title={meta.title} icon={meta.icon} accent={meta.accent} onClose={handleClose} />
 
       <Card className="mb-4 p-4">
         <div className="flex items-start gap-3">
@@ -130,23 +136,28 @@ export function MemberQuickProfileScreen() {
         <DetailRow label="Address" value={member.address} last />
       </Card>
 
-      <h2 className="mb-2 text-[13px] font-bold text-heading">Actions</h2>
-      <div className="space-y-2">
-        <button
-          onClick={() => navigate(`/send-wish/${meta.wishKind}/${member.id}`)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] py-3.5 text-[13.5px] font-bold text-white shadow-card transition-colors hover:bg-[#1FAF57]"
-        >
-          <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
-          {meta.wishLabel}
-        </button>
-        <button
-          onClick={() => navigate(`/members/${member.id}`)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-hairline bg-surface py-3.5 text-[13.5px] font-bold text-heading transition-colors hover:bg-paper"
-        >
-          <Icon name="eye" className="icon !h-[15px] !w-[15px]" />
-          View Full Profile
-        </button>
-      </div>
+      {/* Actions are admin-only — the attendance taker gets a read-only view. */}
+      {!isTaker && (
+        <>
+          <h2 className="mb-2 text-[13px] font-bold text-heading">Actions</h2>
+          <div className="space-y-2">
+            <button
+              onClick={() => navigate(`/send-wish/${meta.wishKind}/${member.id}`)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#25D366] py-3.5 text-[13.5px] font-bold text-white shadow-card transition-colors hover:bg-[#1FAF57]"
+            >
+              <Icon name="whatsapp" className="icon !h-[15px] !w-[15px]" />
+              {meta.wishLabel}
+            </button>
+            <button
+              onClick={() => navigate(`/members/${member.id}`)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-hairline bg-surface py-3.5 text-[13.5px] font-bold text-heading transition-colors hover:bg-paper"
+            >
+              <Icon name="eye" className="icon !h-[15px] !w-[15px]" />
+              View Full Profile
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -163,18 +174,18 @@ function ProfileHeader({
   onClose: () => void
 }) {
   return (
-    <div className="relative mb-5 flex items-center justify-center px-9">
-      <h1 className="flex items-center gap-2 font-display text-[19px] font-bold text-heading md:text-[24px]">
+    <div className="mb-5 flex items-center gap-2">
+      <button
+        onClick={onClose}
+        aria-label="Back"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
+      >
+        <Icon name="arrow-left" className="icon !h-[19px] !w-[19px]" />
+      </button>
+      <h1 className="flex items-center gap-2 truncate font-display text-[22px] font-bold text-heading md:text-[26px]">
         <Icon name={icon} className={`icon !h-[18px] !w-[18px] shrink-0 ${accent}`} />
         {title}
       </h1>
-      <button
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
-      >
-        <Icon name="x" className="icon !h-[17px] !w-[17px]" />
-      </button>
     </div>
   )
 }

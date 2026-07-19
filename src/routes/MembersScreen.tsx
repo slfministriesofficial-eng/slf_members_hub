@@ -6,6 +6,8 @@ import { Avatar } from '../components/ui/Avatar'
 import { StatusPill } from '../components/ui/StatusPill'
 import { Skeleton } from '../components/ui/Skeleton'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
+import { TopAction } from '../components/ui/TopAction'
+import { ViewAllButton } from '../components/ui/ViewAllButton'
 import { useMembers } from '../features/members/MembersContext'
 import { MINISTRY_OPTIONS } from '../features/members/types'
 import { buildRemovalMessage, normalizeWhatsappNumber, openWhatsappWithText } from '../templates/whatsapp'
@@ -185,12 +187,7 @@ export function MembersScreen() {
           <MobileBackButton />
           <h1 className="font-display text-[22px] font-bold text-heading">Members</h1>
         </div>
-        <button onClick={() => navigate('/members/new')} className="flex shrink-0 items-center gap-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep shadow-card">
-            <Icon name="plus" className="icon !h-[16px] !w-[16px] text-white" />
-          </span>
-          <span className="text-[13px] font-bold text-brass-deep">Add Member</span>
-        </button>
+        <TopAction icon="plus" label="Add Member" onClick={() => navigate('/members/new')} />
       </div>
       <p className="mb-3 overflow-hidden whitespace-nowrap text-[10px] text-slate md:hidden">
         Manage, search, filter, and access all church members from one place.
@@ -264,12 +261,7 @@ export function MembersScreen() {
           the full searchable/sortable directory lives on the dedicated "View All" page. */}
       <div className="mb-2 flex items-center justify-between md:hidden">
         <h2 className="font-display text-[15px] font-bold text-heading">Members ({filteredSorted.length})</h2>
-        <button
-          onClick={() => navigate('/members/all')}
-          className="rounded-full border border-brass-deep px-3.5 py-1.5 text-[11.5px] font-bold text-brass-deep transition-colors hover:bg-brass/10"
-        >
-          View All
-        </button>
+        <ViewAllButton onClick={() => navigate('/members/all')} />
       </div>
 
       {!isError && !isLoading && (

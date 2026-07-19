@@ -14,7 +14,7 @@ export function MobileBackButton({ to = '/' }: { to?: string }) {
       aria-label="Back"
       className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading md:hidden"
     >
-      <Icon name="chevron" className="icon !h-[18px] !w-[18px] rotate-180" />
+      <Icon name="arrow-left" className="icon !h-[19px] !w-[19px]" />
     </button>
   )
 }

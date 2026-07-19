@@ -191,6 +191,7 @@ function doPost(e) {
     if (body.action === 'setNotificationKeyEnabled') return jsonResponse(setNotificationKeyEnabled(body))
     if (body.action === 'grantTaker') return jsonResponse(grantAttendanceTaker(body))
     if (body.action === 'revokeTaker') return jsonResponse(revokeAttendanceTaker(body))
+    if (body.action === 'takerSignIn') return jsonResponse(verifyTakerByEmail(body))
     if (body.action === 'saveAttendance') return jsonResponse(saveAttendance(body))
     if (body.action === 'markWishSent') return jsonResponse(markWishSent(body))
 
@@ -1633,6 +1634,31 @@ function verifyAttendanceTaker(token) {
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][1]) === String(token) && String(rows[i][3]).toLowerCase() === 'yes') {
       return { ok: true, email: String(rows[i][0]), name: rows[i][4] ? String(rows[i][4]) : '' }
+    }
+  }
+  return { ok: false }
+}
+
+/**
+ * "takerSignIn" action — let an active taker sign in with just their email
+ * (no password / no link). Returns their token so the app can persist the
+ * session the same way the magic link does. Inactive/unknown emails get {ok:false}.
+ * @param {{email: string}} body
+ * @returns {{ok: boolean, email?: string, name?: string, token?: string}}
+ */
+function verifyTakerByEmail(body) {
+  const email = (body.email || '').toString().trim().toLowerCase()
+  if (!email) return { ok: false }
+  const sheet = getTakersSheet()
+  const rows = sheet.getDataRange().getValues()
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === email && String(rows[i][3]).toLowerCase() === 'yes') {
+      return {
+        ok: true,
+        email: String(rows[i][0]),
+        token: String(rows[i][1]),
+        name: rows[i][4] ? String(rows[i][4]) : '',
+      }
     }
   }
   return { ok: false }

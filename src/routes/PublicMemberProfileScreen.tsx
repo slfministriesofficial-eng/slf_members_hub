@@ -54,7 +54,9 @@ export function PublicMemberProfileScreen() {
   const notFound = error || member === null
 
   return (
-    <div className="bg-canvas">
+    // overflow-x-clip: the digital card's 3D flip momentarily projects past the
+    // viewport — without this the page scrolls sideways on small screens.
+    <div className="overflow-x-clip bg-canvas">
       {/* SECTION 1 — Hero welcome */}
       <section className="relative overflow-hidden bg-gradient-to-br from-ink-deep via-ink to-ink-soft px-4 py-16 text-center text-white sm:px-6">
         <div className="motion-safe:animate-[pulse-soft_5s_ease-in-out_infinite] pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-brass/40 blur-3xl" />
@@ -76,7 +78,7 @@ export function PublicMemberProfileScreen() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-[640px] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-[640px] px-4 py-10 sm:px-6 lg:max-w-none lg:px-12">
         {/* SECTION 2 — Member profile */}
         <div className="mb-14">
           {notFound ? (
@@ -102,6 +104,12 @@ export function PublicMemberProfileScreen() {
             </div>
           ) : (
             <>
+              {/* Notifications opt-in sits at the very top — the first thing a
+                  member sees when their card verifies, above the badge. */}
+              <div className="mb-6 lg:mx-auto lg:max-w-[720px]">
+                <PublicNotificationOptIn memberId={member.memberId} />
+              </div>
+
               <div className="mb-5 flex justify-center">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-status-regular-bg px-4 py-1.5 text-[11.5px] font-bold uppercase tracking-wide text-status-regular-fg">
                   <Icon name="check" className="icon !h-[13px] !w-[13px]" />
@@ -109,46 +117,44 @@ export function PublicMemberProfileScreen() {
                 </span>
               </div>
 
-              <div className="mb-6 rounded-2xl bg-surface p-5 text-center shadow-card">
-                <h1 className="font-display text-[22px] font-bold text-heading">{member.fullName}</h1>
-                <p className="mt-0.5 font-mono text-[12.5px] text-slate">{member.memberId}</p>
+              {/* Desktop: details and card side by side; mobile: stacked. */}
+              <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+                <div className="rounded-2xl bg-surface p-5 text-center shadow-card lg:text-left">
+                  <h1 className="font-display text-[22px] font-bold text-heading">{member.fullName}</h1>
+                  <p className="mt-0.5 font-mono text-[12.5px] text-slate">{member.memberId}</p>
 
-                <div className="mt-5 grid grid-cols-2 gap-4 text-left sm:grid-cols-3">
-                  <Detail label="Member Since" value={formatDate(member.joiningDate || member.registrationDate)} />
-                  <Detail
-                    label="Ministry / Group"
-                    value={member.ministryInterests.length ? member.ministryInterests.join(', ') : '—'}
-                  />
-                  <Detail label="Believer Since" value={member.believerYears ? `${member.believerYears} yrs` : '—'} />
-                  <Detail label="Baptism Status" value={member.baptized === 'Yes' ? 'Baptized' : 'Not yet'} />
+                  <div className="mt-5 grid grid-cols-2 gap-4 text-left">
+                    <Detail label="Member Since" value={formatDate(member.joiningDate || member.registrationDate)} />
+                    <Detail
+                      label="Ministry / Group"
+                      value={member.ministryInterests.length ? member.ministryInterests.join(', ') : '—'}
+                    />
+                    <Detail label="Believer Since" value={member.believerYears ? `${member.believerYears} yrs` : '—'} />
+                    <Detail label="Baptism Status" value={member.baptized === 'Yes' ? 'Baptized' : 'Not yet'} />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <h2 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
-                  Digital Membership Card
-                </h2>
-                <IdCardFull
-                  name={member.fullName}
-                  memberId={member.memberId}
-                  bloodGroup={member.bloodGroup}
-                  status={isVisitor ? 'visitor' : 'regular'}
-                  statusLabel={isVisitor ? 'Visitor' : 'Member'}
-                  sinceYear={sinceYear || undefined}
-                  hideMobile
-                />
+                {/* px-2 on mobile: a little side margin so the card + its flip
+                    overshoot stay inside the screen on the public link (this
+                    inset is public-page only — the admin card is unchanged). */}
+                <div className="px-2 sm:px-0">
+                  <h2 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
+                    Digital Membership Card
+                  </h2>
+                  <IdCardFull
+                    name={member.fullName}
+                    memberId={member.memberId}
+                    bloodGroup={member.bloodGroup}
+                    status={isVisitor ? 'visitor' : 'regular'}
+                    statusLabel={isVisitor ? 'Visitor' : 'Member'}
+                    sinceYear={sinceYear || undefined}
+                    hideMobile
+                  />
+                </div>
               </div>
             </>
           )}
         </div>
-
-        {/* SECTION 2.5 — Notifications opt-in (only when a real member is loaded,
-            so every registered device is linked to an actual Member ID) */}
-        {member && (
-          <Reveal className="mb-14">
-            <PublicNotificationOptIn memberId={member.memberId} />
-          </Reveal>
-        )}
 
         {/* SECTION 3 — About */}
         <Reveal className="mb-14">
@@ -231,11 +237,15 @@ export function PublicMemberProfileScreen() {
                 ))}
               </InfoBlock>
 
-              <InfoBlock icon="clock" label="Sunday Services">
+              <InfoBlock icon="clock" label="Service Times">
                 {CHURCH_INFO.services.map((s) => (
-                  <div key={s.label} className="flex justify-between gap-3">
-                    <span>{s.label}</span>
-                    <span className="font-mono text-brass-deep">{s.time}</span>
+                  <div key={s.label} className="flex items-baseline justify-between gap-3 py-0.5">
+                    <span className="min-w-0">{s.label}</span>
+                    {/* shrink-0 + whitespace-nowrap keeps the time on one line,
+                        flush right, so the rows line up instead of staggering. */}
+                    <span className="shrink-0 whitespace-nowrap font-mono text-[12px] text-brass-deep">
+                      {s.time}
+                    </span>
                   </div>
                 ))}
               </InfoBlock>

@@ -61,7 +61,14 @@ export function IdCard({
               <Icon name="cross" className="icon !h-[12px] !w-[12px] text-brass-deep" />
               <span className="h-px w-8 bg-brass-deep/40" />
             </div>
-            <div className="bg-gradient-to-b from-[#F6E3A8] via-[#D4A94C] to-[#8E6526] bg-clip-text font-display text-[26px] font-black leading-none text-transparent">
+            {/* data-gold-text: the PDF export flattens this gradient-clipped
+                wordmark to a solid gold in html2canvas's onclone — background-clip:
+                text can't be captured, so on-screen it's a gradient, in the PDF
+                it's solid gold (see MembershipCardsScreen downloadCardPdf). */}
+            <div
+              data-gold-text
+              className="bg-gradient-to-b from-[#F6E3A8] via-[#D4A94C] to-[#8E6526] bg-clip-text font-display text-[26px] font-black leading-none text-transparent"
+            >
               SARAH
             </div>
             <div className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-ink">

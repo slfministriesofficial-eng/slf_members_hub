@@ -18,13 +18,14 @@ import {
 import { useMemberNotificationStatuses } from '../notifications/NotificationStatusBell'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
 import { SkeletonActivityRow, SkeletonStatCard, SkeletonUpcomingCard } from '../components/ui/Skeleton'
+import { AdminProfileCard } from '../components/ui/AdminProfileCard'
+import { ViewAllButton } from '../components/ui/ViewAllButton'
 import { fetchAttendanceSummary } from '../attendance/api'
-import { ADMIN_ROLE, useAuth } from '../auth/AuthContext'
 import { useMembers } from '../features/members/MembersContext'
-import { getInitials } from '../utils/initials'
 import { getFormattedDate } from '../utils/date'
 import { getUpcomingDates } from '../utils/upcomingDates'
 import { getRecentActivity } from '../utils/recentActivity'
+import { deriveNewMembers, isSameCalendarMonth } from '../utils/celebrations'
 import { useCompletedWishes } from '../utils/completedWishes'
 import type { UpcomingEventKind } from '../mock/types'
 
@@ -77,9 +78,7 @@ function historyTimeLabel(iso: string, now: Date): string {
 }
 
 export function HomeScreen() {
-  const { adminName } = useAuth()
   const navigate = useNavigate()
-  const name = adminName || 'Admin'
   const { members, isLoading, isError } = useMembers()
   const alertCounts = useAlertCounts()
 
@@ -106,7 +105,6 @@ export function HomeScreen() {
   // celebrations (per spec); Follow-ups shows welcomes still owed today.
   function quickActionBadge(to?: string): number {
     if (to === '/birthdays') return alertCounts.celebrationsWeek
-    if (to === '/follow-ups') return alertCounts.followUpsPending
     if (to === '/members') return alertCounts.newMembers
     return 0
   }
@@ -118,6 +116,10 @@ export function HomeScreen() {
   const upcoming = useMemo(() => getUpcomingDates(members), [members])
   const recentActivity = useMemo(() => getRecentActivity(members, PREVIEW_LIMIT), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
+  const newThisMonth = useMemo(
+    () => deriveNewMembers(members).filter((e) => isSameCalendarMonth(e.joinedDate, now)).length,
+    [members, now],
+  )
 
   // Last recorded service (summary is newest-first) — powers the real
   // "Last Sunday" attendance stat. Undefined if the endpoint isn't deployed.
@@ -143,13 +145,13 @@ export function HomeScreen() {
     return internalId ? isWished(internalId, occasion) : false
   }
 
-  // All four are real: members + this-week birthdays from the roster,
-  // follow-ups from the live alert counts, and last-service attendance from the
-  // recorded attendance log ('—' until the first Sunday is marked).
+  // All four are real: total + this-week birthdays + new-this-month from the
+  // roster, and last-service attendance from the recorded attendance log
+  // ('—' until the first Sunday is marked).
   const stats: { label: string; value: string | number; tone: string }[] = [
     { label: 'Total members', value: members.length, tone: 'ink' },
     { label: 'Birthdays this week', value: birthdaysThisWeek, tone: 'regular' },
-    { label: 'Follow-ups due', value: alertCounts.followUpsPending, tone: 'ink' },
+    { label: 'New this month', value: newThisMonth, tone: 'ink' },
     {
       label: lastServiceRate !== null ? `Last Sunday · ${lastServiceRate}%` : 'Last Sunday present',
       value: lastService ? lastService.count : '—',
@@ -175,20 +177,10 @@ export function HomeScreen() {
         </div>
       </div>
 
-      {/* Premium name card — mobile only; tapping it opens the same profile screen as the top bar menu on desktop */}
-      <button
-        onClick={() => navigate('/more')}
-        className="mb-5 flex w-full items-center justify-between rounded-2xl bg-surface p-4 text-left shadow-card md:hidden"
-      >
-        <div>
-          <div className="text-[12px] text-slate">Hello,</div>
-          <div className="font-display text-[19px] font-bold text-heading">{name}</div>
-          <div className="mt-0.5 text-[11px] text-slate">{ADMIN_ROLE}</div>
-        </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep font-display text-[16px] font-bold text-white">
-          {getInitials(name)}
-        </div>
-      </button>
+      {/* Signed-in admin card — mobile only; the same card the side menu uses. */}
+      <div className="mb-5 md:hidden">
+        <AdminProfileCard />
+      </div>
 
       {/* Next-notification hero — the shared Follow-ups card, replacing the old
           mock "Needs attention" card with real automation data. Tapping it opens
@@ -277,9 +269,7 @@ export function HomeScreen() {
         <div>
           <div className="mb-3 mt-6 flex items-baseline justify-between md:mt-6">
             <h2 className="font-display text-[15.5px] font-bold text-heading">This week</h2>
-            <button onClick={() => navigate('/birthdays')} className="text-[12px] font-bold text-brass-deep">
-              See all
-            </button>
+            <ViewAllButton onClick={() => navigate('/birthdays')} />
           </div>
           {isLoading ? (
             <div className="-mx-4 mb-2 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:mb-0 md:flex-col md:gap-2.5 md:overflow-visible md:px-0 md:pb-0">
@@ -349,12 +339,7 @@ export function HomeScreen() {
                 <div className="flex shrink-0 items-baseline gap-2.5">
                   <span className="text-[11px] font-semibold text-slate">This month · {sendHistory.length}</span>
                   {sendHistory.length > PREVIEW_LIMIT && (
-                    <button
-                      onClick={() => navigate('/notifications-sent')}
-                      className="text-[12px] font-bold text-brass-deep"
-                    >
-                      View all
-                    </button>
+                    <ViewAllButton onClick={() => navigate('/notifications-sent')} />
                   )}
                 </div>
               </div>
@@ -397,11 +382,7 @@ export function HomeScreen() {
 
           <div className="mb-3 mt-6 flex items-baseline justify-between md:mt-6">
             <h2 className="font-display text-[15.5px] font-bold text-heading">Recent activity</h2>
-            {members.length > PREVIEW_LIMIT && (
-              <button onClick={() => navigate('/activity')} className="text-[12px] font-bold text-brass-deep">
-                View all
-              </button>
-            )}
+            {members.length > PREVIEW_LIMIT && <ViewAllButton onClick={() => navigate('/activity')} />}
           </div>
           {isLoading ? (
             <Card className="mb-2 px-1 py-1">

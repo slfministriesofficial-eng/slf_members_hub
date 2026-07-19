@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
+import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 import { isFirebaseConfigured } from '../firebase'
 import { isMessagingSupported } from '../firebase-messaging'
 import {
@@ -82,8 +83,18 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
     }
   }
 
+  const notEnabled = state === 'ready' || state === 'enabling' || state === 'error'
+
   return (
-    <div className="rounded-2xl bg-surface p-6 text-center shadow-card sm:p-8">
+    <div className="relative overflow-hidden rounded-2xl bg-surface p-6 text-center shadow-card sm:p-8">
+      {/* Small attention pill (top) — pulses to draw the eye until enabled. */}
+      {notEnabled && (
+        <span className="motion-safe:animate-[pulse-soft_1.8s_ease-in-out_infinite] absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-brass/15 px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-wide text-brass-deep">
+          <Icon name="bell" className="icon !h-[10px] !w-[10px]" />
+          Recommended
+        </span>
+      )}
+
       <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brass to-brass-deep">
         <Icon name="bell" className="icon !h-[24px] !w-[24px] text-white" />
       </span>
@@ -117,34 +128,43 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
           </p>
         )}
 
-        {(state === 'ready' || state === 'enabling' || state === 'error') && (
-          <>
-            {state === 'error' && (
-              <p className="mx-auto mb-3 max-w-[380px] text-[12.5px] leading-relaxed text-status-alert-fg">
-                We couldn't finish enabling notifications. When the browser asks, choose{' '}
-                <strong>Allow</strong>, then try again.
-              </p>
-            )}
-            <button
-              onClick={handleEnable}
-              disabled={state === 'enabling'}
-              className="mx-auto flex items-center justify-center gap-1.5 rounded-full bg-ink px-6 py-3 text-[13.5px] font-bold text-white transition-transform hover:scale-105 disabled:opacity-50"
-            >
-              <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
-              {state === 'enabling'
-                ? 'Enabling…'
-                : state === 'error'
-                  ? 'Try Again'
-                  : 'Enable Notifications'}
-            </button>
-          </>
+        {(state === 'ready' || state === 'enabling' || state === 'enabled') && (
+          <div className="mx-auto flex max-w-[360px] items-center justify-between gap-3 rounded-2xl border border-hairline bg-paper px-4 py-3">
+            <div className="min-w-0 text-left">
+              <div className="text-[13px] font-bold text-heading">
+                {state === 'enabled' ? 'Notifications on' : 'Turn on notifications'}
+              </div>
+              <div className="text-[11px] text-slate">
+                {state === 'enabling'
+                  ? 'Enabling…'
+                  : state === 'enabled'
+                    ? "You'll get church updates on this device"
+                    : 'One tap to receive church updates'}
+              </div>
+            </div>
+            <ToggleSwitch
+              checked={state === 'enabled'}
+              disabled={state === 'enabling' || state === 'enabled'}
+              label="Enable church notifications"
+              onChange={() => handleEnable()}
+            />
+          </div>
         )}
 
-        {state === 'enabled' && (
-          <div className="mx-auto inline-flex items-center gap-1.5 rounded-full bg-status-regular-bg px-4 py-2 text-[12.5px] font-bold text-status-regular-fg">
-            <Icon name="check" className="icon !h-[14px] !w-[14px]" />
-            Notifications enabled on this device
-          </div>
+        {state === 'error' && (
+          <>
+            <p className="mx-auto mb-3 max-w-[380px] text-[12.5px] leading-relaxed text-status-alert-fg">
+              We couldn't finish enabling notifications. When the browser asks, choose <strong>Allow</strong>,
+              then try again.
+            </p>
+            <button
+              onClick={handleEnable}
+              className="mx-auto flex items-center justify-center gap-1.5 rounded-full bg-ink px-6 py-3 text-[13.5px] font-bold text-white transition-transform hover:scale-105"
+            >
+              <Icon name="bell" className="icon !h-[15px] !w-[15px]" />
+              Try Again
+            </button>
+          </>
         )}
       </div>
     </div>

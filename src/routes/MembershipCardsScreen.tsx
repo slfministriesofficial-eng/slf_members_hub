@@ -24,7 +24,17 @@ const CARD_HEIGHT_MM = 54
 // html2canvas can't reliably capture the flipper's 3D-rotated back face, so
 // the export renders its own flat, off-screen front/back pair (same data,
 // no rotateY) purely to be captured — never shown to the user.
-const CAPTURE_WIDTH_PX = 1013
+//
+// MUST equal the card's authored design width: the card's inner sizes (logo,
+// fonts, QR, padding) are fixed pixels tuned for this width — the same base the
+// on-screen preview scales from. Capturing at any other width shrinks the
+// content and leaves it clustered at the top. Print resolution comes from
+// html2canvas's `scale` below, not from inflating this width.
+const CAPTURE_WIDTH_PX = 500
+
+// Upscales the 500px capture so the CR80 PDF prints crisp (500 × 4 = 2000px ≈
+// 590 DPI at 85.6mm — well past print-sharp, and keeps the QR cleanly scannable).
+const CAPTURE_SCALE = 4
 
 // Waits for every <img> inside el to finish loading (the QR code and card
 // photos render async) so html2canvas never captures a still-blank image.
@@ -50,12 +60,6 @@ function isSameMonth(dateStr: string | undefined, ref: Date): boolean {
   if (!dateStr) return false
   const d = new Date(dateStr)
   return !Number.isNaN(d.getTime()) && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear()
-}
-
-function isBirthdayMonth(dateStr: string | undefined, ref: Date): boolean {
-  if (!dateStr) return false
-  const d = new Date(dateStr)
-  return !Number.isNaN(d.getTime()) && d.getMonth() === ref.getMonth()
 }
 
 // Strips punctuation/case so "SLF-0001", "slf0001", and "0001" all match the same member.
@@ -134,7 +138,6 @@ export function MembershipCardsScreen() {
     return {
       total: members.length,
       newThisMonth: members.filter((m) => isSameMonth(m.registrationDate, now)).length,
-      birthdaysThisMonth: members.filter((m) => isBirthdayMonth(m.dob, now)).length,
     }
   }, [members])
 
@@ -152,6 +155,15 @@ export function MembershipCardsScreen() {
       setZoom(100)
       setSwitching(false)
     }, 350)
+  }
+
+  // On mobile the list and the card are one-at-a-time (master → detail): this
+  // returns to the list. On desktop both stay side by side, so it's unused.
+  function backToList() {
+    if (switchTimeout.current) clearTimeout(switchTimeout.current)
+    setSwitching(false)
+    setHighlightedId(null)
+    setSelectedId(null)
   }
 
   // Sends the member's own digital profile link straight to their personal
@@ -194,15 +206,22 @@ export function MembershipCardsScreen() {
     setDownloadingPdf(true)
     setDownloadError(null)
     try {
-      const [html2canvasModule, jsPdfModule] = await Promise.all([import('html2canvas'), import('jspdf')])
+      // html2canvas-pro (drop-in fork): the original html2canvas can't parse
+      // Tailwind v4's color-mix()/oklch() colours (which the card uses heavily
+      // via opacity modifiers like brass/70), so it threw and the PDF silently
+      // failed. The pro fork renders those colours correctly.
+      const [html2canvasModule, jsPdfModule] = await Promise.all([
+        import('html2canvas-pro'),
+        import('jspdf'),
+      ])
       const html2canvas = html2canvasModule.default
       const { jsPDF } = jsPdfModule
 
       await Promise.all([waitForImages(captureFrontRef.current), waitForImages(captureBackRef.current)])
 
       const [frontCanvas, backCanvas] = await Promise.all([
-        html2canvas(captureFrontRef.current, { scale: 3, backgroundColor: '#ffffff', useCORS: true }),
-        html2canvas(captureBackRef.current, { scale: 3, backgroundColor: '#ffffff', useCORS: true }),
+        html2canvas(captureFrontRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true }),
+        html2canvas(captureBackRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true }),
       ])
 
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [CARD_WIDTH_MM, CARD_HEIGHT_MM] })
@@ -227,10 +246,9 @@ export function MembershipCardsScreen() {
           </div>
           <p className="mt-1 text-[12.5px] text-slate">Manage, preview and share digital membership cards.</p>
         </div>
-        <div className="grid grid-cols-3 gap-2.5 md:w-[340px] md:shrink-0">
+        <div className="grid grid-cols-2 gap-2.5 md:w-[240px] md:shrink-0">
           <StatCard label="Total Cards" value={stats.total} />
           <StatCard label="New This Month" value={stats.newThisMonth} />
-          <StatCard label="Birthdays This Month" value={stats.birthdaysThisMonth} />
         </div>
       </div>
 
@@ -242,8 +260,10 @@ export function MembershipCardsScreen() {
 
       {!isError && (
         <div className="md:grid md:grid-cols-[300px_1fr] md:items-start md:gap-5 lg:grid-cols-[35%_65%] lg:gap-6">
-          {/* Left column (35%) — search, ministry filter, member list */}
-          <div className="mb-5 md:mb-0">
+          {/* Left column (35%) — search, ministry filter, member list.
+              On mobile it's hidden once a member is picked (the card takes over,
+              master → detail); on desktop both columns stay side by side. */}
+          <div className={`mb-5 md:mb-0 ${highlightedId ? 'hidden md:block' : ''}`}>
             <div className="mb-3 flex items-center gap-2">
               <div className="flex flex-1 items-center gap-2 rounded-2xl bg-surface px-3.5 py-2.5 shadow-card">
                 <Icon name="search" className="icon !h-[17px] !w-[17px] text-slate" />
@@ -283,27 +303,44 @@ export function MembershipCardsScreen() {
             ) : (
               <div className="max-h-[70vh] space-y-1.5 overflow-y-auto pr-0.5 md:max-h-none md:overflow-visible">
                 {filtered.map((member) => (
-                  <button
+                  <div
                     key={member.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectMember(member.id)}
-                    className={`flex w-full flex-col gap-1 rounded-xl border-2 px-3.5 py-3 text-left transition-colors ${
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') selectMember(member.id)
+                    }}
+                    className={`flex w-full cursor-pointer items-center gap-2 rounded-xl border-2 px-3.5 py-3 text-left transition-colors ${
                       highlightedId === member.id
                         ? 'border-brass bg-brass/10'
                         : 'border-transparent bg-surface shadow-card hover:bg-paper'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-bold text-heading">{member.name}</span>
-                      {member.ministry !== '—' && (
-                        <span className="shrink-0 rounded-full bg-paper-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate">
-                          {member.ministry}
-                        </span>
-                      )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[13px] font-bold text-heading">{member.name}</span>
+                        {member.ministry !== '—' && (
+                          <span className="shrink-0 rounded-full bg-paper-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate">
+                            {member.ministry}
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-mono text-[10.5px] text-slate">
+                        {member.memberId} · Member since {member.joinDate.slice(-4)}
+                      </div>
                     </div>
-                    <div className="font-mono text-[10.5px] text-slate">
-                      {member.memberId} · Member since {member.joinDate.slice(-4)}
-                    </div>
-                  </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        selectMember(member.id)
+                      }}
+                      className="flex shrink-0 items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-ink-deep"
+                    >
+                      <Icon name="id" className="icon !h-[12px] !w-[12px]" />
+                      View ID
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -316,7 +353,19 @@ export function MembershipCardsScreen() {
               AppShell), so a second fixed-height scroll region here only risked
               clipping the card whenever the header above it took up more or less
               space than the hardcoded estimate assumed. */}
-          <div className="rounded-2xl border border-hairline p-4 md:p-6">
+          <div
+            className={`rounded-2xl border border-hairline p-4 md:p-6 ${
+              highlightedId ? '' : 'hidden md:block'
+            }`}
+          >
+            {/* Mobile-only "back to list" — desktop keeps both panes visible. */}
+            <button
+              onClick={backToList}
+              className="mb-3 flex items-center gap-1.5 text-[13px] font-bold text-brass-deep md:hidden"
+            >
+              <Icon name="arrow-left" className="icon !h-[16px] !w-[16px]" />
+              Back to list
+            </button>
             <div className="mb-1 flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-display text-[16px] font-bold text-heading">Membership Card Preview</h2>

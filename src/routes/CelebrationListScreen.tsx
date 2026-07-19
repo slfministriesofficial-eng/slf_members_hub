@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -23,7 +23,7 @@ import { useCompletedWishes, type WishOccasion } from '../utils/completedWishes'
 import type { Member } from '../mock/types'
 
 type ListType = 'birthdays' | 'anniversaries' | 'baptisms' | 'membership' | 'visitors'
-type FilterKey = 'all' | 'week' | 'month' | 'completed'
+type FilterKey = 'today' | 'week' | 'month' | 'all' | 'completed'
 type ViewMode = 'list' | 'grid'
 
 const VIEW_STORAGE_KEY = 'slf-celebrations-view'
@@ -57,23 +57,28 @@ const PAGE_META: Record<ListType, { title: string; icon: string; accent: string;
     emptyText: 'No membership anniversaries match.',
   },
   visitors: {
-    title: 'First-Time Visitors',
-    icon: 'user',
+    title: 'New Members',
+    icon: 'users',
     accent: 'text-tint-green-fg',
-    noun: 'First Visits',
-    emptyText: 'No first-time visitors match.',
+    noun: 'New Members',
+    emptyText: 'No new members match.',
   },
 }
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
+  { key: 'today', label: 'Today' },
   { key: 'week', label: 'This Week' },
   { key: 'month', label: 'This Month' },
+  { key: 'all', label: 'All' },
   { key: 'completed', label: 'Completed' },
 ]
 
+const VALID_FILTERS: FilterKey[] = ['today', 'week', 'month', 'all', 'completed']
+
 function topTitleFor(filter: FilterKey, noun: string): string {
   switch (filter) {
+    case 'today':
+      return `Today's ${noun}`
     case 'week':
       return `This Week's ${noun}`
     case 'month':
@@ -81,7 +86,7 @@ function topTitleFor(filter: FilterKey, noun: string): string {
     case 'completed':
       return 'Completed'
     default:
-      return `Today's ${noun}`
+      return `All ${noun}`
   }
 }
 
@@ -102,9 +107,15 @@ export function CelebrationListScreen() {
       ? rawType
       : 'birthdays'
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { members, isLoading, isError } = useMembers()
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('all')
+  // Initial filter can be set via ?filter= (the Birthdays cards jump straight to
+  // "Today"); otherwise default to "All" so nothing is hidden.
+  const paramFilter = searchParams.get('filter') as FilterKey | null
+  const [filter, setFilter] = useState<FilterKey>(
+    paramFilter && VALID_FILTERS.includes(paramFilter) ? paramFilter : 'all',
+  )
   const [view, setView] = useState<ViewMode>(getInitialView)
   // Who's already been wished this year — backend-backed and shared across
   // devices (see completedWishes); refreshes live when a wish is sent. Tracked
@@ -137,9 +148,9 @@ export function CelebrationListScreen() {
         .map((e) => ({ ...e, isThisMonth: isSameCalendarMonth(e.nextDate, now) })),
     [members, now],
   )
-  // First visits are a one-time PAST event — filters reinterpret onto daysAgo.
+  // New members are a one-time PAST event (joined date) — filters reinterpret onto daysAgo.
   const visitors = useMemo(
-    () => deriveNewMembers(members).filter((e) => e.member.firstTimeVisiting),
+    () => deriveNewMembers(members),
     [members],
   )
 
@@ -152,12 +163,14 @@ export function CelebrationListScreen() {
     if (filter === 'completed') return isWished(e.member.id, occasion)
     if (isWished(e.member.id, occasion)) return false
     switch (filter) {
+      case 'today':
+        return e.daysAway === 0
       case 'week':
         return e.daysAway >= 0 && e.daysAway <= 7
       case 'month':
         return e.isThisMonth
-      default:
-        return e.daysAway === 0
+      default: // 'all' — every upcoming occasion this year
+        return true
     }
   }
 
@@ -221,12 +234,14 @@ export function CelebrationListScreen() {
         if (filter === 'completed') return isWished(e.member.id, 'visitor')
         if (isWished(e.member.id, 'visitor')) return false
         switch (filter) {
+          case 'today':
+            return e.daysAgo === 0
           case 'week':
             return e.daysAgo <= 7
           case 'month':
             return isSameCalendarMonth(e.joinedDate, now)
-          default:
-            return e.daysAgo === 0
+          default: // 'all' — every new member on record
+            return true
         }
       })
   }, [visitors, query, filter, isWished, now])
@@ -314,7 +329,7 @@ export function CelebrationListScreen() {
         type="new-member"
         dateDay={day}
         dateMonth={month}
-        subLabel="First visit"
+        subLabel="New member"
         countdownLabel={formatPastLabel(e.joinedDate, now)}
         completed={isWished(e.member.id, 'visitor')}
         onView={() => navigate(`/celebration-profile/new-member/${e.member.id}`)}
@@ -328,19 +343,19 @@ export function CelebrationListScreen() {
 
   return (
     <div className="motion-safe:animate-[fade-rise_0.4s_ease-out_both] pb-10">
-      {/* HEADER + CLOSE */}
-      <div className="relative mb-5 flex items-center justify-center px-9">
-        <h1 className="flex items-center gap-2 font-display text-[19px] font-bold text-heading md:text-[24px]">
+      {/* HEADER — back arrow + bold title (consistent on mobile and desktop) */}
+      <div className="mb-5 flex items-center gap-2">
+        <button
+          onClick={() => navigate('/birthdays')}
+          aria-label="Back"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
+        >
+          <Icon name="arrow-left" className="icon !h-[19px] !w-[19px]" />
+        </button>
+        <h1 className="flex items-center gap-2 truncate font-display text-[22px] font-bold text-heading md:text-[26px]">
           <Icon name={meta.icon} className={`icon !h-[18px] !w-[18px] shrink-0 ${meta.accent}`} />
           {meta.title}
         </h1>
-        <button
-          onClick={() => navigate('/birthdays')}
-          aria-label="Close"
-          className="absolute right-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
-        >
-          <Icon name="x" className="icon !h-[17px] !w-[17px]" />
-        </button>
       </div>
 
       {isError && (
@@ -495,7 +510,7 @@ export function CelebrationListScreen() {
                 <>
                   <section>
                     <h2 className="mb-3 text-[13px] font-bold text-heading">
-                      {topTitleFor(filter, 'First Visits')} ({topVisitors.length})
+                      {topTitleFor(filter, 'New Members')} ({topVisitors.length})
                     </h2>
                     {topVisitors.length === 0 ? (
                       <Card className="p-6 text-center">
@@ -508,7 +523,7 @@ export function CelebrationListScreen() {
 
                   {filter !== 'completed' && recentVisitors.length > 0 && (
                     <section>
-                      <h2 className="mb-3 text-[13px] font-bold text-heading">Recent First Visits</h2>
+                      <h2 className="mb-3 text-[13px] font-bold text-heading">Recent New Members</h2>
                       <div className={listClass}>{recentVisitors.map((e) => renderVisitorCard(e))}</div>
                     </section>
                   )}

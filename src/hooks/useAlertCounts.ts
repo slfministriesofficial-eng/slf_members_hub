@@ -6,7 +6,6 @@ import type { Member } from '../mock/types'
 
 const SEEN_MEMBERS_KEY = 'slf-seen-member-ids'
 const SEEN_CELEBRATIONS_KEY = 'slf-seen-celebrations'
-const SEEN_FOLLOWUPS_KEY = 'slf-seen-followups'
 // Fired whenever something that feeds the badges changes (member list seen,
 // a wish marked completed) so nav badges — which stay mounted across route
 // changes — recompute immediately instead of waiting for a data refetch.
@@ -75,29 +74,6 @@ function getSeenCelebrationIds(): Set<string> {
 export function markCelebrationsSeen(memberIds: string[]): void {
   try {
     localStorage.setItem(SEEN_CELEBRATIONS_KEY, JSON.stringify({ date: todayKey(), ids: memberIds }))
-  } catch {
-    // ignore
-  }
-  notifyAlertsChanged()
-}
-
-function getSeenFollowUpIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(SEEN_FOLLOWUPS_KEY)
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
-  } catch {
-    return new Set()
-  }
-}
-
-/**
- * Mark the current pending welcomes as seen (called when the Follow-ups page
- * opens) — clears its badge until a NEW member appears.
- * @param memberIds new members currently listed
- */
-export function markFollowUpsSeen(memberIds: string[]): void {
-  try {
-    localStorage.setItem(SEEN_FOLLOWUPS_KEY, JSON.stringify(memberIds))
   } catch {
     // ignore
   }

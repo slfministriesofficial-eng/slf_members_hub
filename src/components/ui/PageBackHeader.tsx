@@ -11,7 +11,7 @@ export function PageBackHeader({ title, onBack }: { title: string; onBack: () =>
         aria-label="Back"
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate transition-colors hover:text-heading"
       >
-        <Icon name="chevron" className="icon !h-[17px] !w-[17px] rotate-180" />
+        <Icon name="arrow-left" className="icon !h-[19px] !w-[19px]" />
       </button>
       <h1 className="truncate font-display text-[26px] font-bold text-heading md:text-[28px]">{title}</h1>
     </div>

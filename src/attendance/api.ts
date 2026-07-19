@@ -82,6 +82,22 @@ export async function verifyAttendanceTaker(
 }
 
 /**
+ * Sign in an attendance taker by email only — the backend checks the email is
+ * on the active takers list and returns their token so the session persists.
+ * @param {string} email the taker's email
+ * @returns {Promise<{ok: boolean, email?: string, name?: string, token?: string}>}
+ */
+export async function signInTakerByEmail(
+  email: string,
+): Promise<{ ok: boolean; email?: string; name?: string; token?: string }> {
+  const data = await postAction<{ ok: boolean; email?: string; name?: string; token?: string }>({
+    action: 'takerSignIn',
+    email,
+  })
+  return { ok: data.ok === true, email: data.email, name: data.name, token: data.token }
+}
+
+/**
  * The admin's attendance-taker roster (emails + status, no tokens).
  * @returns {Promise<AttendanceTaker[]>}
  */

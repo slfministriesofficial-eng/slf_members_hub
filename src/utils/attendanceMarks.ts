@@ -50,10 +50,10 @@ export function syncAttendance(
   memberName: string,
   present: boolean,
   markedBy: string,
-): void {
-  saveAttendanceRecord({ date: attendanceDateKey(), memberId, memberName, present, markedBy }).catch(() => {
-    // best-effort — the UI already shows the tick from the sessionStorage cache
-  })
+): Promise<void> {
+  // Returns the promise so the caller can surface a failure (the mark still
+  // shows locally from the sessionStorage cache regardless).
+  return saveAttendanceRecord({ date: attendanceDateKey(), memberId, memberName, present, markedBy })
 }
 
 // Present (checked) <-> not present (unchecked) — the only two states now

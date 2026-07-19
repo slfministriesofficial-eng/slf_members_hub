@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react'
-import { verifyAttendanceTaker } from '../attendance/api'
+import { verifyAttendanceTaker, signInTakerByEmail } from '../attendance/api'
 
 const SESSION_KEY = 'slf-members-hub:session'
 const NAME_KEY = 'slf-members-hub:admin-name'
@@ -34,6 +34,8 @@ type AuthState = {
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   /** Sign in an attendance taker from a magic-link token. */
   loginAsTaker: (token: string) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** Sign in an attendance taker by email (backend checks they're active). */
+  loginTakerByEmail: (name: string, email: string) => Promise<{ ok: true } | { ok: false; error: string }>
   /** Call once the welcome overlay has finished playing, to unmount it. */
   dismissWelcome: () => void
   logout: () => void
@@ -147,6 +149,35 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function loginTakerByEmail(name: string, email: string) {
+    try {
+      const res = await signInTakerByEmail(email.trim().toLowerCase())
+      if (!res.ok || !res.token || !res.email) {
+        return {
+          ok: false,
+          error: "That email isn't registered as an attendance taker. Please check with the church office.",
+        } as const
+      }
+      const displayName = name.trim() || res.name || ''
+      localStorage.setItem(TAKER_TOKEN_KEY, res.token)
+      localStorage.setItem(TAKER_EMAIL_KEY, res.email)
+      localStorage.setItem(TAKER_NAME_KEY, displayName)
+      setTakerEmail(res.email)
+      setTakerName(displayName)
+      setRole('attendance-taker')
+      setIsAuthenticated(true)
+      setAuthChecking(false)
+      setShowWelcome(true)
+      return { ok: true } as const
+    } catch {
+      return {
+        ok: false,
+        error:
+          "Sign-in isn't available yet — the latest app update needs to be deployed. Please tell the church office (or use your invite link for now).",
+      } as const
+    }
+  }
+
   function dismissWelcome() {
     setShowWelcome(false)
   }
@@ -177,6 +208,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         showWelcome,
         login,
         loginAsTaker,
+        loginTakerByEmail,
         dismissWelcome,
         logout,
       }}
