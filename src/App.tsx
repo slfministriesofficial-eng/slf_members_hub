@@ -32,6 +32,7 @@ import { WhatsappAnnouncementScreen } from './routes/WhatsappAnnouncementScreen'
 import { ScheduleAnnouncementScreen } from './routes/ScheduleAnnouncementScreen'
 import { NotificationScheduleScreen } from './routes/NotificationScheduleScreen'
 import { MembershipCardsScreen } from './routes/MembershipCardsScreen'
+import { RegistrationFormsScreen } from './routes/RegistrationFormsScreen'
 import { MoreScreen } from './routes/MoreScreen'
 import { AdminProfileScreen } from './routes/AdminProfileScreen'
 import { ReportsScreen } from './routes/ReportsScreen'
@@ -108,6 +109,7 @@ function App() {
               <Route path="/announcements/schedule" element={<ScheduleAnnouncementScreen />} />
               <Route path="/follow-ups/schedule" element={<NotificationScheduleScreen />} />
               <Route path="/membership-cards" element={<MembershipCardsScreen />} />
+              <Route path="/registration-forms" element={<RegistrationFormsScreen />} />
               <Route path="/more" element={<MoreScreen />} />
               <Route path="/profile" element={<AdminProfileScreen />} />
               <Route path="/reports" element={<ReportsScreen />} />

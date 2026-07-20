@@ -4,6 +4,7 @@ import { Icon } from '../components/ui/Icon'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StatusPill } from '../components/ui/StatusPill'
+import { ConfirmRemoveModal } from '../components/ui/ConfirmRemoveModal'
 import { openWhatsappBroadcast, openWhatsappWithText } from '../templates/whatsapp'
 import {
   fetchAttendanceTakers,
@@ -40,6 +41,16 @@ function sendInvite(url: string, name: string, whatsapp: string) {
   else openWhatsappBroadcast(message)
 }
 
+/** The WhatsApp notice sent to a taker when access is revoked with a reason. */
+function revokeMessage(name: string, reason: string): string {
+  const greeting = name ? `Hello ${name},\n\n` : ''
+  return (
+    greeting +
+    'Your attendance access for Sarah Living Faith Ministries has been removed.' +
+    (reason ? `\n\nReason: ${reason}` : '')
+  )
+}
+
 /**
  * Grant / list / revoke attendance takers. Self-contained so it can live on
  * the dedicated Give-Access page and inside Access Settings without
@@ -54,6 +65,7 @@ export function AttendanceTakersPanel({ compact = false }: { compact?: boolean }
   const [whatsapp, setWhatsapp] = useState('')
   const [granted, setGranted] = useState<{ taker: GrantedTaker; url: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [revokeTarget, setRevokeTarget] = useState<AttendanceTaker | null>(null)
 
   const takersQuery = useQuery({ queryKey: ['attendance-takers'], queryFn: fetchAttendanceTakers })
 
@@ -75,6 +87,20 @@ export function AttendanceTakersPanel({ compact = false }: { compact?: boolean }
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['attendance-takers'] }),
   })
   const revokingEmail = revoke.isPending ? revoke.variables : null
+
+  /** Revoke the pending target and, if a reason was given, message them. */
+  function confirmRevoke(reason: string) {
+    const taker = revokeTarget
+    if (!taker) return
+    revoke.mutate(taker.email)
+    if (reason) {
+      const number = normalizeWhatsapp(taker.whatsapp)
+      const message = revokeMessage(taker.name, reason)
+      if (number) openWhatsappWithText(number, message)
+      else openWhatsappBroadcast(message)
+    }
+    setRevokeTarget(null)
+  }
 
   function handleGrant() {
     const addr = email.trim().toLowerCase()
@@ -232,11 +258,13 @@ export function AttendanceTakersPanel({ compact = false }: { compact?: boolean }
                     Resend
                   </button>
                   <button
-                    onClick={() => revoke.mutate(taker.email)}
+                    onClick={() => setRevokeTarget(taker)}
                     disabled={revokingEmail === taker.email}
-                    className="text-[11.5px] font-bold text-status-alert-fg disabled:opacity-50"
+                    aria-label={`Revoke access for ${taker.name || taker.email}`}
+                    title="Revoke access"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-status-alert-fg transition-colors hover:bg-status-alert-bg disabled:opacity-50"
                   >
-                    {revokingEmail === taker.email ? 'Revoking…' : 'Revoke'}
+                    <Icon name="trash" className="icon !h-[15px] !w-[15px]" />
                   </button>
                 </>
               ) : (
@@ -250,6 +278,24 @@ export function AttendanceTakersPanel({ compact = false }: { compact?: boolean }
             </div>
           ))}
         </Card>
+      )}
+
+      {revokeTarget && (
+        <ConfirmRemoveModal
+          title="Revoke Access?"
+          subtitle="They'll be signed out on their next launch."
+          body={
+            <>
+              Revoke attendance access for{' '}
+              <b className="font-semibold text-heading">{revokeTarget.name || revokeTarget.email}</b>?
+            </>
+          }
+          firstName={revokeTarget.whatsapp ? revokeTarget.name.split(' ')[0] || undefined : undefined}
+          reasonPlaceholder="e.g. No longer helping with attendance"
+          confirmLabel="Revoke Access"
+          onCancel={() => setRevokeTarget(null)}
+          onConfirm={confirmRevoke}
+        />
       )}
     </div>
   )

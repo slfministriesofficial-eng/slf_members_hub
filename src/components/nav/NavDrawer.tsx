@@ -39,6 +39,7 @@ const SECTIONS: { title: string; items: DrawerLink[] }[] = [
     title: 'Insights & System',
     items: [
       { to: '/reports', label: 'Reports & Analytics', icon: 'chart' },
+      { to: '/registration-forms', label: 'Registration Forms', icon: 'note' },
       { to: '/access', label: 'Access Settings', icon: 'shield' },
       { to: '/more', label: 'More', icon: 'grid' },
     ],
