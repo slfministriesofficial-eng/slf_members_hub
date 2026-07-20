@@ -231,7 +231,7 @@ export function onForegroundMessage(onPayload?: (payload: MessagePayload) => voi
       const registration = await registerMessagingServiceWorker()
       await registration.showNotification(title, {
         body,
-        icon: '/notification-logo.png',
+        icon: '/icons/notifications/notification-logo.png',
         // No badge — Android renders it as a monochrome silhouette (a black blob).
         tag: payload.data?.tag ?? 'slf-members-hub',
         data: { url: payload.data?.url ?? '/' },

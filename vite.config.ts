@@ -10,7 +10,12 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png'],
+      includeAssets: [
+        'icons.svg',
+        'icons/browser/favicon-16.png',
+        'icons/browser/favicon-32.png',
+        'icons/ios/apple-touch-icon.png',
+      ],
       workbox: {
         navigateFallback: '/index.html',
         // The PDF-export libraries (html2canvas/jspdf) are dynamically imported
@@ -36,14 +41,14 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
-          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/android/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/android/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           // Android otherwise auto-generates its own adaptive-icon mask by
           // shrinking the full-bleed icon above into a smaller safe zone and
           // rescaling — that extra resampling is what was causing the blur.
           // This one already has the safe-zone padding baked in, so Android
           // uses it directly instead of computing its own.
-          { src: '/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/android/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

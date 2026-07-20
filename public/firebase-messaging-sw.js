@@ -63,7 +63,7 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(title, {
     body,
-    icon: '/notification-logo.png',
+    icon: '/icons/notifications/notification-logo.png',
     // No badge on purpose: Android renders the badge as a monochrome alpha
     // silhouette, which turned the round full-color logo into a black blob.
     // Without one, Android shows a clean default glyph instead.
