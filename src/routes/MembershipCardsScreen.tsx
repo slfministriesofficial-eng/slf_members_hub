@@ -219,9 +219,29 @@ export function MembershipCardsScreen() {
 
       await Promise.all([waitForImages(captureFrontRef.current), waitForImages(captureBackRef.current)])
 
+      // background-clip:text can't be captured by html2canvas — the "SARAH"
+      // wordmark's gold gradient renders as a solid bar instead of letters. In
+      // the cloned capture DOM only, flatten it to a solid gold so the text
+      // shows; the on-screen card keeps its gradient untouched.
+      const flattenGoldText = (doc: Document) => {
+        doc.querySelectorAll<HTMLElement>('[data-gold-text]').forEach((el) => {
+          el.style.backgroundImage = 'none'
+          el.style.backgroundClip = 'border-box'
+          el.style.webkitBackgroundClip = 'border-box'
+          el.style.color = '#C79A45'
+          el.style.webkitTextFillColor = '#C79A45'
+        })
+      }
+
+      const canvasOpts = {
+        scale: CAPTURE_SCALE,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        onclone: flattenGoldText,
+      }
       const [frontCanvas, backCanvas] = await Promise.all([
-        html2canvas(captureFrontRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true }),
-        html2canvas(captureBackRef.current, { scale: CAPTURE_SCALE, backgroundColor: '#ffffff', useCORS: true }),
+        html2canvas(captureFrontRef.current, canvasOpts),
+        html2canvas(captureBackRef.current, canvasOpts),
       ])
 
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [CARD_WIDTH_MM, CARD_HEIGHT_MM] })
