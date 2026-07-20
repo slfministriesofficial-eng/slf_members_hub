@@ -5,6 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Reveal } from '../components/ui/Reveal'
 import { IdCardFull } from '../features/members/IdCardFull'
+import { useCardPdfDownload } from '../features/members/useCardPdfDownload'
 import { fetchMemberPublic, type PublicMemberRecord } from '../features/members/api'
 import { PublicNotificationOptIn } from '../notifications/PublicNotificationOptIn'
 import { CHURCH_INFO } from '../constants/church'
@@ -52,6 +53,23 @@ export function PublicMemberProfileScreen() {
   const isVisitor = member?.firstTimeVisiting === 'Yes'
   const sinceYear = (member?.joiningDate || member?.registrationDate || '').slice(0, 4)
   const notFound = error || member === null
+
+  // Download the same membership card as a print-ready PDF (shared hook). No
+  // phone number on the public card, so hideMobile matches the on-screen card.
+  const {
+    downloadPdf,
+    isPreparing: downloadingPdf,
+    error: pdfError,
+    captureNodes,
+  } = useCardPdfDownload({
+    name: member?.fullName ?? '',
+    memberId: member?.memberId ?? '',
+    bloodGroup: member?.bloodGroup,
+    status: isVisitor ? 'visitor' : 'regular',
+    statusLabel: isVisitor ? 'Visitor' : 'Member',
+    sinceYear: sinceYear || undefined,
+    hideMobile: true,
+  })
 
   return (
     // overflow-x-clip: the digital card's 3D flip momentarily projects past the
@@ -117,9 +135,13 @@ export function PublicMemberProfileScreen() {
                 </span>
               </div>
 
-              {/* Desktop: details and card side by side; mobile: stacked. */}
+              {/* Desktop: details and card side by side; mobile: stacked.
+                  min-w-0 on both columns: grid items default to min-width:auto and
+                  won't shrink below their content — the card's fixed 500px scaling
+                  wrapper would otherwise blow the track past the screen and the
+                  card would render un-scaled (QR spilling "out of the box"). */}
               <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-                <div className="rounded-2xl bg-surface p-5 text-center shadow-card lg:text-left">
+                <div className="min-w-0 rounded-2xl bg-surface p-5 text-center shadow-card lg:text-left">
                   <h1 className="font-display text-[22px] font-bold text-heading">{member.fullName}</h1>
                   <p className="mt-0.5 font-mono text-[12.5px] text-slate">{member.memberId}</p>
 
@@ -134,10 +156,10 @@ export function PublicMemberProfileScreen() {
                   </div>
                 </div>
 
-                {/* px-2 on mobile: a little side margin so the card + its flip
-                    overshoot stay inside the screen on the public link (this
-                    inset is public-page only — the admin card is unchanged). */}
-                <div className="px-2 sm:px-0">
+                {/* min-w-0 lets this grid item shrink so the card scales to fit
+                    (see the note on the grid above). px-2 adds a little side margin
+                    so the card + its flip overshoot stay inside the screen. */}
+                <div className="min-w-0 px-2 sm:px-0">
                   <h2 className="mb-3 text-center text-[12px] font-bold uppercase tracking-wide text-slate">
                     Digital Membership Card
                   </h2>
@@ -150,6 +172,18 @@ export function PublicMemberProfileScreen() {
                     sinceYear={sinceYear || undefined}
                     hideMobile
                   />
+
+                  <div className="mt-4 flex flex-col items-center gap-1.5">
+                    <button
+                      onClick={downloadPdf}
+                      disabled={downloadingPdf}
+                      className="flex items-center gap-1.5 rounded-full bg-ink px-5 py-2.5 text-[12.5px] font-bold text-white transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Icon name="download" className="icon !h-[15px] !w-[15px]" />
+                      {downloadingPdf ? 'Preparing PDF…' : 'Download as PDF'}
+                    </button>
+                    {pdfError && <p className="text-[11.5px] font-semibold text-status-alert-fg">{pdfError}</p>}
+                  </div>
                 </div>
               </div>
             </>
@@ -291,6 +325,9 @@ export function PublicMemberProfileScreen() {
           </div>
         </Reveal>
       </div>
+
+      {/* Off-screen capture source for the "Download as PDF" export. */}
+      {member && captureNodes}
 
       {/* SECTION 9 — Footer */}
       <footer className="bg-ink-deep px-4 py-10 text-center text-white/80 sm:px-6">

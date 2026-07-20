@@ -7,6 +7,7 @@ import { Skeleton, SkeletonIdCard } from '../components/ui/Skeleton'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
 import { useMembers } from '../features/members/MembersContext'
 import { IdCardFull } from '../features/members/IdCardFull'
+import { useCardPdfDownload } from '../features/members/useCardPdfDownload'
 import {
   buildMemberProfileUrl,
   buildRemovalMessage,
@@ -47,11 +48,34 @@ export function MemberProfileScreen() {
   const [toast, setToast] = useState<string | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
+  // Print-ready PDF of this member's card (shared with the Membership Cards +
+  // public profile pages). Safe fallbacks so the hook can run before the
+  // loading/not-found guards below (Rules of Hooks — must be unconditional).
+  const {
+    downloadPdf,
+    isPreparing: downloadingPdf,
+    error: pdfError,
+    captureNodes,
+  } = useCardPdfDownload({
+    name: member?.name ?? '',
+    memberId: member?.memberId ?? '',
+    mobile: member?.phone,
+    bloodGroup: member?.bloodGroup,
+    status: member?.status ?? 'regular',
+    statusLabel: member?.statusLabel ?? 'Member',
+    sinceYear: member?.joinDate?.slice(-4),
+  })
+
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 4000)
     return () => clearTimeout(t)
   }, [toast])
+
+  // Surface a PDF-generation failure through the existing toast.
+  useEffect(() => {
+    if (pdfError) setToast(pdfError)
+  }, [pdfError])
 
   if (isLoading) {
     return (
@@ -231,7 +255,12 @@ export function MemberProfileScreen() {
 
         <div className="mx-auto mt-4 grid max-w-[420px] grid-cols-2 gap-2 md:max-w-none md:grid-cols-4">
           <CardActionButton icon="globe" label="View Digital Profile" onClick={viewDigitalProfile} />
-          <CardActionButton icon="download" label="Download PDF" disabled title="Coming soon" />
+          <CardActionButton
+            icon="download"
+            label={downloadingPdf ? 'Preparing PDF…' : 'Download as PDF'}
+            onClick={downloadPdf}
+            disabled={downloadingPdf}
+          />
           <CardActionButton icon="share" label="Share Card" onClick={() => navigate('/membership-cards')} />
           <CardActionButton icon="chat" label="Send to WhatsApp" accent onClick={sendWhatsapp} />
         </div>
@@ -484,7 +513,12 @@ export function MemberProfileScreen() {
             <SidebarActionButton icon="chat" label="Send to WhatsApp" onClick={sendWhatsapp} />
             <SidebarActionButton icon="globe" label="View Digital Profile" onClick={viewDigitalProfile} />
             <SidebarActionButton icon="cal-check" label="Attendance" onClick={() => navigate('/attendance')} />
-            <SidebarActionButton icon="download" label="Download PDF" disabled title="Coming soon" />
+            <SidebarActionButton
+              icon="download"
+              label={downloadingPdf ? 'Preparing PDF…' : 'Download as PDF'}
+              onClick={downloadPdf}
+              disabled={downloadingPdf}
+            />
             <SidebarActionButton icon="share" label="Share Card" onClick={() => navigate('/membership-cards')} />
           </div>
         </div>
@@ -511,6 +545,9 @@ export function MemberProfileScreen() {
       {showDeleteModal && (
         <DeleteMemberModal member={member} onCancel={() => setShowDeleteModal(false)} onConfirm={runDelete} />
       )}
+
+      {/* Off-screen capture source for the "Download as PDF" export. */}
+      {captureNodes}
     </div>
   )
 }

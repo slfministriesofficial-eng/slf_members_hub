@@ -6,55 +6,13 @@ import { SkeletonIdCard, SkeletonListRow } from '../components/ui/Skeleton'
 import { useMembers } from '../features/members/MembersContext'
 import { MINISTRY_OPTIONS } from '../features/members/types'
 import { IdCardFull } from '../features/members/IdCardFull'
-import { IdCard } from '../features/members/IdCard'
-import { IdCardBack } from '../features/members/IdCardBack'
+import { useCardPdfDownload } from '../features/members/useCardPdfDownload'
 import { normalizeWhatsappNumber, openWhatsappChat } from '../templates/whatsapp'
 import type { Member } from '../mock/types'
 
 const ZOOM_MIN = 60
 const ZOOM_MAX = 150
 const ZOOM_STEP = 10
-
-// Real CR80 card size (the standard ID/membership card format) — the PDF page
-// is set to exactly this, in millimeters, so a print shop gets a file that
-// prints at true physical size instead of guessing a DPI from raw pixels.
-const CARD_WIDTH_MM = 85.6
-const CARD_HEIGHT_MM = 54
-
-// html2canvas can't reliably capture the flipper's 3D-rotated back face, so
-// the export renders its own flat, off-screen front/back pair (same data,
-// no rotateY) purely to be captured — never shown to the user.
-//
-// MUST equal the card's authored design width: the card's inner sizes (logo,
-// fonts, QR, padding) are fixed pixels tuned for this width — the same base the
-// on-screen preview scales from. Capturing at any other width shrinks the
-// content and leaves it clustered at the top. Print resolution comes from
-// html2canvas's `scale` below, not from inflating this width.
-const CAPTURE_WIDTH_PX = 500
-
-// Upscales the 500px capture so the CR80 PDF prints crisp (500 × 4 = 2000px ≈
-// 590 DPI at 85.6mm — well past print-sharp, and keeps the QR cleanly scannable).
-const CAPTURE_SCALE = 4
-
-// Waits for every <img> inside el to finish loading (the QR code and card
-// photos render async) so html2canvas never captures a still-blank image.
-function waitForImages(el: HTMLElement, timeoutMs = 3000): Promise<void> {
-  const imgs = Array.from(el.querySelectorAll('img'))
-  const pending = imgs.filter((img) => !img.complete)
-  if (pending.length === 0) return Promise.resolve()
-  return Promise.race([
-    Promise.all(
-      pending.map(
-        (img) =>
-          new Promise<void>((resolve) => {
-            img.addEventListener('load', () => resolve(), { once: true })
-            img.addEventListener('error', () => resolve(), { once: true })
-          }),
-      ),
-    ).then(() => undefined),
-    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-  ])
-}
 
 function isSameMonth(dateStr: string | undefined, ref: Date): boolean {
   if (!dateStr) return false
@@ -88,23 +46,13 @@ export function MembershipCardsScreen() {
   const [manualNumberFor, setManualNumberFor] = useState<string | null>(null)
   const [manualNumber, setManualNumber] = useState('')
   const [manualNumberError, setManualNumberError] = useState<string | null>(null)
-  const [downloadingPdf, setDownloadingPdf] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const switchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const captureFrontRef = useRef<HTMLDivElement>(null)
-  const captureBackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     return () => {
       if (switchTimeout.current) clearTimeout(switchTimeout.current)
     }
   }, [])
-
-  useEffect(() => {
-    if (!downloadError) return
-    const t = setTimeout(() => setDownloadError(null), 4000)
-    return () => clearTimeout(t)
-  }, [downloadError])
 
   useEffect(() => {
     if (!expanded) return
@@ -132,6 +80,23 @@ export function MembershipCardsScreen() {
   }, [members, query, ministryFilter])
 
   const selected: Member | undefined = members.find((m) => m.id === selectedId)
+
+  // Print-ready PDF export of the selected member's card (shared with the admin
+  // profile + public profile pages). Called only when a member is selected.
+  const {
+    downloadPdf,
+    isPreparing: downloadingPdf,
+    error: downloadError,
+    captureNodes,
+  } = useCardPdfDownload({
+    name: selected?.name ?? '',
+    memberId: selected?.memberId ?? '',
+    mobile: selected?.phone,
+    bloodGroup: selected?.bloodGroup,
+    status: selected?.status ?? 'regular',
+    statusLabel: selected?.statusLabel ?? 'Member',
+    sinceYear: selected?.joinDate.slice(-4),
+  })
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -196,64 +161,6 @@ export function MembershipCardsScreen() {
     setManualNumberFor(null)
     setManualNumber('')
     setManualNumberError(null)
-  }
-
-  // Captures the hidden, flat (non-flipped) front/back copies of the card and
-  // lays them into a 2-page PDF sized to real CR80 card dimensions, so the
-  // file is print-ready rather than just a couple of arbitrary-size images.
-  async function downloadCardPdf(member: Member) {
-    if (!captureFrontRef.current || !captureBackRef.current) return
-    setDownloadingPdf(true)
-    setDownloadError(null)
-    try {
-      // html2canvas-pro (drop-in fork): the original html2canvas can't parse
-      // Tailwind v4's color-mix()/oklch() colours (which the card uses heavily
-      // via opacity modifiers like brass/70), so it threw and the PDF silently
-      // failed. The pro fork renders those colours correctly.
-      const [html2canvasModule, jsPdfModule] = await Promise.all([
-        import('html2canvas-pro'),
-        import('jspdf'),
-      ])
-      const html2canvas = html2canvasModule.default
-      const { jsPDF } = jsPdfModule
-
-      await Promise.all([waitForImages(captureFrontRef.current), waitForImages(captureBackRef.current)])
-
-      // background-clip:text can't be captured by html2canvas — the "SARAH"
-      // wordmark's gold gradient renders as a solid bar instead of letters. In
-      // the cloned capture DOM only, flatten it to a solid gold so the text
-      // shows; the on-screen card keeps its gradient untouched.
-      const flattenGoldText = (doc: Document) => {
-        doc.querySelectorAll<HTMLElement>('[data-gold-text]').forEach((el) => {
-          el.style.backgroundImage = 'none'
-          el.style.backgroundClip = 'border-box'
-          el.style.webkitBackgroundClip = 'border-box'
-          el.style.color = '#C79A45'
-          el.style.webkitTextFillColor = '#C79A45'
-        })
-      }
-
-      const canvasOpts = {
-        scale: CAPTURE_SCALE,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        onclone: flattenGoldText,
-      }
-      const [frontCanvas, backCanvas] = await Promise.all([
-        html2canvas(captureFrontRef.current, canvasOpts),
-        html2canvas(captureBackRef.current, canvasOpts),
-      ])
-
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [CARD_WIDTH_MM, CARD_HEIGHT_MM] })
-      pdf.addImage(frontCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, CARD_WIDTH_MM, CARD_HEIGHT_MM)
-      pdf.addPage([CARD_WIDTH_MM, CARD_HEIGHT_MM], 'landscape')
-      pdf.addImage(backCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, CARD_WIDTH_MM, CARD_HEIGHT_MM)
-      pdf.save(`${member.name.replace(/\s+/g, '-')}-membership-card.pdf`)
-    } catch {
-      setDownloadError('Could not generate the PDF — please try again.')
-    } finally {
-      setDownloadingPdf(false)
-    }
   }
 
   return (
@@ -432,12 +339,12 @@ export function MembershipCardsScreen() {
               <div className="mb-2 flex flex-col items-center gap-2">
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
-                    onClick={() => downloadCardPdf(selected)}
+                    onClick={downloadPdf}
                     disabled={downloadingPdf}
                     className="flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-4 py-2 text-[12.5px] font-bold text-heading transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Icon name="download" className="icon !h-[15px] !w-[15px]" />
-                    {downloadingPdf ? 'Preparing PDF…' : 'Download PDF'}
+                    {downloadingPdf ? 'Preparing PDF…' : 'Download as PDF'}
                   </button>
                   <button
                     onClick={() => sendToWhatsApp(selected)}
@@ -546,26 +453,8 @@ export function MembershipCardsScreen() {
         </div>
       )}
 
-      {/* Off-screen, un-flipped front/back pair used only as the PDF export's
-          capture source — see the note on CAPTURE_WIDTH_PX above. */}
-      {selected && (
-        <div className="fixed left-[-9999px] top-0" aria-hidden="true">
-          <div ref={captureFrontRef} style={{ width: CAPTURE_WIDTH_PX }}>
-            <IdCard
-              name={selected.name}
-              memberId={selected.memberId}
-              mobile={selected.phone}
-              bloodGroup={selected.bloodGroup}
-              status={selected.status}
-              statusLabel={selected.statusLabel}
-              sinceYear={selected.joinDate.slice(-4)}
-            />
-          </div>
-          <div ref={captureBackRef} style={{ width: CAPTURE_WIDTH_PX }}>
-            <IdCardBack />
-          </div>
-        </div>
-      )}
+      {/* Off-screen capture source for the PDF export (from useCardPdfDownload). */}
+      {selected && captureNodes}
 
       {downloadError && (
         <div className="fixed inset-x-0 bottom-8 z-40 flex justify-center px-4 motion-safe:animate-[fade-rise_0.3s_ease-out]">

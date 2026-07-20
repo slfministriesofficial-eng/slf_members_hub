@@ -81,6 +81,16 @@ export function Sidebar() {
         {SYSTEM_LINKS.map((link) => (
           <NavItem key={link.to} {...link} badge={badgeForRoute(counts, link.to)} />
         ))}
+        {/* Static blank registration form (public/) — a download link, not a
+            route, so it's a plain <a download> styled like the nav items above. */}
+        <a
+          href="/REGISTRATION%20FORM.pdf"
+          download="SLF-Registration-Form.pdf"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-semibold text-[#CFDDD3] transition-colors hover:text-white"
+        >
+          <Icon name="download" className="icon !h-[17px] !w-[17px] shrink-0" />
+          <span className="min-w-0 flex-1">Registration Form</span>
+        </a>
       </nav>
     </aside>
   )

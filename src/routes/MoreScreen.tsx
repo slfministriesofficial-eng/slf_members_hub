@@ -198,6 +198,15 @@ export function MoreScreen() {
         <button onClick={exportMembersCsv} className="block w-full text-left">
           <ListRow icon="download" label="Export members (CSV)" />
         </button>
+        {/* Static blank registration form served from public/ — the space in the
+            filename is URL-encoded; `download` forces a save with a clean name. */}
+        <a
+          href="/REGISTRATION%20FORM.pdf"
+          download="SLF-Registration-Form.pdf"
+          className="block w-full text-left"
+        >
+          <ListRow icon="download" label="Download Registration Form" />
+        </a>
       </Card>
 
       <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Access &amp; controls</h2>
