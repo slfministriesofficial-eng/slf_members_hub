@@ -101,7 +101,12 @@ export function NotificationStatusBell({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-1.5 w-60 rounded-2xl bg-surface p-3.5 text-left shadow-elev ring-1 ring-hairline">
+        <>
+          {/* Small screens: a dim backdrop + bottom sheet (the tiny anchored
+              popover was cramped and clipped on phones). Desktop keeps the
+              popover anchored to the bell. */}
+          <div className="fixed inset-0 z-40 bg-black/40 sm:hidden" onClick={() => setOpen(false)} />
+          <div className="fixed inset-x-4 bottom-4 z-50 max-h-[75vh] overflow-y-auto rounded-2xl bg-surface p-4 text-left shadow-elev ring-1 ring-hairline sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-1.5 sm:w-60 sm:p-3.5">
           <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-slate">Push Notifications</p>
           <PopoverRow label="Status">
             <span
@@ -161,7 +166,8 @@ export function NotificationStatusBell({
               Could not save — try again.
             </p>
           )}
-        </div>
+          </div>
+        </>
       )}
     </span>
   )

@@ -475,7 +475,30 @@ function jsonResponse(data) {
 // Firebase's silent token rotations never create duplicate rows.
 
 const FCM_SHEET_NAME = 'FCM Tokens'
-const FCM_HEADERS = ['Member ID', 'Token', 'Platform', 'Browser', 'Updated At', 'Audience']
+// Status (last column) is the per-member notification switch: TRUE/blank =
+// enabled, FALSE = paused by the admin. Pausing writes FALSE on the member's
+// token rows; every send skips FALSE rows. Replaces the old Script-Property
+// mute list, so the pause now lives visibly in the sheet.
+const FCM_HEADERS = ['Member ID', 'Token', 'Platform', 'Browser', 'Updated At', 'Audience', 'Status']
+
+/** A token row is paused/disabled only when its Status cell is explicitly FALSE
+ *  (boolean false or the text "FALSE"). Blank/TRUE = enabled — so rows that
+ *  existed before the Status column was added keep working. */
+function isDisabledStatus(status) {
+  return status === false || String(status).trim().toUpperCase() === 'FALSE'
+}
+
+/** True when a member has at least one token and ALL of them are disabled —
+ *  i.e. the admin has paused them. Takes the already-read FCM rows. */
+function isMemberPaused(rows, memberId) {
+  let hasToken = false
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] !== memberId || !rows[i][1]) continue
+    hasToken = true
+    if (!isDisabledStatus(rows[i][6])) return false
+  }
+  return hasToken
+}
 
 /**
  * Get (or create on first use) the "FCM Tokens" sheet with its header row.
@@ -516,7 +539,7 @@ function saveFCMToken(body) {
 
   const sheet = getFcmSheet()
   const rows = sheet.getDataRange().getValues()
-  const rowValues = [
+  const base = [
     body.memberId,
     body.token,
     body.platform || '',
@@ -527,12 +550,18 @@ function saveFCMToken(body) {
 
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][1] === body.token) {
-      sheet.getRange(i + 1, 1, 1, FCM_HEADERS.length).setValues([rowValues])
+      // Re-save / silent token refresh — PRESERVE the current Status, so a
+      // refresh can never quietly un-pause a member the admin paused.
+      const enabled = !isDisabledStatus(rows[i][6])
+      sheet.getRange(i + 1, 1, 1, FCM_HEADERS.length).setValues([base.concat([enabled])])
       return { saved: true, memberId: body.memberId }
     }
   }
 
-  sheet.appendRow(rowValues)
+  // Brand-new device — inherit the member's current pause state so adding a
+  // phone doesn't bypass an admin pause; otherwise it's enabled.
+  const enabled = !isMemberPaused(rows, body.memberId)
+  sheet.appendRow(base.concat([enabled]))
   return { saved: true, memberId: body.memberId }
 }
 
@@ -557,11 +586,13 @@ function deleteFCMToken(body) {
 }
 
 // ============================== NOTIFICATION CONTROLS ==============================
-// Admin on/off switches, stored in Script Properties (no sheet needed):
-//   - a master pause that stops the ENTIRE automatic dispatcher (church
-//     calendar, personal greetings, visitor welcomes, scheduled announcements)
-//   - a per-member mute list — muted members receive NOTHING (automatic or
-//     manual) on any of their devices until unmuted.
+// Admin on/off switches:
+//   - a master pause + per-notification-key switches, stored in Script
+//     Properties (no sheet needed)
+//   - a per-member pause, stored as the Status column on the FCM Tokens sheet
+//     (FALSE = paused). Paused members receive NOTHING (automatic or manual) on
+//     any device until resumed. getMutedMemberIds() derives the paused list
+//     from that column, so the app UI keeps its existing {muted:[...]} shape.
 // Manual "Send Notification" from the Announcements page still works while
 // the master switch is off — pressing Send is an explicit admin action.
 
@@ -636,14 +667,17 @@ function setNotificationKeyEnabled(body) {
  * @returns {string[]} muted member IDs (empty when none)
  */
 function getMutedMemberIds() {
-  const raw = PropertiesService.getScriptProperties().getProperty(MUTED_PROPERTY_KEY)
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch (err) {
-    return []
+  const rows = getFcmSheet().getDataRange().getValues()
+  const state = {} // memberId -> true while every token seen so far is disabled
+  for (let i = 1; i < rows.length; i++) {
+    const memberId = rows[i][0]
+    if (!memberId || !rows[i][1]) continue
+    if (!(memberId in state)) state[memberId] = true
+    if (!isDisabledStatus(rows[i][6])) state[memberId] = false
   }
+  return Object.keys(state).filter(function (id) {
+    return state[id]
+  })
 }
 
 /**
@@ -665,11 +699,14 @@ function setNotificationsEnabled(body) {
  */
 function setMemberMuted(body) {
   if (!body.memberId) throw new Error('Missing memberId')
-  const muted = getMutedMemberIds().filter(function (id) {
-    return id !== body.memberId
-  })
-  if (body.muted) muted.push(body.memberId)
-  PropertiesService.getScriptProperties().setProperty(MUTED_PROPERTY_KEY, JSON.stringify(muted))
+  const sheet = getFcmSheet()
+  const rows = sheet.getDataRange().getValues()
+  const enabled = !body.muted
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === body.memberId && rows[i][1]) {
+      sheet.getRange(i + 1, 7).setValue(enabled) // column 7 = Status (boolean)
+    }
+  }
   return getNotificationSettings()
 }
 
@@ -798,12 +835,11 @@ function sendPushToTokens(tokens, msg) {
  */
 function getFcmTokens(audience) {
   const rows = getFcmSheet().getDataRange().getValues()
-  const muted = getMutedMemberIds()
   const tokens = []
   for (let i = 1; i < rows.length; i++) {
     if (!rows[i][1]) continue
     if (audience && rows[i][5] !== audience) continue
-    if (muted.indexOf(rows[i][0]) !== -1) continue
+    if (isDisabledStatus(rows[i][6])) continue // paused by admin — skip
     tokens.push(rows[i][1])
   }
   return tokens
@@ -1291,13 +1327,12 @@ function getAllMemberFields() {
  */
 function getFcmTokenMap() {
   const rows = getFcmSheet().getDataRange().getValues()
-  const muted = getMutedMemberIds()
   const map = {}
   for (let i = 1; i < rows.length; i++) {
     const memberId = rows[i][0]
     const token = rows[i][1]
     if (!memberId || !token) continue
-    if (muted.indexOf(memberId) !== -1) continue
+    if (isDisabledStatus(rows[i][6])) continue // paused by admin — skip
     if (!map[memberId]) map[memberId] = []
     map[memberId].push(token)
   }
