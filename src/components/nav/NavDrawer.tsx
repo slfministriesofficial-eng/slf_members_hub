@@ -40,6 +40,7 @@ const SECTIONS: { title: string; items: DrawerLink[] }[] = [
     items: [
       { to: '/reports', label: 'Reports & Analytics', icon: 'chart' },
       { to: '/registration-forms', label: 'Registration Forms', icon: 'note' },
+      { to: '/deleted-members', label: 'Deleted & Paused', icon: 'trash' },
       { to: '/access', label: 'Access Settings', icon: 'shield' },
       { to: '/more', label: 'More', icon: 'grid' },
     ],

@@ -128,7 +128,7 @@ type MembersState = {
   updateMember: (memberId: string, form: MemberFormData) => Promise<Member>
   isUpdating: boolean
   updateWhatsapp: (memberId: string, whatsapp: string) => Promise<Member>
-  deleteMember: (memberId: string) => Promise<void>
+  deleteMember: (memberId: string, reason?: string) => Promise<void>
   isDeleting: boolean
   getNextMemberId: () => string
   refreshMembers: () => Promise<void>
@@ -168,8 +168,9 @@ export function MembersProvider({ children }: PropsWithChildren) {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: deleteMemberRecord,
-    onSuccess: (_result, memberId) => {
+    mutationFn: ({ memberId, reason }: { memberId: string; reason?: string }) =>
+      deleteMemberRecord(memberId, reason),
+    onSuccess: (_result, { memberId }) => {
       queryClient.setQueryData<MemberRecord[]>(MEMBERS_QUERY_KEY, (prev) =>
         (prev ?? []).filter((r) => r.memberId !== memberId),
       )
@@ -197,8 +198,8 @@ export function MembersProvider({ children }: PropsWithChildren) {
     return toMember(record, 0)
   }
 
-  async function deleteMember(memberId: string): Promise<void> {
-    await deleteMutation.mutateAsync(memberId)
+  async function deleteMember(memberId: string, reason?: string): Promise<void> {
+    await deleteMutation.mutateAsync({ memberId, reason })
   }
 
   function getNextMemberId() {

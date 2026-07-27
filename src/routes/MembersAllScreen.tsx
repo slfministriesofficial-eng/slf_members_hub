@@ -66,7 +66,7 @@ export function MembersAllScreen() {
     }
     setDeletingId(member.id)
     try {
-      await deleteMember(member.memberId)
+      await deleteMember(member.memberId, reason)
     } catch {
       setToast({ icon: 'trash', message: `Could not delete ${member.name} — check your connection and try again.` })
     } finally {

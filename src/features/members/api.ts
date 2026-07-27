@@ -47,6 +47,9 @@ export type PublicMemberRecord = {
   baptizedDate: string
   bloodGroup: string
   firstTimeVisiting: string
+  // True when an admin has paused this member's notifications — the public
+  // opt-in card uses it to show OFF and offer a re-enable.
+  mutedByAdmin?: boolean
 }
 
 const BASE_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string
@@ -77,8 +80,33 @@ export async function updateMemberRecord(
   return postAction<MemberRecord>({ action: 'update', ...fields })
 }
 
-export async function deleteMemberRecord(memberId: string): Promise<{ deleted: string }> {
-  return postAction<{ deleted: string }>({ action: 'delete', memberId })
+export async function deleteMemberRecord(
+  memberId: string,
+  reason?: string,
+): Promise<{ deleted: string }> {
+  // reason is archived on the Deleted Members sheet (and, separately, texted to
+  // the member) — shown later on the admin Deleted Members page.
+  return postAction<{ deleted: string }>({ action: 'delete', memberId, reason: reason ?? '' })
+}
+
+// Archived member — the public/member fields plus when/why they were removed.
+export type DeletedMemberRecord = MemberRecord & { deletedAt: string; deleteReason: string }
+
+/** All archived (deleted) members, most recent first — admin Deleted Members page. */
+export async function fetchDeletedMembers(): Promise<DeletedMemberRecord[]> {
+  const res = await fetch(`${BASE_URL}?deleted=list`)
+  if (!res.ok) throw new Error('Failed to load deleted members')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return data
+}
+
+export async function restoreMemberRecord(memberId: string): Promise<{ restored: string }> {
+  return postAction<{ restored: string }>({ action: 'restoreMember', memberId })
+}
+
+export async function purgeDeletedMemberRecord(memberId: string): Promise<{ purged: string }> {
+  return postAction<{ purged: string }>({ action: 'purgeDeletedMember', memberId })
 }
 
 // Apps Script Web Apps reject a JSON Content-Type with a CORS preflight —

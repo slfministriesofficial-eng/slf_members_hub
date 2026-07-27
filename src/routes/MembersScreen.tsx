@@ -116,7 +116,7 @@ export function MembersScreen() {
     }
     setDeletingId(member.id)
     try {
-      await deleteMember(member.memberId)
+      await deleteMember(member.memberId, reason)
     } catch {
       setToast({ icon: 'trash', message: `Could not delete ${member.name} — check your connection and try again.` })
     } finally {
@@ -411,7 +411,6 @@ function PreviewMemberRow({ member, onOpen }: { member: Member; onOpen: () => vo
         <div className="flex items-center gap-1.5">
           <span className="truncate font-mono text-[12.5px] font-bold text-heading">{member.memberId}</span>
           <StatusPill status={member.status} label={member.statusLabel} size="sm" />
-          <NotificationStatusBell memberId={member.memberId} />
         </div>
         <div className="mt-0.5 truncate text-[13px] text-heading">{member.name}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-slate">
@@ -420,7 +419,10 @@ function PreviewMemberRow({ member, onOpen }: { member: Member; onOpen: () => vo
           <span className="shrink-0">Since {sinceYear}</span>
         </div>
       </div>
-      <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />
+      <div className="flex shrink-0 items-center gap-1.5">
+        <NotificationStatusBell memberId={member.memberId} size="md" />
+        <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />
+      </div>
     </div>
   )
 }
@@ -556,7 +558,6 @@ function MemberListRow({ member, navigate, onDelete, deleting, onAddWhatsapp, de
           <span className="truncate text-[14.5px] font-bold text-heading">{member.name}</span>
           {member.familyCount ? <FamilyBadge count={member.familyCount} /> : null}
           <ActiveBadge />
-          <NotificationStatusBell memberId={member.memberId} />
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate">
           <span>{member.memberId}</span>
@@ -573,7 +574,10 @@ function MemberListRow({ member, navigate, onDelete, deleting, onAddWhatsapp, de
         deleting={deleting}
         onAddWhatsapp={onAddWhatsapp}
       />
-      <Icon name="chevron" className="icon !h-[16px] !w-[16px] shrink-0 text-faint" />
+      <div className="flex shrink-0 items-center gap-1.5">
+        <NotificationStatusBell memberId={member.memberId} size="md" />
+        <Icon name="chevron" className="icon !h-[16px] !w-[16px] shrink-0 text-faint" />
+      </div>
     </div>
   )
 }

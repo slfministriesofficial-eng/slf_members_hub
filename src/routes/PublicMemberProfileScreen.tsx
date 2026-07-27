@@ -125,7 +125,7 @@ export function PublicMemberProfileScreen() {
               {/* Notifications opt-in sits at the very top — the first thing a
                   member sees when their card verifies, above the badge. */}
               <div className="mb-6 lg:mx-auto lg:max-w-[720px]">
-                <PublicNotificationOptIn memberId={member.memberId} />
+                <PublicNotificationOptIn memberId={member.memberId} mutedByAdmin={member.mutedByAdmin} />
               </div>
 
               <div className="mb-5 flex justify-center">

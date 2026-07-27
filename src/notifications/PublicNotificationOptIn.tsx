@@ -3,6 +3,7 @@ import { Icon } from '../components/ui/Icon'
 import { ToggleSwitch } from '../components/ui/ToggleSwitch'
 import { isFirebaseConfigured } from '../firebase'
 import { isMessagingSupported } from '../firebase-messaging'
+import { updateMemberMuted } from './api'
 import {
   enableNotifications,
   getPermission,
@@ -15,6 +16,7 @@ type OptInState =
   | 'notconfigured'
   | 'unsupported'
   | 'blocked'
+  | 'adminoff'
   | 'ready'
   | 'enabling'
   | 'enabled'
@@ -33,7 +35,13 @@ const ENABLE_TIMEOUT_MS = 25_000
  * NotificationService directly rather than the admin NotificationProvider.
  * @param {{memberId: string}} props the member this device belongs to
  */
-export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
+export function PublicNotificationOptIn({
+  memberId,
+  mutedByAdmin,
+}: {
+  memberId: string
+  mutedByAdmin?: boolean
+}) {
   const [state, setState] = useState<OptInState>('checking')
 
   const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -47,6 +55,10 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
         // A build without the Firebase env vars is a deployment problem, not
         // a browser problem — say so, or every phone looks "unsupported".
         setState(isFirebaseConfigured() ? 'unsupported' : 'notconfigured')
+      } else if (mutedByAdmin) {
+        // The church paused this member — show OFF regardless of the local
+        // token, and let them turn it back on (which clears the pause).
+        setState('adminoff')
       } else if (getPermission() === 'granted' && getStoredTokenRecord()?.token) {
         setState('enabled')
       } else if (wasPermissionDenied()) {
@@ -58,7 +70,7 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [mutedByAdmin])
 
   /** Prompt once, register the token for this member, reflect the outcome.
    *  Guarded by a timeout so a hung getToken() can never freeze on "Enabling…". */
@@ -70,6 +82,13 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
       )
       const result = await Promise.race([enableNotifications(memberId, 'member'), timeout])
       if (result.permission === 'granted' && result.token) {
+        // Turning on from the public page also clears any admin pause, so the
+        // member starts receiving again (ignore failures — the token is saved).
+        try {
+          await updateMemberMuted(memberId, false)
+        } catch {
+          /* non-blocking */
+        }
         setState('enabled')
       } else if (result.permission === 'denied') {
         setState('blocked')
@@ -83,7 +102,8 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
     }
   }
 
-  const notEnabled = state === 'ready' || state === 'enabling' || state === 'error'
+  const notEnabled =
+    state === 'adminoff' || state === 'ready' || state === 'enabling' || state === 'error'
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-surface p-6 text-center shadow-card sm:p-8">
@@ -128,18 +148,24 @@ export function PublicNotificationOptIn({ memberId }: { memberId: string }) {
           </p>
         )}
 
-        {(state === 'ready' || state === 'enabling' || state === 'enabled') && (
+        {(state === 'adminoff' || state === 'ready' || state === 'enabling' || state === 'enabled') && (
           <div className="mx-auto flex max-w-[360px] items-center justify-between gap-3 rounded-2xl border border-hairline bg-paper px-4 py-3">
             <div className="min-w-0 text-left">
               <div className="text-[13px] font-bold text-heading">
-                {state === 'enabled' ? 'Notifications on' : 'Turn on notifications'}
+                {state === 'enabled'
+                  ? 'Notifications on'
+                  : state === 'adminoff'
+                    ? 'Notifications are off'
+                    : 'Turn on notifications'}
               </div>
               <div className="text-[11px] text-slate">
                 {state === 'enabling'
                   ? 'Enabling…'
                   : state === 'enabled'
                     ? "You'll get church updates on this device"
-                    : 'One tap to receive church updates'}
+                    : state === 'adminoff'
+                      ? 'Turned off by the church — tap to turn back on'
+                      : 'One tap to receive church updates'}
               </div>
             </div>
             <ToggleSwitch

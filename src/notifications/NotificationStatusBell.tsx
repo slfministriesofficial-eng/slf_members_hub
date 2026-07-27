@@ -38,7 +38,15 @@ function formatRegistered(iso: string): string {
  * action never fires.
  * @param {{memberId: string, className?: string}} props the member's ID (SLF-xxxx)
  */
-export function NotificationStatusBell({ memberId, className = '' }: { memberId: string; className?: string }) {
+export function NotificationStatusBell({
+  memberId,
+  className = '',
+  size = 'sm',
+}: {
+  memberId: string
+  className?: string
+  size?: 'sm' | 'md'
+}) {
   const { data } = useMemberNotificationStatuses()
   const { data: settings } = useNotificationSettings()
   const setMuted = useSetMemberMuted()
@@ -80,13 +88,13 @@ export function NotificationStatusBell({ memberId, className = '' }: { memberId:
         onClick={() => setOpen((o) => !o)}
         aria-label={stateLabel}
         title={stateLabel}
-        className={`flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95 ${
-          muted ? 'bg-tint-amber-bg' : enabled ? 'bg-status-regular-fg' : 'bg-paper-2'
-        }`}
+        className={`flex items-center justify-center rounded-full transition-transform hover:scale-110 active:scale-95 ${
+          size === 'md' ? 'h-7 w-7' : 'h-5 w-5'
+        } ${muted ? 'bg-tint-amber-bg' : enabled ? 'bg-status-regular-fg' : 'bg-paper-2'}`}
       >
         <Icon
           name={muted ? 'bell-off' : 'bell'}
-          className={`icon !h-[11px] !w-[11px] ${
+          className={`icon ${size === 'md' ? '!h-[15px] !w-[15px]' : '!h-[11px] !w-[11px]'} ${
             muted ? 'text-tint-amber-fg' : enabled ? 'text-white' : 'text-faint'
           }`}
         />

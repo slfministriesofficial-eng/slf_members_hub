@@ -19,6 +19,7 @@ export const LINKS = [
 export const SYSTEM_LINKS = [
   { to: '/reports', label: 'Reports', icon: 'chart', end: false },
   { to: '/registration-forms', label: 'Registration Forms', icon: 'note', end: false },
+  { to: '/deleted-members', label: 'Deleted & Paused', icon: 'trash', end: false },
   { to: '/access', label: 'Access Settings', icon: 'shield', end: false },
   { to: '/more', label: 'More', icon: 'grid', end: false },
 ]

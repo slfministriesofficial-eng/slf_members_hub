@@ -132,7 +132,7 @@ export function MemberProfileScreen() {
     }
     setDeleteError(null)
     try {
-      await deleteMember(member.memberId)
+      await deleteMember(member.memberId, reason)
       navigate('/members')
     } catch {
       setDeleteError('Could not delete this member — check your connection and try again.')

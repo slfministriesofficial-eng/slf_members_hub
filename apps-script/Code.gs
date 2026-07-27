@@ -150,6 +150,11 @@ function doGet(e) {
     return jsonResponse(getWishesSent())
   }
 
+  // Archived (deleted) members for the admin's Deleted Members page.
+  if (e.parameter && e.parameter.deleted === 'list') {
+    return jsonResponse(getDeletedMembers())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -164,7 +169,15 @@ function doGet(e) {
   if (id) {
     const match = records.find((r) => r.memberId === id)
     if (!match) return jsonResponse(null)
-    return jsonResponse(isPublic ? toPublicFields(match) : match)
+    if (isPublic) {
+      const publicRec = toPublicFields(match)
+      // So the public opt-in card can reflect an admin pause: if the church has
+      // paused this member, the page shows notifications OFF (even if this
+      // device still holds a token) and offers to turn them back on.
+      publicRec.mutedByAdmin = getMutedMemberIds().indexOf(match.memberId) !== -1
+      return jsonResponse(publicRec)
+    }
+    return jsonResponse(match)
   }
 
   // Public mode always requires a specific id — never dump the full roster.
@@ -182,6 +195,8 @@ function doPost(e) {
     if (body.action === 'create') return jsonResponse(createMember(body))
     if (body.action === 'update') return jsonResponse(updateMember(body))
     if (body.action === 'delete') return jsonResponse(deleteMember(body))
+    if (body.action === 'restoreMember') return jsonResponse(restoreMember(body))
+    if (body.action === 'purgeDeletedMember') return jsonResponse(purgeDeletedMember(body))
     if (body.action === 'saveFcmToken') return jsonResponse(saveFCMToken(body))
     if (body.action === 'deleteFcmToken') return jsonResponse(deleteFCMToken(body))
     if (body.action === 'sendPush') return jsonResponse(sendPushBroadcast(body))
@@ -236,8 +251,98 @@ function deleteMember(body) {
   const rowIndex = findRowByMemberId(sheet, body.memberId)
   if (rowIndex === -1) return { error: 'Member not found: ' + body.memberId }
 
+  // Archive the full row (with reason + timestamp) to the Deleted Members sheet
+  // BEFORE removing it, so nothing is truly lost — the admin's Deleted Members
+  // page shows who/why/when and can restore. toCellValue keeps phones/dates as text.
+  const rowValues = sheet.getRange(rowIndex, 1, 1, HEADERS.length).getValues()[0]
+  getDeletedSheet().appendRow(
+    HEADERS.map((h, i) => toCellValue(h, rowValues[i])).concat([formatDate(new Date()), body.reason || '']),
+  )
+
   sheet.deleteRow(rowIndex)
-  return { deleted: body.memberId }
+  // Also remove this member's push tokens, so a deleted person's devices are
+  // unregistered and never receive another notification.
+  const tokensRemoved = deleteFcmTokensForMember(body.memberId)
+  return { deleted: body.memberId, tokensRemoved: tokensRemoved }
+}
+
+const DELETED_SHEET_NAME = 'Deleted Members'
+
+/** Get (or create) the Deleted Members archive sheet — Members columns plus
+ *  "Deleted At" and "Delete Reason". */
+function getDeletedSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = ss.getSheetByName(DELETED_SHEET_NAME)
+  if (!sheet) {
+    sheet = ss.insertSheet(DELETED_SHEET_NAME)
+    sheet.appendRow(HEADERS.concat(['Deleted At', 'Delete Reason']))
+    sheet.setFrozenRows(1)
+  }
+  return sheet
+}
+
+/** All archived members (most recent first), each as frontend fields plus
+ *  deletedAt + deleteReason — powers the admin Deleted Members page. */
+function getDeletedMembers() {
+  const sheet = getDeletedSheet()
+  const rows = sheet.getDataRange().getValues()
+  const out = []
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    const fields = recordToFields(rowToRecord(HEADERS, rows[i]))
+    fields.deletedAt = rows[i][HEADERS.length] || ''
+    fields.deleteReason = rows[i][HEADERS.length + 1] || ''
+    out.push(fields)
+  }
+  return out.reverse()
+}
+
+/** Move an archived member back into the Members sheet (keeps their ID). */
+function restoreMember(body) {
+  const archive = getDeletedSheet()
+  const rows = archive.getDataRange().getValues()
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (rows[i][0] === body.memberId) {
+      getSheet().appendRow(HEADERS.map((h, idx) => toCellValue(h, rows[i][idx])))
+      archive.deleteRow(i + 1)
+      return { restored: body.memberId }
+    }
+  }
+  return { error: 'Deleted member not found: ' + body.memberId }
+}
+
+/** Permanently remove an archived member from the Deleted Members sheet. */
+function purgeDeletedMember(body) {
+  const archive = getDeletedSheet()
+  const rows = archive.getDataRange().getValues()
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (rows[i][0] === body.memberId) {
+      archive.deleteRow(i + 1)
+      return { purged: body.memberId }
+    }
+  }
+  return { error: 'Deleted member not found: ' + body.memberId }
+}
+
+/**
+ * Remove every FCM token row tied to a member (matched on the "Member ID"
+ * column). Called when a member is deleted so no orphaned tokens linger.
+ * @param {string} memberId
+ * @returns {number} how many token rows were removed
+ */
+function deleteFcmTokensForMember(memberId) {
+  if (!memberId) return 0
+  const sheet = getFcmSheet()
+  const rows = sheet.getDataRange().getValues()
+  let removed = 0
+  // Iterate bottom-up so deleting a row doesn't shift the indexes still to check.
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (rows[i][0] === memberId) {
+      sheet.deleteRow(i + 1)
+      removed++
+    }
+  }
+  return removed
 }
 
 function fieldsToRecord(body) {
