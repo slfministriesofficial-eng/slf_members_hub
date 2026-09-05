@@ -11,6 +11,7 @@ import { useMembers } from '../features/members/MembersContext'
 import { fetchAttendanceTakers } from '../attendance/api'
 import { useNotifications } from '../notifications/useNotifications'
 import { sendTestNotification, copyToken } from '../notifications/NotificationService'
+import { isIosDevice, openInstallPrompt, useInstallPrompt } from '../pwa/useInstallPrompt'
 
 function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -78,6 +79,10 @@ const MOBILE_QUICK_LINKS = [
 export function MoreScreen() {
   const { adminName, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { canInstall, installed } = useInstallPrompt()
+  // iOS never reports canInstall (no programmatic install), so offer the row
+  // there too — the popup shows the Add to Home Screen steps instead.
+  const canInstallApp = !installed && (canInstall || isIosDevice())
   const navigate = useNavigate()
   const { members } = useMembers()
   const name = adminName || 'Admin'
@@ -224,6 +229,13 @@ export function MoreScreen() {
           label="Dark mode"
           right={<Switch on={theme === 'dark'} onToggle={toggleTheme} />}
         />
+        {/* Way back to the install popup for anyone who dismissed it — without
+            this, "Not now" would hide the app install for months. */}
+        {canInstallApp && (
+          <button onClick={openInstallPrompt} className="block w-full text-left">
+            <ListRow icon="download" label="Install app on this device" />
+          </button>
+        )}
       </Card>
 
       <h2 className="mb-2.5 font-display text-[15.5px] font-bold text-heading">Notifications</h2>

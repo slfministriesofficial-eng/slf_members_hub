@@ -9,6 +9,7 @@ import { TakerLoginScreen } from './routes/TakerLoginScreen'
 import { SignedOutScreen } from './routes/SignedOutScreen'
 import { AttendanceHistoryScreen } from './routes/AttendanceHistoryScreen'
 import { WelcomeTransition } from './routes/WelcomeTransition'
+import { InstallAppPrompt } from './pwa/InstallAppPrompt'
 import { PublicMemberProfileScreen } from './routes/PublicMemberProfileScreen'
 import { HomeScreen } from './routes/HomeScreen'
 import { MembersScreen } from './routes/MembersScreen'
@@ -124,6 +125,9 @@ function App() {
       </Routes>
       {isAuthenticated && showWelcome && <WelcomeTransition />}
       <SplashScreen />
+      {/* App-wide, public routes included — a member landing here from their ID
+          card's QR code is exactly who should be offered the install. */}
+      <InstallAppPrompt />
     </>
   )
 }

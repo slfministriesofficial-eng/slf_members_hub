@@ -8,6 +8,7 @@ import { IdCardFull } from '../features/members/IdCardFull'
 import { useCardPdfDownload } from '../features/members/useCardPdfDownload'
 import { fetchMemberPublic, type PublicMemberRecord } from '../features/members/api'
 import { PublicNotificationOptIn } from '../notifications/PublicNotificationOptIn'
+import { NotificationOptInPopup } from '../notifications/NotificationOptInPopup'
 import { CHURCH_INFO } from '../constants/church'
 
 function formatDate(dateStr: string | undefined): string {
@@ -127,6 +128,9 @@ export function PublicMemberProfileScreen() {
               <div className="mb-6 lg:mx-auto lg:max-w-[720px]">
                 <PublicNotificationOptIn memberId={member.memberId} mutedByAdmin={member.mutedByAdmin} />
               </div>
+              {/* Same opt-in as a popup: the card above is easy to scroll past,
+                  and this is the one thing we want members to do on arrival. */}
+              <NotificationOptInPopup memberId={member.memberId} mutedByAdmin={member.mutedByAdmin} />
 
               <div className="mb-5 flex justify-center">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-status-regular-bg px-4 py-1.5 text-[11.5px] font-bold uppercase tracking-wide text-status-regular-fg">
