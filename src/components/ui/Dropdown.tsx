@@ -59,7 +59,7 @@ export function Dropdown({
       >
         {leadingIcon && <Icon name={leadingIcon} className="icon !h-[11px] !w-[11px] shrink-0 text-slate" />}
         <span className="min-w-0 flex-1 truncate text-left">
-          {selected ? selected.label : <span className="text-slate">{placeholder}</span>}
+          {selected ? selected.label : <span className="text-slate/55">{placeholder}</span>}
         </span>
         <Icon
           name="chevron"

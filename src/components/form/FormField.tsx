@@ -26,10 +26,10 @@ type FormFieldProps = {
 }
 
 const FIELD_CLASSNAME =
-  'w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-ink'
+  'w-full rounded-xl border border-hairline bg-paper px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate/55 focus:border-ink'
 
 const ERROR_CLASSNAME =
-  'w-full rounded-xl border border-status-alert-fg bg-status-alert-bg px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate focus:border-status-alert-fg'
+  'w-full rounded-xl border border-status-alert-fg bg-status-alert-bg px-3.5 py-3 text-[14px] text-heading outline-none transition-colors placeholder:text-slate/55 focus:border-status-alert-fg'
 
 export function FormField({
   label,

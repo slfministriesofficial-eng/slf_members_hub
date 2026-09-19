@@ -33,7 +33,7 @@ export function ChildrenRepeater({ value, onChange }: ChildrenRepeaterProps) {
             value={child.name}
             onChange={(e) => update(i, { name: e.target.value })}
             placeholder="Child's name"
-            className="flex-1 rounded-xl border border-hairline bg-paper px-3 py-2.5 text-[13px] text-heading outline-none focus:border-ink"
+            className="flex-1 rounded-xl border border-hairline bg-paper px-3 py-2.5 text-[13px] text-heading outline-none placeholder:text-slate/55 focus:border-ink"
           />
           <div className="w-[140px] shrink-0">
             <DatePicker

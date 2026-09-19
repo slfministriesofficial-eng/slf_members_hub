@@ -124,7 +124,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date', class
         aria-expanded={open}
         className={`flex w-full items-center justify-between gap-2 text-left ${className}`}
       >
-        <span className={selectedDate ? '' : 'text-slate'}>
+        <span className={selectedDate ? '' : 'text-slate/55'}>
           {selectedDate ? formatDisplay(selectedDate) : placeholder}
         </span>
         <Icon name="cal-check" className="icon !h-[16px] !w-[16px] shrink-0 text-slate" />
