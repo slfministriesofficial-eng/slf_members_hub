@@ -28,6 +28,37 @@ function StatCard({ icon, label, value }: { icon: string; label: string; value: 
   )
 }
 
+function ActionCard({
+  icon,
+  label,
+  hint,
+  highlight,
+  onClick,
+}: {
+  icon: string
+  label: string
+  hint: string
+  highlight?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-2xl bg-surface p-3 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elev md:p-3.5 ${
+        highlight ? 'ring-2 ring-brass/40' : ''
+      }`}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-brass-deep">
+        <Icon name={icon} className="icon !h-[16px] !w-[16px] text-white" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[12.5px] font-bold text-heading">{label}</span>
+        <span className="block truncate text-[10.5px] text-slate">{hint}</span>
+      </span>
+    </button>
+  )
+}
+
 function PastorRow({ pastor, onOpen }: { pastor: Pastor; onOpen: () => void }) {
   const status = statusOf(pastor)
   return (
@@ -117,6 +148,14 @@ export function PastorsScreen() {
       pending: pastors.filter((p) => statusOf(p) === 'Pending').length,
       approved: pastors.filter((p) => statusOf(p) === 'Approved').length,
       churches: new Set(pastors.map((p) => p.churchName).filter(Boolean)).size,
+      withDob: pastors.filter((p) => !!p.dob).length,
+      birthdaysToday: pastors.filter((p) => {
+        if (!p.dob) return false
+        const d = new Date(p.dob)
+        if (Number.isNaN(d.getTime())) return false
+        const now = new Date()
+        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth()
+      }).length,
     }),
     [pastors],
   )
@@ -173,11 +212,35 @@ export function PastorsScreen() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-4 gap-2 md:gap-3">
+      <div className="mb-3 grid grid-cols-4 gap-2 md:gap-3">
         <StatCard icon="cross" label="Total Pastors" value={stats.total} />
         <StatCard icon="clock" label="Pending" value={stats.pending} />
         <StatCard icon="check" label="Approved" value={stats.approved} />
         <StatCard icon="building" label="Churches" value={stats.churches} />
+      </div>
+
+      {/* WhatsApp is how the fellowship is actually reached — pastors register
+          no push devices, so these two are the outbound channels. */}
+      <div className="mb-6 grid grid-cols-2 gap-2 md:gap-3">
+        <ActionCard
+          icon="whatsapp"
+          label="Message Pastors"
+          hint="Send a fellowship announcement"
+          onClick={() => navigate('/pastors/announce')}
+        />
+        <ActionCard
+          icon="cake"
+          label="Birthdays"
+          hint={
+            stats.birthdaysToday > 0
+              ? `${stats.birthdaysToday} today`
+              : stats.withDob > 0
+                ? 'Send a greeting'
+                : 'No dates on file'
+          }
+          highlight={stats.birthdaysToday > 0}
+          onClick={() => navigate('/pastors/birthdays')}
+        />
       </div>
 
       {isError && (

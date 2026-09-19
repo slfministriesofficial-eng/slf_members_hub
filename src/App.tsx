@@ -37,6 +37,8 @@ import { RegistrationFormsScreen } from './routes/RegistrationFormsScreen'
 import { PastorsScreen } from './routes/PastorsScreen'
 import { PastorProfileScreen } from './routes/PastorProfileScreen'
 import { AddPastorScreen } from './routes/AddPastorScreen'
+import { PastorAnnounceScreen } from './routes/PastorAnnounceScreen'
+import { PastorBirthdaysScreen } from './routes/PastorBirthdaysScreen'
 import { DeletedMembersScreen } from './routes/DeletedMembersScreen'
 import { MoreScreen } from './routes/MoreScreen'
 import { AdminProfileScreen } from './routes/AdminProfileScreen'
@@ -119,6 +121,10 @@ function App() {
               <Route path="/follow-ups/schedule" element={<NotificationScheduleScreen />} />
               <Route path="/membership-cards" element={<MembershipCardsScreen />} />
               <Route path="/pastors" element={<PastorsScreen />} />
+              {/* Before /pastors/:id — otherwise "announce" and "birthdays"
+                  would be read as pastor IDs by the param route below. */}
+              <Route path="/pastors/announce" element={<PastorAnnounceScreen />} />
+              <Route path="/pastors/birthdays" element={<PastorBirthdaysScreen />} />
               <Route path="/pastors/:id" element={<PastorProfileScreen />} />
               <Route path="/registration-forms" element={<RegistrationFormsScreen />} />
               <Route path="/deleted-members" element={<DeletedMembersScreen />} />
