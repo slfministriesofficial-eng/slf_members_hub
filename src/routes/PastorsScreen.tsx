@@ -9,6 +9,7 @@ import { StatusPill } from '../components/ui/StatusPill'
 import { TopAction } from '../components/ui/TopAction'
 import { usePastors } from '../features/pastors/PastorsContext'
 import { PASTOR_STATUS_TONE, type Pastor, type PastorStatus } from '../features/pastors/types'
+import { parseDate } from '../utils/celebrations'
 
 /** A status straight off the sheet, defaulted for rows saved before the
  *  column existed (or hand-edited to something unexpected). */
@@ -142,22 +143,24 @@ export function PastorsScreen() {
     })
   }, [pastors, query, filter])
 
+  const today = useMemo(() => new Date(), [])
+
   const stats = useMemo(
     () => ({
       total: pastors.length,
       pending: pastors.filter((p) => statusOf(p) === 'Pending').length,
       approved: pastors.filter((p) => statusOf(p) === 'Approved').length,
       churches: new Set(pastors.map((p) => p.churchName).filter(Boolean)).size,
-      withDob: pastors.filter((p) => !!p.dob).length,
+      // Parsed, not merely present: a dob cell holding something unusable was
+      // counted here but skipped by the birthdays screen, so this card could
+      // promise "Send a greeting" and land on an empty page.
+      withDob: pastors.filter((p) => parseDate(p.dob) !== null).length,
       birthdaysToday: pastors.filter((p) => {
-        if (!p.dob) return false
-        const d = new Date(p.dob)
-        if (Number.isNaN(d.getTime())) return false
-        const now = new Date()
-        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth()
+        const d = parseDate(p.dob)
+        return !!d && d.getDate() === today.getDate() && d.getMonth() === today.getMonth()
       }).length,
     }),
-    [pastors],
+    [pastors, today],
   )
 
   return (

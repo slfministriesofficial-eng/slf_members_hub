@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Icon } from '../../components/ui/Icon'
 import { Avatar } from '../../components/ui/Avatar'
 import { normalizeWhatsappNumber, openWhatsappWithText } from '../../templates/whatsapp'
@@ -13,25 +13,38 @@ import type { Pastor } from './types'
  * API, which this app deliberately avoids, so each message is opened in
  * WhatsApp and sent by hand.
  *
- * @param {{pastors: Pastor[], messageFor: (p: Pastor) => string, emptyLabel?: string}} props
- *   the recipients, and how to build each one's message
+ * The "already sent" set is owned by the PARENT, not this component. It used
+ * to live here, which meant anything that unmounted the list — editing the
+ * message back to empty, say — silently wiped the record of who had already
+ * been messaged, halfway through a send.
+ *
+ * @param {object} props the recipients, how to build each message, and the sent set
  */
 export function PastorSendList({
   pastors,
   messageFor,
+  subtitleFor,
+  actionLabel = 'Send',
+  sentLabel = 'Sent',
+  sent,
+  onSent,
   emptyLabel = 'No pastors to message yet.',
 }: {
   pastors: Pastor[]
   messageFor: (pastor: Pastor) => string
+  /** Second line of the row; defaults to the number being messaged. */
+  subtitleFor?: (pastor: Pastor) => ReactNode
+  actionLabel?: string
+  sentLabel?: string
+  sent: Set<string>
+  onSent: (memberId: string) => void
   emptyLabel?: string
 }) {
-  const [sent, setSent] = useState<Set<string>>(new Set())
-
   function send(pastor: Pastor) {
     const number = normalizeWhatsappNumber(pastor.whatsapp || pastor.mobile)
     if (!number) return
     openWhatsappWithText(number, messageFor(pastor))
-    setSent((prev) => new Set(prev).add(pastor.memberId))
+    onSent(pastor.memberId)
   }
 
   if (pastors.length === 0) {
@@ -52,7 +65,9 @@ export function PastorSendList({
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-bold text-heading">{pastor.fullName}</div>
               <div className="truncate text-[11px] text-slate">
-                {number ? pastor.whatsapp || pastor.mobile : 'No WhatsApp number on file'}
+                {!number
+                  ? 'No WhatsApp number on file'
+                  : (subtitleFor?.(pastor) ?? (pastor.whatsapp || pastor.mobile))}
               </div>
             </div>
             <button
@@ -65,7 +80,7 @@ export function PastorSendList({
               }`}
             >
               <Icon name={isSent ? 'check' : 'whatsapp'} className="icon !h-[13px] !w-[13px]" />
-              {isSent ? 'Sent' : 'Send'}
+              {isSent ? sentLabel : actionLabel}
             </button>
           </div>
         )

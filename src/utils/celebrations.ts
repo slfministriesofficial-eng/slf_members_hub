@@ -3,11 +3,11 @@ import type { Member } from '../mock/types'
 // Kept separate from utils/upcomingDates.ts (used by HomeScreen) so extending
 // the Birthdays page can't change that existing widget's behavior.
 
-function startOfDay(d: Date): Date {
+export function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
-function parseDate(dateStr: string | undefined): Date | null {
+export function parseDate(dateStr: string | undefined): Date | null {
   if (!dateStr) return null
   const d = new Date(dateStr)
   return Number.isNaN(d.getTime()) ? null : d
@@ -22,7 +22,9 @@ function clampToValidDate(year: number, month: number, day: number): Date {
 }
 
 // Same month/day this year, or next year if that's already passed.
-function nextOccurrence(month: number, day: number, from: Date): Date {
+// Exported: re-implementing this is easy to get wrong — a naive
+// `new Date(y, m, d)` rolls Feb 29 into Mar 1 in non-leap years.
+export function nextOccurrence(month: number, day: number, from: Date): Date {
   const year = from.getFullYear()
   const occurrence = clampToValidDate(year, month, day)
   return occurrence < from ? clampToValidDate(year + 1, month, day) : occurrence

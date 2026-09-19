@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
 import { PageBackHeader } from '../components/ui/PageBackHeader'
+import { Toast } from '../components/ui/Toast'
 import { usePastors } from '../features/pastors/PastorsContext'
 import { PastorSendList } from '../features/pastors/PastorSendList'
 import type { Pastor } from '../features/pastors/types'
@@ -11,6 +12,7 @@ import {
   FIELD_CLASS,
   LABEL_CLASS,
   MAX_MESSAGE_LENGTH,
+  messageValidationError,
   StepSection,
   type LinkEntry,
 } from '../features/announcements/shared'
@@ -38,15 +40,31 @@ function statusOf(pastor: Pastor): string {
  */
 export function PastorAnnounceScreen() {
   const navigate = useNavigate()
-  const { pastors } = usePastors()
+  const { pastors, isError } = usePastors()
   const [audience, setAudience] = useState<Audience>('all')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
+  // Some fellowship messages genuinely have no "when" — a prayer request, a
+  // general notice. The member composer exempts its emergency template the
+  // same way; this is the free-form equivalent.
+  const [noDateTime, setNoDateTime] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  // Owned here rather than inside the list: the list unmounts whenever the
+  // message is edited back to empty, which used to wipe the record of who had
+  // already been messaged part-way through a send.
+  const [sent, setSent] = useState<Set<string>>(new Set())
+  const markSent = useCallback((memberId: string) => {
+    setSent((prev) => new Set(prev).add(memberId))
+  }, [])
 
   const links: LinkEntry[] = link.trim() ? [{ label: 'Link', url: link }] : []
   const preview = buildWhatsappAnnouncement(title, message, links)
-  const canSend = message.trim().length > 0
+  const hasMessage = message.trim().length > 0
+  // Same check the member WhatsApp broadcast runs: unreplaced [placeholders],
+  // and a missing date/time unless this message is marked as having none.
+  const validationError = hasMessage ? messageValidationError(preview, !noDateTime) : null
+  const canSend = hasMessage && !validationError
 
   const recipients = useMemo(
     () =>
@@ -65,6 +83,18 @@ export function PastorAnnounceScreen() {
       <p className="mb-5 text-[12.5px] text-slate">
         Write one message for the fellowship, then send it on WhatsApp to each pastor below.
       </p>
+
+      {isError && (
+        <div className="mb-4 rounded-2xl bg-surface px-6 py-10 text-center shadow-card">
+          <p className="text-[13.5px] font-bold text-heading">Could not load the pastors register</p>
+          <p className="mx-auto mt-1 max-w-[340px] text-[12px] text-slate">
+            You can still compose a message, but there is no one to send it to until this loads. Check
+            your connection, and make sure the latest Apps Script version is deployed.
+          </p>
+        </div>
+      )}
+
+      {toast && <Toast message={toast} tone="error" onDismiss={() => setToast(null)} />}
 
       <div className="flex flex-col gap-4">
         <StepSection step={1} title="Who it goes to" accent={ACCENT}>
@@ -114,6 +144,24 @@ export function PastorAnnounceScreen() {
             placeholder="https://maps.app.goo.gl/…"
             className={FIELD_CLASS}
           />
+
+          <label className="mt-3.5 flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={noDateTime}
+              onChange={(e) => setNoDateTime(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-ink"
+            />
+            <span className="text-[12px] leading-relaxed text-slate">
+              This message has no date or time (a prayer request or general notice)
+            </span>
+          </label>
+
+          {validationError && (
+            <p className="mt-3 rounded-xl bg-status-alert-bg px-3.5 py-2.5 text-[12px] font-semibold text-status-alert-fg">
+              {validationError}
+            </p>
+          )}
         </StepSection>
 
         <StepSection step={3} title="Preview" hint="Exactly what each pastor receives" accent={ACCENT}>
@@ -123,8 +171,8 @@ export function PastorAnnounceScreen() {
             </pre>
           </div>
           <button
-            onClick={() => openWhatsappBroadcast(preview)}
-            disabled={!canSend}
+            onClick={() => (canSend ? openWhatsappBroadcast(preview) : setToast(validationError))}
+            disabled={!hasMessage}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-hairline bg-surface py-3 text-[13px] font-bold text-heading disabled:opacity-40"
           >
             <Icon name="whatsapp" className="icon !h-[15px] !w-[15px] text-[#25D366]" />
@@ -142,11 +190,13 @@ export function PastorAnnounceScreen() {
             <PastorSendList
               pastors={recipients}
               messageFor={() => preview}
+              sent={sent}
+              onSent={markSent}
               emptyLabel="No pastors match this audience."
             />
           ) : (
             <p className="py-6 text-center text-[12.5px] text-slate">
-              Write a message above to start sending.
+              {validationError ?? 'Write a message above to start sending.'}
             </p>
           )}
         </StepSection>

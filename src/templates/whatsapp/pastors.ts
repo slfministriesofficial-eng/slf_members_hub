@@ -1,4 +1,3 @@
-import { calculateAge } from '../../utils/celebrations'
 import type { Pastor } from '../../features/pastors/types'
 import { sanitizeWhatsappMessage } from './index'
 
@@ -38,15 +37,23 @@ function ordinal(n: number): string {
 /**
  * Birthday greeting for a fellowship pastor. Same voice as the member
  * greetings, but addressed to a fellow minister rather than a church member.
- * The age is omitted entirely when no date of birth is on file, rather than
- * guessing a number.
+ *
+ * The age is passed in rather than derived here, so it is always the age the
+ * pastor turns ON the birthday being wished. Computing it from "today" would
+ * quote last year's number on every greeting sent ahead of the day.
+ * Omitted entirely when no date of birth is on file, rather than guessed.
+ *
  * @param {PastorBirthdayTemplateKey} key which wording to use
  * @param {Pastor} pastor the recipient
+ * @param {number | null} age the age being turned, or null when unknown
  * @returns {string} the WhatsApp message
  */
-export function buildPastorBirthdayMessage(key: PastorBirthdayTemplateKey, pastor: Pastor): string {
+export function buildPastorBirthdayMessage(
+  key: PastorBirthdayTemplateKey,
+  pastor: Pastor,
+  age: number | null,
+): string {
   const name = pastorDisplayName(pastor)
-  const age = calculateAge(pastor.dob)
   const nth = age !== null ? `${ordinal(age)} ` : ''
 
   if (key === 'prayer') {
