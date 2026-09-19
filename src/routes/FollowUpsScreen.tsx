@@ -5,7 +5,6 @@ import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { TopAction } from '../components/ui/TopAction'
-import { ViewAllButton } from '../components/ui/ViewAllButton'
 import {
   findNextTrigger,
   NextNotificationCard,
@@ -14,9 +13,6 @@ import {
   useUpcomingSchedule,
 } from '../notifications/scheduleView'
 import { useNotificationSettings } from '../notifications/useNotificationSettings'
-
-/** How many upcoming triggers the dashboard previews before "View All". */
-const SCHEDULE_PREVIEW_LIMIT = 5
 
 export function FollowUpsScreen() {
   const navigate = useNavigate()
@@ -27,24 +23,11 @@ export function FollowUpsScreen() {
   const now = useMemo(() => new Date(), [])
 
   const nextTrigger = schedule ? findNextTrigger(schedule, now) : null
-  // The first N events are dominated by the frequent church calendar (daily
-  // prayer + weekly services), which would bury the occasional birthday /
-  // anniversary below the fold. So guarantee upcoming personal celebrations
-  // appear: take the first N chronologically, then fold in the next few
-  // personal events not already shown, and re-sort.
-  const previewEvents = useMemo(() => {
-    if (!schedule) return []
-    const personalKinds = ['birthday', 'wedding-anniversary', 'membership-anniversary', 'baptism-anniversary']
-    const keyOf = (e: (typeof schedule.events)[number]) => `${e.date}-${e.time}-${e.kind}-${e.memberId ?? ''}`
-    const firstFew = schedule.events.slice(0, SCHEDULE_PREVIEW_LIMIT)
-    const shown = new Set(firstFew.map(keyOf))
-    const extraPersonal = schedule.events
-      .filter((e) => personalKinds.includes(e.kind) && !shown.has(keyOf(e)))
-      .slice(0, 3)
-    return [...firstFew, ...extraPersonal].sort((a, b) =>
-      a.date === b.date ? (a.time < b.time ? -1 : a.time > b.time ? 1 : 0) : a.date < b.date ? -1 : 1,
-    )
-  }, [schedule])
+  // The whole month is listed here, already in chronological order from the
+  // backend. This used to show the first five behind a "View All" — which
+  // meant juggling the list so the occasional birthday wasn't buried under the
+  // weekly church calendar. Showing everything makes that unnecessary.
+  const events = schedule?.events ?? []
   const { data: deviceCount } = useTokenCount()
   const { data: settings } = useNotificationSettings()
   const automationPaused = settings ? !settings.enabled : false
@@ -116,14 +99,11 @@ export function FollowUpsScreen() {
             </button>
           )}
 
-          <div className="mb-2 mt-5 flex items-center justify-between">
-            <h2 className="font-display text-[15px] font-bold text-heading">
-              Upcoming This Month ({schedule.events.length})
-            </h2>
-            <ViewAllButton onClick={() => navigate('/follow-ups/schedule')} />
-          </div>
+          <h2 className="mb-2 mt-5 font-display text-[15px] font-bold text-heading">
+            Upcoming This Month ({events.length})
+          </h2>
 
-          {previewEvents.length === 0 ? (
+          {events.length === 0 ? (
             <Card className="p-5 text-center">
               <p className="text-[12.5px] text-slate">
                 No dated notifications left this month — daily prayer reminders continue every evening.
@@ -131,7 +111,7 @@ export function FollowUpsScreen() {
             </Card>
           ) : (
             <Card>
-              {previewEvents.map((event, i) => (
+              {events.map((event, i) => (
                 <ScheduleEventRow
                   key={`${event.kind}-${event.date}-${event.time}-${event.memberId ?? i}`}
                   event={event}
