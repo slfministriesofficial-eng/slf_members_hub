@@ -155,6 +155,13 @@ function doGet(e) {
     return jsonResponse(getDeletedMembers())
   }
 
+  // The Pastors Fellowship register. Sits above the roster fallback below —
+  // an unrecognised param falls through to "return every member", which would
+  // hand the pastors page the wrong list entirely.
+  if (e.parameter && e.parameter.pastors === 'list') {
+    return jsonResponse(getPastors())
+  }
+
   const sheet = getSheet()
   const rows = sheet.getDataRange().getValues()
   const records = rows
@@ -197,6 +204,10 @@ function doPost(e) {
     if (body.action === 'delete') return jsonResponse(deleteMember(body))
     if (body.action === 'restoreMember') return jsonResponse(restoreMember(body))
     if (body.action === 'purgeDeletedMember') return jsonResponse(purgeDeletedMember(body))
+    if (body.action === 'createPastor') return jsonResponse(createPastor(body))
+    if (body.action === 'updatePastor') return jsonResponse(updatePastor(body))
+    if (body.action === 'deletePastor') return jsonResponse(deletePastor(body))
+    if (body.action === 'setPastorApproval') return jsonResponse(setPastorApproval(body))
     if (body.action === 'saveFcmToken') return jsonResponse(saveFCMToken(body))
     if (body.action === 'deleteFcmToken') return jsonResponse(deleteFCMToken(body))
     if (body.action === 'sendPush') return jsonResponse(sendPushBroadcast(body))
@@ -439,6 +450,16 @@ const TEXT_HEADERS = [
   'Anniversary Date',
   'Baptism Date',
   "Spouse's Date of Birth",
+  // Pastors sheet — same coercion traps: a 6-digit PIN or a 4-digit year
+  // becomes a Number, and every date column becomes a Date object.
+  'Mobile Number',
+  'PIN Code',
+  'Years of Ministry Experience',
+  'Year of Graduation',
+  'Reference 1 Contact',
+  'Reference 2 Contact',
+  'Verification Date',
+  'Approval Date',
 ]
 
 function toCellValue(header, value) {
@@ -2051,4 +2072,338 @@ function getWishesSent() {
     }
   }
   return { items: items }
+}
+
+// ============================== PASTORS FELLOWSHIP ==============================
+// The SLF Ministries Pastors Fellowship register — a SEPARATE sheet from Members
+// on purpose. Pastors are not church members: they have their own field set
+// (church, denomination, theological training, references) and their own
+// approval lifecycle. Keeping them apart means every existing member count,
+// report, attendance sweep and notification trigger is untouched by this
+// feature. IDs use their own SLF-P-#### series so the two can never collide.
+
+const PASTOR_SHEET_NAME = 'Pastors'
+
+const PASTOR_HEADERS = [
+  'Member ID',
+  'Registration Date',
+  // 1. Personal
+  'Full Name',
+  'Preferred Name',
+  'Date of Birth',
+  'Gender',
+  'Marital Status',
+  'Spouse Name',
+  'Blood Group',
+  // 2. Contact
+  'Mobile Number',
+  'WhatsApp Number',
+  'Email Address',
+  // 3. Residential address
+  'Residential Address',
+  'Village/Town/City',
+  'District',
+  'State',
+  'PIN Code',
+  // 4. Church & ministry
+  'Church Name',
+  'Denomination',
+  'Church Address',
+  'Current Ministry Position',
+  'Years of Ministry Experience',
+  'Ministry Location',
+  // 5. Theological education
+  'Theological Training',
+  'Institution Name',
+  'Degree/Diploma Earned',
+  'Year of Graduation',
+  'Other Ministry Training',
+  // 6. Fellowship
+  'Why Join Fellowship',
+  'How Heard About Fellowship',
+  // 7. References
+  'Reference 1 Name',
+  'Reference 1 Contact',
+  'Reference 2 Name',
+  'Reference 2 Contact',
+  // 8. Declaration
+  'Declaration Confirmation',
+  // 9. Office verification & approval
+  'Status',
+  'Verified By',
+  'Verification Date',
+  'Approved By',
+  'Approval Date',
+]
+
+// camelCase field name (what the app sends) -> sheet column header.
+const PASTOR_FIELD_MAP = {
+  memberId: 'Member ID',
+  registrationDate: 'Registration Date',
+  fullName: 'Full Name',
+  preferredName: 'Preferred Name',
+  dob: 'Date of Birth',
+  gender: 'Gender',
+  maritalStatus: 'Marital Status',
+  spouseName: 'Spouse Name',
+  bloodGroup: 'Blood Group',
+  mobile: 'Mobile Number',
+  whatsapp: 'WhatsApp Number',
+  email: 'Email Address',
+  address: 'Residential Address',
+  villageTownCity: 'Village/Town/City',
+  district: 'District',
+  state: 'State',
+  pinCode: 'PIN Code',
+  churchName: 'Church Name',
+  denomination: 'Denomination',
+  churchAddress: 'Church Address',
+  currentPosition: 'Current Ministry Position',
+  yearsOfExperience: 'Years of Ministry Experience',
+  ministryLocation: 'Ministry Location',
+  theologicalTraining: 'Theological Training',
+  institutionName: 'Institution Name',
+  degreeEarned: 'Degree/Diploma Earned',
+  graduationYear: 'Year of Graduation',
+  otherTraining: 'Other Ministry Training',
+  reasonToJoin: 'Why Join Fellowship',
+  howHeard: 'How Heard About Fellowship',
+  ref1Name: 'Reference 1 Name',
+  ref1Phone: 'Reference 1 Contact',
+  ref2Name: 'Reference 2 Name',
+  ref2Phone: 'Reference 2 Contact',
+  declarationConfirmed: 'Declaration Confirmation',
+  status: 'Status',
+  verifiedBy: 'Verified By',
+  verificationDate: 'Verification Date',
+  approvedBy: 'Approved By',
+  approvalDate: 'Approval Date',
+}
+
+// Columns the office fills in AFTER registration — never overwritten by an edit
+// of the registration form itself (see updatePastor).
+const PASTOR_APPROVAL_HEADERS = ['Status', 'Verified By', 'Verification Date', 'Approved By', 'Approval Date']
+
+/**
+ * Get (or create on first use) the Pastors sheet, with its header row.
+ * Also repairs the header row if columns were added in a later version.
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet} the Pastors sheet
+ */
+function getPastorSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = ss.getSheetByName(PASTOR_SHEET_NAME)
+  if (!sheet) {
+    sheet = ss.insertSheet(PASTOR_SHEET_NAME)
+    sheet.appendRow(PASTOR_HEADERS)
+    sheet.setFrozenRows(1)
+  } else if (sheet.getLastColumn() < PASTOR_HEADERS.length) {
+    sheet.getRange(1, 1, 1, PASTOR_HEADERS.length).setValues([PASTOR_HEADERS])
+  }
+  return sheet
+}
+
+/**
+ * Pastor IDs are SLF-P-0001 — their own series, so they can never collide with
+ * the members' SLF-0001 sequence (whose regex will not match these either).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet the Pastors sheet
+ * @returns {string} the next free pastor ID
+ */
+function nextPastorId(sheet) {
+  const count = Math.max(sheet.getLastRow() - 1, 0)
+  const values = count > 0 ? sheet.getRange(2, 1, count, 1).getValues() : []
+  let max = 0
+  values.forEach(function (row) {
+    const match = /^SLF-P-(\d+)$/.exec(row[0])
+    if (match) max = Math.max(max, parseInt(match[1], 10))
+  })
+  return 'SLF-P-' + String(max + 1).padStart(4, '0')
+}
+
+function findPastorRow(sheet, memberId) {
+  const count = Math.max(sheet.getLastRow() - 1, 0)
+  const values = count > 0 ? sheet.getRange(2, 1, count, 1).getValues() : []
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] === memberId) return i + 2 // +2: skip header row, 1-indexed
+  }
+  return -1
+}
+
+/** camelCase payload -> header-keyed record (only the keys actually supplied). */
+function pastorFieldsToRecord(body) {
+  const record = {}
+  Object.keys(PASTOR_FIELD_MAP).forEach(function (field) {
+    if (!(field in body)) return
+    const value = body[field]
+    record[PASTOR_FIELD_MAP[field]] = field === 'declarationConfirmed' ? (value ? 'Yes' : 'No') : value
+  })
+  return record
+}
+
+/** Header-keyed record -> camelCase fields, so GET and POST share one shape. */
+function pastorRecordToFields(record) {
+  const fields = {}
+  Object.keys(PASTOR_FIELD_MAP).forEach(function (field) {
+    const value = record[PASTOR_FIELD_MAP[field]]
+    if (field === 'declarationConfirmed') {
+      fields[field] = value === 'Yes' || value === true
+    } else {
+      fields[field] = value === undefined || value === null ? '' : String(value)
+    }
+  })
+  return fields
+}
+
+/**
+ * Every pastor in the register, as frontend field objects.
+ * @returns {Object[]} pastor field objects
+ */
+function getPastors() {
+  const sheet = getPastorSheet()
+  const rows = sheet.getDataRange().getValues()
+  const out = []
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    out.push(pastorRecordToFields(rowToRecord(PASTOR_HEADERS, rows[i])))
+  }
+  return out
+}
+
+/**
+ * Add a pastor. ID, registration date and the starting status are assigned
+ * here — never taken from the client.
+ * @param {Object} body camelCase registration fields
+ * @returns {Object} the saved pastor
+ */
+function createPastor(body) {
+  const sheet = getPastorSheet()
+  const record = pastorFieldsToRecord(body)
+  record['Member ID'] = nextPastorId(sheet)
+  record['Registration Date'] = formatDate(new Date())
+  // Every new registration starts unverified; the office moves it along from
+  // the pastor's profile page.
+  record['Status'] = 'Pending'
+  sheet.appendRow(
+    PASTOR_HEADERS.map(function (h) {
+      return toCellValue(h, record[h])
+    }),
+  )
+  return pastorRecordToFields(record)
+}
+
+/**
+ * Edit a registration. The ID, registration date and all five approval columns
+ * are preserved from the existing row, so re-saving the form can never silently
+ * reset an approval the office has already granted.
+ * @param {Object} body camelCase fields plus memberId
+ * @returns {Object} the updated pastor
+ */
+function updatePastor(body) {
+  const sheet = getPastorSheet()
+  const rowIndex = findPastorRow(sheet, body.memberId)
+  if (rowIndex === -1) return { error: 'Pastor not found: ' + body.memberId }
+
+  const existing = rowToRecord(
+    PASTOR_HEADERS,
+    sheet.getRange(rowIndex, 1, 1, PASTOR_HEADERS.length).getValues()[0],
+  )
+  const merged = Object.assign({}, existing, pastorFieldsToRecord(body), {
+    'Member ID': existing['Member ID'],
+    'Registration Date': existing['Registration Date'],
+  })
+  PASTOR_APPROVAL_HEADERS.forEach(function (h) {
+    merged[h] = existing[h]
+  })
+
+  sheet.getRange(rowIndex, 1, 1, PASTOR_HEADERS.length).setValues([
+    PASTOR_HEADERS.map(function (h) {
+      return toCellValue(h, merged[h])
+    }),
+  ])
+  return pastorRecordToFields(merged)
+}
+
+const DELETED_PASTORS_SHEET_NAME = 'Deleted Pastors'
+
+/** Archive sheet for removed pastors — Pastors columns plus when/why. */
+function getDeletedPastorSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = ss.getSheetByName(DELETED_PASTORS_SHEET_NAME)
+  if (!sheet) {
+    sheet = ss.insertSheet(DELETED_PASTORS_SHEET_NAME)
+    sheet.appendRow(PASTOR_HEADERS.concat(['Deleted At', 'Delete Reason']))
+    sheet.setFrozenRows(1)
+  }
+  return sheet
+}
+
+/**
+ * Remove a pastor, archiving the full row first so nothing is truly lost —
+ * the Deleted Pastors sheet keeps the record with who/why/when.
+ * @param {{memberId: string, reason?: string}} body
+ * @returns {{deleted: string}} confirmation
+ */
+function deletePastor(body) {
+  const sheet = getPastorSheet()
+  const rowIndex = findPastorRow(sheet, body.memberId)
+  if (rowIndex === -1) return { error: 'Pastor not found: ' + body.memberId }
+
+  const rowValues = sheet.getRange(rowIndex, 1, 1, PASTOR_HEADERS.length).getValues()[0]
+  getDeletedPastorSheet().appendRow(
+    PASTOR_HEADERS.map(function (h, i) {
+      return toCellValue(h, rowValues[i])
+    }).concat([formatDate(new Date()), body.reason || '']),
+  )
+  sheet.deleteRow(rowIndex)
+  return { deleted: body.memberId }
+}
+
+/**
+ * Office verification / approval — section 9 of the paper form. Stamps who and
+ * when for the stage being granted, and leaves the other stage alone so an
+ * approved record still shows who verified it first.
+ * @param {{memberId: string, status: string, actor?: string}} body
+ * @returns {Object} the updated pastor
+ */
+function setPastorApproval(body) {
+  const sheet = getPastorSheet()
+  const rowIndex = findPastorRow(sheet, body.memberId)
+  if (rowIndex === -1) return { error: 'Pastor not found: ' + body.memberId }
+  if (['Pending', 'Verified', 'Approved'].indexOf(body.status) === -1) {
+    return { error: 'Unknown status: ' + body.status }
+  }
+
+  const existing = rowToRecord(
+    PASTOR_HEADERS,
+    sheet.getRange(rowIndex, 1, 1, PASTOR_HEADERS.length).getValues()[0],
+  )
+  const today = formatDate(new Date())
+  const actor = body.actor || 'Admin'
+  const merged = Object.assign({}, existing, { Status: body.status })
+
+  if (body.status === 'Verified') {
+    merged['Verified By'] = actor
+    merged['Verification Date'] = today
+  } else if (body.status === 'Approved') {
+    merged['Approved By'] = actor
+    merged['Approval Date'] = today
+    // Approving straight from Pending still records a verifier — the same
+    // person signed off, and a blank verifier column would look like a gap.
+    if (!existing['Verified By']) {
+      merged['Verified By'] = actor
+      merged['Verification Date'] = today
+    }
+  } else {
+    // Sent back to Pending — clear both stamps so the record reads honestly.
+    merged['Verified By'] = ''
+    merged['Verification Date'] = ''
+    merged['Approved By'] = ''
+    merged['Approval Date'] = ''
+  }
+
+  sheet.getRange(rowIndex, 1, 1, PASTOR_HEADERS.length).setValues([
+    PASTOR_HEADERS.map(function (h) {
+      return toCellValue(h, merged[h])
+    }),
+  ])
+  return pastorRecordToFields(merged)
 }

@@ -6,6 +6,8 @@ import { AuthProvider } from './auth/AuthContext'
 import { ThemeProvider } from './theme/ThemeContext'
 import { MembersProvider } from './features/members/MembersContext'
 import { DraftMemberProvider } from './features/members/DraftMemberContext'
+import { PastorsProvider } from './features/pastors/PastorsContext'
+import { DraftPastorProvider } from './features/pastors/DraftPastorContext'
 import { NotificationProvider } from './notifications/NotificationContext'
 import './index.css'
 import App from './App.tsx'
@@ -20,9 +22,13 @@ createRoot(document.getElementById('root')!).render(
           <NotificationProvider>
             <MembersProvider>
               <DraftMemberProvider>
-                <BrowserRouter>
-                  <App />
-                </BrowserRouter>
+                <PastorsProvider>
+                  <DraftPastorProvider>
+                    <BrowserRouter>
+                      <App />
+                    </BrowserRouter>
+                  </DraftPastorProvider>
+                </PastorsProvider>
               </DraftMemberProvider>
             </MembersProvider>
           </NotificationProvider>

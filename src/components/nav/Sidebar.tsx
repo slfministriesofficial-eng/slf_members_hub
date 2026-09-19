@@ -9,6 +9,7 @@ import logo from '../../assets/slf_logo_cropped.png'
 export const LINKS = [
   { to: '/', label: 'Dashboard', icon: 'home', end: true },
   { to: '/members', label: 'Members', icon: 'users', end: false },
+  { to: '/pastors', label: 'Pastors Fellowship', icon: 'cross', end: false },
   { to: '/attendance', label: 'Attendance', icon: 'cal-check', end: false },
   { to: '/follow-ups', label: 'Follow-ups', icon: 'flag', end: false },
   { to: '/birthdays', label: 'Birthdays & Anniversaries', icon: 'cake', end: false },

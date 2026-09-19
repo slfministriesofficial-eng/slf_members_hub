@@ -1,9 +1,10 @@
 import { Icon } from '../components/ui/Icon'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
 
-// The two blank new-member registration forms live in public/ and are served
-// statically. Spaces in the filenames are URL-encoded; `download` forces a save
-// with a clean, language-tagged name.
+// The blank registration forms live in public/ and are served statically.
+// Spaces in the filenames are URL-encoded; `download` forces a save with a
+// clean, language-tagged name. Note these must live in public/, NOT dist/ —
+// dist is build output and is wiped on every build.
 const FORMS = [
   {
     title: 'English Form',
@@ -23,6 +24,15 @@ const FORMS = [
     iconBg: 'bg-gradient-to-br from-brass to-brass-deep',
     buttonBg: 'bg-brass-deep hover:brightness-110',
   },
+  {
+    title: 'Pastors Form',
+    language: 'English',
+    description: 'Printable SLF Pastors Fellowship registration form.',
+    href: '/SLF_Pastors_Fellowship_Registration_Form.pdf',
+    downloadName: 'SLF-Pastors-Fellowship-Form.pdf',
+    iconBg: 'bg-gradient-to-br from-ink-soft to-ink',
+    buttonBg: 'bg-ink-soft hover:bg-ink',
+  },
 ]
 
 /**
@@ -37,10 +47,11 @@ export function RegistrationFormsScreen() {
         <h1 className="font-display text-[22px] font-bold text-heading md:text-[26px]">Registration Forms</h1>
       </div>
       <p className="mb-5 text-[12.5px] text-slate">
-        Download a printable blank membership registration form to hand out or fill in for a new member.
+        Download a printable blank registration form to hand out or fill in — membership forms in
+        English and Telugu, plus the Pastors Fellowship form.
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {FORMS.map((form) => (
           <a
             key={form.title}

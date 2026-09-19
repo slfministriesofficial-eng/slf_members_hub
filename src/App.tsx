@@ -34,6 +34,9 @@ import { ScheduleAnnouncementScreen } from './routes/ScheduleAnnouncementScreen'
 import { NotificationScheduleScreen } from './routes/NotificationScheduleScreen'
 import { MembershipCardsScreen } from './routes/MembershipCardsScreen'
 import { RegistrationFormsScreen } from './routes/RegistrationFormsScreen'
+import { PastorsScreen } from './routes/PastorsScreen'
+import { PastorProfileScreen } from './routes/PastorProfileScreen'
+import { AddPastorScreen } from './routes/AddPastorScreen'
 import { DeletedMembersScreen } from './routes/DeletedMembersScreen'
 import { MoreScreen } from './routes/MoreScreen'
 import { AdminProfileScreen } from './routes/AdminProfileScreen'
@@ -90,6 +93,10 @@ function App() {
             <Route path="/members/new" element={<AddMemberScreen />} />
             <Route path="/members/new/id-card" element={<IdCardPreviewScreen />} />
             <Route path="/members/:id/edit" element={<AddMemberScreen />} />
+            {/* Pastors registration is a focused transcription task too — no
+                sidebar/bottom-nav to tempt a distracted exit mid-form. */}
+            <Route path="/pastors/new" element={<AddPastorScreen />} />
+            <Route path="/pastors/:id/edit" element={<AddPastorScreen />} />
 
             <Route element={<AppShell />}>
               <Route path="/" element={<HomeScreen />} />
@@ -111,6 +118,8 @@ function App() {
               <Route path="/announcements/schedule" element={<ScheduleAnnouncementScreen />} />
               <Route path="/follow-ups/schedule" element={<NotificationScheduleScreen />} />
               <Route path="/membership-cards" element={<MembershipCardsScreen />} />
+              <Route path="/pastors" element={<PastorsScreen />} />
+              <Route path="/pastors/:id" element={<PastorProfileScreen />} />
               <Route path="/registration-forms" element={<RegistrationFormsScreen />} />
               <Route path="/deleted-members" element={<DeletedMembersScreen />} />
               <Route path="/more" element={<MoreScreen />} />

@@ -5,11 +5,14 @@ type StepState = 'done' | 'current' | 'upcoming' | 'skipped'
 type StepSidebarProps = {
   steps: { key: string; title: string; state: StepState }[]
   onSelect: (key: string) => void
-  onViewIdCard: () => void
+  /** Small caption above the step list — the kind of registration in progress. */
+  label?: string
+  /** Omit to hide the ID-card shortcut (the pastors register has no card). */
+  onViewIdCard?: () => void
 }
 
 // Desktop/web only — mobile keeps the top progress bar instead.
-export function StepSidebar({ steps, onSelect, onViewIdCard }: StepSidebarProps) {
+export function StepSidebar({ steps, onSelect, label = 'New Member', onViewIdCard }: StepSidebarProps) {
   const relevantCount = steps.filter((s) => s.state !== 'skipped').length
 
   return (
@@ -20,7 +23,7 @@ export function StepSidebar({ steps, onSelect, onViewIdCard }: StepSidebarProps)
       </div>
 
       <div className="mb-5 text-[11px] font-bold uppercase tracking-wide text-slate">
-        New Member · {relevantCount} steps
+        {label} · {relevantCount} steps
       </div>
 
       <div className="flex flex-col gap-1">
@@ -70,15 +73,17 @@ export function StepSidebar({ steps, onSelect, onViewIdCard }: StepSidebarProps)
         })}
       </div>
 
-      <button
-        onClick={onViewIdCard}
-        className="mt-8 flex w-full items-center gap-2.5 rounded-xl border border-hairline bg-paper px-3.5 py-3 text-left hover:bg-paper-2"
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface shadow-card">
-          <Icon name="id" className="icon !h-[15px] !w-[15px] text-heading" />
-        </span>
-        <span className="text-[12.5px] font-bold text-heading">View ID Card</span>
-      </button>
+      {onViewIdCard && (
+        <button
+          onClick={onViewIdCard}
+          className="mt-8 flex w-full items-center gap-2.5 rounded-xl border border-hairline bg-paper px-3.5 py-3 text-left hover:bg-paper-2"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface shadow-card">
+            <Icon name="id" className="icon !h-[15px] !w-[15px] text-heading" />
+          </span>
+          <span className="text-[12.5px] font-bold text-heading">View ID Card</span>
+        </button>
+      )}
     </aside>
   )
 }

@@ -23,6 +23,7 @@ const SECTIONS: { title: string; items: DrawerLink[] }[] = [
     title: 'Members & Care',
     items: [
       { to: '/members', label: 'Members', icon: 'users' },
+      { to: '/pastors', label: 'Pastors Fellowship', icon: 'cross' },
       { to: '/attendance', label: 'Attendance', icon: 'cal-check' },
       { to: '/follow-ups', label: 'Follow-ups', icon: 'flag' },
       { to: '/birthdays', label: 'Birthdays & Anniversaries', icon: 'cake' },
