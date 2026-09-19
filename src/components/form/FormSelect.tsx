@@ -1,4 +1,5 @@
 import { Dropdown } from '../ui/Dropdown'
+import { RequiredMark } from './RequiredMark'
 
 type FormSelectProps = {
   label: string
@@ -14,7 +15,7 @@ export function FormSelect({ label, required, value, onChange, options, placehol
     <div>
       <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
         {label}
-        {required && <span className="text-status-alert-fg"> *</span>}
+        {required && <RequiredMark />}
       </span>
       <Dropdown
         value={value}

@@ -1,3 +1,5 @@
+import { RequiredMark } from './RequiredMark'
+
 type FormTextareaProps = {
   label: string
   required?: boolean
@@ -19,7 +21,7 @@ export function FormTextarea({
     <label className="block">
       <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
         {label}
-        {required && <span className="text-status-alert-fg"> *</span>}
+        {required && <RequiredMark />}
       </span>
       <textarea
         value={value}

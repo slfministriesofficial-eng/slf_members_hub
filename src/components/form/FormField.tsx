@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { DatePicker } from '../ui/DatePicker'
+import { RequiredMark } from './RequiredMark'
 
 type FormFieldProps = {
   label: string
@@ -53,7 +54,7 @@ export function FormField({
       <span className="mb-1.5 flex items-center justify-between gap-2 text-[11.5px] font-bold uppercase tracking-wide text-slate">
         <span>
           {label}
-          {required && <span className="text-status-alert-fg"> *</span>}
+          {required && <RequiredMark />}
         </span>
         {labelAction}
       </span>
