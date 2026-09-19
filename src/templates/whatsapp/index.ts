@@ -1,22 +1,5 @@
 import { CHURCH_INFO } from '../../constants/church'
-import { calculateAge, calculateYearsMarried } from '../../utils/celebrations'
 import type { Member } from '../../mock/types'
-
-// "21st", "22nd", "23rd", "24th" ... "11th"/"12th"/"13th" stay "th".
-function ordinal(n: number): string {
-  const rem100 = n % 100
-  if (rem100 >= 11 && rem100 <= 13) return `${n}th`
-  switch (n % 10) {
-    case 1:
-      return `${n}st`
-    case 2:
-      return `${n}nd`
-    case 3:
-      return `${n}rd`
-    default:
-      return `${n}th`
-  }
-}
 
 // wa.me needs country code, no leading zeros, no spaces/punctuation. Stored
 // numbers are plain 10-digit Indian mobiles, so a bare 10-digit number is
@@ -132,15 +115,15 @@ export const CUSTOM_MESSAGE_TEMPLATES: { key: CustomMessageTemplateKey; label: s
 ]
 
 export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): string {
+  // No age in the greeting on purpose. It used to read "Happy 46th Birthday",
+  // computed from today — which was a year out whenever the wish was sent
+  // ahead of the day. A plain wish can't be wrong.
   const name = `${honorific(member.gender)}${member.name}`
-  // Omitted (not "Happy Birthday" with no number guessed) when dob isn't on file.
-  const age = calculateAge(member.dob)
-  const nth = age !== null ? `${ordinal(age)} ` : ''
 
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        `🙏 Happy ${nth}Birthday ${name}!`,
+        `🙏 Happy Birthday ${name}!`,
         '',
         'On your special day, we lift you up in prayer, asking God to fill your new year with His presence, provision, and perfect peace.',
         '',
@@ -157,7 +140,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
   if (key === 'greeting') {
     return sanitizeWhatsappMessage(
       [
-        `🎂 Happy ${nth}Birthday, ${name}!`,
+        `🎂 Happy Birthday, ${name}!`,
         '',
         "Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.",
         '',
@@ -169,7 +152,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
   }
   return sanitizeWhatsappMessage(
     [
-      `🎉 Happy ${nth}Birthday ${name}!`,
+      `🎉 Happy Birthday ${name}!`,
       '',
       'Wishing you a joyful birthday. May our Lord Jesus Christ bless you with good health, peace, wisdom, and abundant grace throughout the coming year.',
       '',
@@ -190,19 +173,17 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
   const spouseName = member.spouse ? `${honorific(spouseGender as Member['gender'])}${member.spouse}` : ''
   const couple = spouseName ? `${name} & ${spouseName}` : name
 
-  // Omitted when the anniversary date isn't on file, rather than guessed.
-  const years = calculateYearsMarried(member.anniversary)
-  const nth = years !== null ? `${ordinal(years)} ` : ''
-  const yearsLine = years !== null ? `${years} wonderful years` : 'the years'
+  // No year count, for the same reason as the birthday above: counted from
+  // today it was a year out on any wish sent before the date.
 
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        `🙏 Happy ${nth}Wedding Anniversary!`,
+        '🙏 Happy Wedding Anniversary!',
         '',
         `Dear ${couple},`,
         '',
-        `We praise God for ${yearsLine} of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.`,
+        'We praise God for your years of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.',
         '',
         'With prayers,',
         '*Sarah Living Faith Ministries*',
@@ -213,7 +194,7 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
   if (key === 'family') {
     return sanitizeWhatsappMessage(
       [
-        `💐 Happy ${nth}Anniversary, ${couple}!`,
+        `💐 Happy Anniversary, ${couple}!`,
         '',
         "May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.",
         '',
@@ -225,7 +206,7 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
   }
   return sanitizeWhatsappMessage(
     [
-      `💐 Happy ${nth}Wedding Anniversary!`,
+      '💐 Happy Wedding Anniversary!',
       '',
       `Dear ${couple},`,
       '',

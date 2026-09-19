@@ -25,41 +25,25 @@ export const PASTOR_BIRTHDAY_TEMPLATES: { key: PastorBirthdayTemplateKey; label:
   { key: 'greeting', label: 'Short Greeting' },
 ]
 
-function ordinal(n: number): string {
-  const rem100 = n % 100
-  if (rem100 >= 11 && rem100 <= 13) return `${n}th`
-  if (n % 10 === 1) return `${n}st`
-  if (n % 10 === 2) return `${n}nd`
-  if (n % 10 === 3) return `${n}rd`
-  return `${n}th`
-}
-
 /**
  * Birthday greeting for a fellowship pastor. Same voice as the member
  * greetings, but addressed to a fellow minister rather than a church member.
  *
- * The age is passed in rather than derived here, so it is always the age the
- * pastor turns ON the birthday being wished. Computing it from "today" would
- * quote last year's number on every greeting sent ahead of the day.
- * Omitted entirely when no date of birth is on file, rather than guessed.
+ * Deliberately quotes no age. It used to read "Happy 46th Birthday", and any
+ * way of deriving that number risks being a year out depending on whether the
+ * wish is sent before or on the day. A plain wish can't be wrong.
  *
  * @param {PastorBirthdayTemplateKey} key which wording to use
  * @param {Pastor} pastor the recipient
- * @param {number | null} age the age being turned, or null when unknown
  * @returns {string} the WhatsApp message
  */
-export function buildPastorBirthdayMessage(
-  key: PastorBirthdayTemplateKey,
-  pastor: Pastor,
-  age: number | null,
-): string {
+export function buildPastorBirthdayMessage(key: PastorBirthdayTemplateKey, pastor: Pastor): string {
   const name = pastorDisplayName(pastor)
-  const nth = age !== null ? `${ordinal(age)} ` : ''
 
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        `🙏 Happy ${nth}Birthday, ${name}!`,
+        `🙏 Happy Birthday, ${name}!`,
         '',
         'On your special day we lift you up in prayer, asking God to strengthen you in your ministry and to fill this new year with His presence, provision, and perfect peace.',
         '',
@@ -75,7 +59,7 @@ export function buildPastorBirthdayMessage(
   if (key === 'greeting') {
     return sanitizeWhatsappMessage(
       [
-        `🎂 Happy ${nth}Birthday, ${name}!`,
+        `🎂 Happy Birthday, ${name}!`,
         '',
         "Wishing you a joyful day and God's abundant blessings on you, your family, and your ministry.",
         '',
@@ -88,7 +72,7 @@ export function buildPastorBirthdayMessage(
 
   return sanitizeWhatsappMessage(
     [
-      `🎉 Happy ${nth}Birthday, ${name}!`,
+      `🎉 Happy Birthday, ${name}!`,
       '',
       'May our Lord Jesus Christ bless you with good health, wisdom, peace, and abundant grace throughout the coming year.',
       '',
