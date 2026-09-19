@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { DatePicker } from '../ui/DatePicker'
 
 type FormFieldProps = {
@@ -19,6 +20,9 @@ type FormFieldProps = {
   /** Phone keypad on mobile for numeric fields. */
   inputMode?: 'text' | 'numeric' | 'tel' | 'email'
   maxLength?: number
+  disabled?: boolean
+  /** Rendered to the right of the label — e.g. the "same as mobile" tick. */
+  labelAction?: ReactNode
 }
 
 const FIELD_CLASSNAME =
@@ -39,14 +43,19 @@ export function FormField({
   sanitize,
   inputMode,
   maxLength,
+  disabled,
+  labelAction,
 }: FormFieldProps) {
   const fieldClass = error ? ERROR_CLASSNAME : FIELD_CLASSNAME
 
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-slate">
-        {label}
-        {required && <span className="text-status-alert-fg"> *</span>}
+      <span className="mb-1.5 flex items-center justify-between gap-2 text-[11.5px] font-bold uppercase tracking-wide text-slate">
+        <span>
+          {label}
+          {required && <span className="text-status-alert-fg"> *</span>}
+        </span>
+        {labelAction}
       </span>
       {type === 'date' ? (
         <DatePicker value={value} onChange={onChange} placeholder={placeholder} className={fieldClass} />
@@ -59,8 +68,9 @@ export function FormField({
           required={required}
           inputMode={inputMode}
           maxLength={maxLength}
+          disabled={disabled}
           aria-invalid={error ? true : undefined}
-          className={fieldClass}
+          className={`${fieldClass} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
         />
       )}
       {error ? (

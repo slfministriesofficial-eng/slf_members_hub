@@ -1,5 +1,6 @@
 import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
+import { SameAsMobileCheck } from '../../../components/form/SameAsMobileCheck'
 import type { StepProps } from '../types'
 import { keepPhoneChars } from '../../../utils/validation'
 
@@ -15,7 +16,11 @@ export function ContactStep({ data, setField, errors }: StepProps) {
           sanitize={keepPhoneChars}
           error={errors?.mobile}
           value={data.mobile}
-          onChange={(v) => setField('mobile', v)}
+          onChange={(v) => {
+            setField('mobile', v)
+            // Keep the mirrored number in step while the tick is on.
+            if (data.whatsappSameAsMobile) setField('whatsapp', v)
+          }}
           placeholder="90000 12345"
         />
         <FormField
@@ -24,9 +29,19 @@ export function ContactStep({ data, setField, errors }: StepProps) {
           inputMode="tel"
           sanitize={keepPhoneChars}
           error={errors?.whatsapp}
-          value={data.whatsapp}
+          disabled={data.whatsappSameAsMobile}
+          value={data.whatsappSameAsMobile ? data.mobile : data.whatsapp}
           onChange={(v) => setField('whatsapp', v)}
-          placeholder="Same as mobile, if different"
+          placeholder="90000 12345"
+          labelAction={
+            <SameAsMobileCheck
+              checked={data.whatsappSameAsMobile}
+              onChange={(next) => {
+                setField('whatsappSameAsMobile', next)
+                if (next) setField('whatsapp', data.mobile)
+              }}
+            />
+          }
         />
       </div>
 

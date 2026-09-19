@@ -18,6 +18,9 @@ export type MemberFormData = {
   // Step 2 — Contact & Address
   mobile: string
   whatsapp: string
+  /** UI-only: while true the WhatsApp number mirrors the mobile. Never sent
+   *  to the sheet — it only decides what goes in the WhatsApp column. */
+  whatsappSameAsMobile: boolean
   email: string
   address: string
 
@@ -61,6 +64,7 @@ export function createEmptyMemberForm(): MemberFormData {
     bloodGroup: '',
     mobile: '',
     whatsapp: '',
+    whatsappSameAsMobile: false,
     email: '',
     address: '',
     spouseName: '',
@@ -97,6 +101,9 @@ export function memberToFormData(member: Member): MemberFormData {
     bloodGroup: member.bloodGroup ?? '',
     mobile: member.phone,
     whatsapp: member.whatsapp,
+    // Re-tick it on edit when the saved numbers already match, so opening a
+    // record and saving it again can't quietly unlink them.
+    whatsappSameAsMobile: !!member.phone && member.whatsapp === member.phone,
     email: member.email,
     address: member.address ?? '',
     spouseName: member.spouse ?? '',

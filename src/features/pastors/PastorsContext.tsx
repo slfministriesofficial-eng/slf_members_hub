@@ -39,9 +39,10 @@ function formToPayload(form: PastorFormData): Record<string, unknown> {
     spouseName: form.maritalStatus === 'Married' ? form.spouseName : '',
     bloodGroup: form.bloodGroup,
     mobile: form.mobile,
-    // The form marks WhatsApp optional; fall back to the mobile so "message
-    // this pastor" always has a number to use.
-    whatsapp: form.whatsapp || form.mobile,
+    // The tick is the source of truth when set. Otherwise the form marks
+    // WhatsApp optional, so fall back to the mobile — "message this pastor"
+    // always needs a number to use.
+    whatsapp: form.whatsappSameAsMobile ? form.mobile : form.whatsapp || form.mobile,
     email: form.email,
     address: form.address,
     villageTownCity: form.villageTownCity,

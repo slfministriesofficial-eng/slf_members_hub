@@ -9,7 +9,7 @@ export function FamilyStep({ data, setField, errors }: StepProps) {
       <div className="grid gap-4 md:grid-cols-2">
         <FormField
           label="Spouse Name"
-          required
+          required={data.maritalStatus === 'Married'}
           error={errors?.spouseName}
           value={data.spouseName}
           onChange={(v) => setField('spouseName', v)}

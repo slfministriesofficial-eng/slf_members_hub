@@ -93,7 +93,9 @@ function formToPayload(form: MemberFormData): Record<string, unknown> {
     marriageDay: form.marriageDay,
     bloodGroup: form.bloodGroup,
     mobile: form.mobile,
-    whatsapp: form.whatsapp,
+    // The tick is the source of truth when set, so the two columns match even
+    // if the WhatsApp box still holds an older number underneath.
+    whatsapp: form.whatsappSameAsMobile ? form.mobile : form.whatsapp,
     email: form.email,
     address: form.address,
     spouseName: form.spouseName,

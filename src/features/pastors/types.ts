@@ -31,6 +31,9 @@ export type PastorFormData = {
   // 2 — Contact
   mobile: string
   whatsapp: string
+  /** UI-only: while true the WhatsApp number mirrors the mobile. Never sent
+   *  to the sheet — it only decides what goes in the WhatsApp column. */
+  whatsappSameAsMobile: boolean
   email: string
 
   // 3 — Residential address
@@ -80,6 +83,7 @@ export function createEmptyPastorForm(): PastorFormData {
     bloodGroup: '',
     mobile: '',
     whatsapp: '',
+    whatsappSameAsMobile: false,
     email: '',
     address: '',
     villageTownCity: '',
@@ -119,6 +123,9 @@ export function pastorToFormData(pastor: Pastor): PastorFormData {
     bloodGroup: pastor.bloodGroup,
     mobile: pastor.mobile,
     whatsapp: pastor.whatsapp,
+    // Re-tick it on edit when the saved numbers already match, so opening a
+    // record and saving it again can't quietly unlink them.
+    whatsappSameAsMobile: !!pastor.mobile && pastor.whatsapp === pastor.mobile,
     email: pastor.email,
     address: pastor.address,
     villageTownCity: pastor.villageTownCity,

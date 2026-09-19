@@ -95,7 +95,10 @@ export function AddMemberScreen() {
         key: 'family',
         title: 'Family Information',
         seconds: 15,
-        isValid: (_d: MemberFormData) => true,
+        // Spouse Name is starred for a married member, so it has to be gated.
+        // Single / widowed members have no spouse to name, and for them the
+        // whole step stays optional.
+        isValid: (d: MemberFormData) => d.maritalStatus !== 'Married' || !!d.spouseName,
       },
       {
         key: 'fellowship',
@@ -114,8 +117,9 @@ export function AddMemberScreen() {
         key: 'occupation',
         title: 'Occupation & Emergency Contact',
         seconds: 15,
+        // NOT skippable: the emergency contact name and mobile are starred, and
+        // a Skip button here let both be bypassed entirely.
         isValid: (d: MemberFormData) => !!d.emergencyName && !!d.emergencyMobile,
-        skippable: true,
       },
       {
         key: 'review',
