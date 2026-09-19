@@ -7,6 +7,9 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { MobileBackButton } from '../components/ui/MobileBackButton'
 import { useMembers } from '../features/members/MembersContext'
+import { usePastors } from '../features/pastors/PastorsContext'
+import { GrowthChart } from '../features/reports/GrowthChart'
+import { buildGrowthSeries } from '../features/reports/growth'
 import { fetchAttendanceSummary, type AttendanceSummaryItem } from '../attendance/api'
 
 type Metric = 'count' | 'rate'
@@ -38,8 +41,22 @@ function monthLabel(ym: string): string {
  * colorblind-safe. No fabricated figures: everything traces to real records.
  */
 export function ReportsScreen() {
-  const { members } = useMembers()
+  const { members, isLoading: membersLoading, isError: membersError } = useMembers()
+  const { pastors, isLoading: pastorsLoading, isError: pastorsError } = usePastors()
   const totalMembers = members.length
+
+  // Twelve months of growth for each register, built from registration dates.
+  // Read independently of the attendance query below, so a register with no
+  // records — or a failed fetch — leaves the other charts alone.
+  const now = useMemo(() => new Date(), [])
+  const memberGrowth = useMemo(
+    () => buildGrowthSeries(members.map((m) => m.registrationDate ?? m.joiningDateRaw), now),
+    [members, now],
+  )
+  const pastorGrowth = useMemo(
+    () => buildGrowthSeries(pastors.map((p) => p.registrationDate), now),
+    [pastors, now],
+  )
 
   const [month, setMonth] = useState('all')
   const [metric, setMetric] = useState<Metric>('count')
@@ -70,7 +87,35 @@ export function ReportsScreen() {
         <MobileBackButton />
         <h1 className="font-display text-[20px] font-bold text-heading md:text-[24px]">Reports &amp; Insights</h1>
       </div>
-      <p className="mb-4 text-[12.5px] text-slate">Attendance analytics from the last two months of records.</p>
+      <p className="mb-4 text-[12.5px] text-slate">
+        Register growth over the past year, and attendance from the last two months of records.
+      </p>
+
+      {/* GROWTH — one chart per register. Deliberately not one chart with two
+          lines: the two registers differ by an order of magnitude, and sharing
+          a y-axis would flatten the smaller one into the baseline. */}
+      <div className="mb-5 grid gap-3 lg:grid-cols-2">
+        <GrowthChart
+          title="Members Insights"
+          subject="members"
+          points={memberGrowth}
+          accent="blue"
+          isLoading={membersLoading}
+          isError={membersError}
+          emptyHint="No member registrations recorded yet."
+        />
+        <GrowthChart
+          title="Pastors Insights"
+          subject="pastors"
+          points={pastorGrowth}
+          accent="brass"
+          isLoading={pastorsLoading}
+          isError={pastorsError}
+          emptyHint="No pastors registered yet — add one from the Pastors Fellowship page."
+        />
+      </div>
+
+      <h2 className="mb-2 font-display text-[15.5px] font-bold text-heading">Attendance</h2>
 
       {/* FILTERS — one row above the charts */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
