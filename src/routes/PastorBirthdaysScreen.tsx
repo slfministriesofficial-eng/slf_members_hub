@@ -10,42 +10,8 @@ import {
   PASTOR_BIRTHDAY_TEMPLATES,
   type PastorBirthdayTemplateKey,
 } from '../templates/whatsapp/pastors'
-import { calculateAge, daysUntil, formatCountdown, nextOccurrence, parseDate, startOfDay } from '../utils/celebrations'
-
-type Entry = {
-  pastor: Pastor
-  nextDate: Date
-  daysAway: number
-  /** The age they turn on nextDate — not their age today. */
-  age: number | null
-  isToday: boolean
-}
-
-/**
- * Pastor birthdays, soonest first. Entries without a usable date of birth are
- * left out rather than guessed at. Uses the shared date helpers: a local
- * re-implementation here got Feb 29 wrong, rolling it to Mar 1 in non-leap
- * years instead of clamping to Feb 28.
- */
-function derivePastorBirthdays(pastors: Pastor[], now: Date): Entry[] {
-  const today = startOfDay(now)
-  return pastors
-    .map((pastor) => {
-      const dob = parseDate(pastor.dob)
-      if (!dob) return null
-      const nextDate = nextOccurrence(dob.getMonth(), dob.getDate(), today)
-      const daysAway = daysUntil(nextDate, today)
-      return {
-        pastor,
-        nextDate,
-        daysAway,
-        age: calculateAge(pastor.dob, nextDate),
-        isToday: daysAway === 0,
-      }
-    })
-    .filter((e): e is Entry => e !== null)
-    .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
-}
+import { derivePastorBirthdays } from '../features/pastors/birthdays'
+import { formatCountdown } from '../utils/celebrations'
 
 /**
  * Pastor birthdays — who is next, and a one-tap WhatsApp greeting for each.
@@ -70,11 +36,9 @@ export function PastorBirthdaysScreen() {
   const today = entries.filter((e) => e.isToday)
   const upcoming = entries.filter((e) => !e.isToday)
 
-  // The age quoted in the message is the one the row shows — both come from
-  // the same entry, so they can't disagree.
   const messageFor = useCallback(
-    (pastor: Pastor) => buildPastorBirthdayMessage(template, pastor, byId.get(pastor.memberId)?.age ?? null),
-    [template, byId],
+    (pastor: Pastor) => buildPastorBirthdayMessage(template, pastor),
+    [template],
   )
 
   const subtitleFor = useCallback(

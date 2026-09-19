@@ -22,6 +22,8 @@ import { AdminProfileCard } from '../components/ui/AdminProfileCard'
 import { ViewAllButton } from '../components/ui/ViewAllButton'
 import { fetchAttendanceSummary } from '../attendance/api'
 import { useMembers } from '../features/members/MembersContext'
+import { usePastors } from '../features/pastors/PastorsContext'
+import { derivePastorBirthdays } from '../features/pastors/birthdays'
 import { getFormattedDate } from '../utils/date'
 import { getUpcomingDates } from '../utils/upcomingDates'
 import { getRecentActivity } from '../utils/recentActivity'
@@ -80,6 +82,9 @@ function historyTimeLabel(iso: string, now: Date): string {
 export function HomeScreen() {
   const navigate = useNavigate()
   const { members, isLoading, isError } = useMembers()
+  // The fellowship register is a separate sheet; a failure there must not take
+  // the members dashboard down with it, so it is read independently.
+  const { pastors, isError: pastorsError } = usePastors()
   const alertCounts = useAlertCounts()
 
   // Next-notification hero — same shared card as the Follow-ups page, with
@@ -114,6 +119,12 @@ export function HomeScreen() {
     [members],
   )
   const upcoming = useMemo(() => getUpcomingDates(members), [members])
+  // Same source the Pastors Birthdays page uses, so the dashboard can never
+  // disagree with it about who is next.
+  const pastorBirthdays = useMemo(
+    () => derivePastorBirthdays(pastors, now).slice(0, PREVIEW_LIMIT),
+    [pastors, now],
+  )
   const recentActivity = useMemo(() => getRecentActivity(members, PREVIEW_LIMIT), [members])
   const birthdaysThisWeek = upcoming.filter((u) => u.what === 'Birthday').length
   const newThisMonth = useMemo(
@@ -148,7 +159,7 @@ export function HomeScreen() {
   // All four are real: total + this-week birthdays + new-this-month from the
   // roster, and last-service attendance from the recorded attendance log
   // ('—' until the first Sunday is marked).
-  const stats: { label: string; value: string | number; tone: string }[] = [
+  const stats: { label: string; value: string | number; tone: string; className?: string }[] = [
     { label: 'Total members', value: members.length, tone: 'ink' },
     { label: 'Birthdays this week', value: birthdaysThisWeek, tone: 'regular' },
     { label: 'New this month', value: newThisMonth, tone: 'ink' },
@@ -156,6 +167,16 @@ export function HomeScreen() {
       label: lastServiceRate !== null ? `Last Sunday · ${lastServiceRate}%` : 'Last Sunday present',
       value: lastService ? lastService.count : '—',
       tone: 'regular',
+    },
+    {
+      label: 'Pastors Fellowship',
+      // '—' rather than 0 when the register failed to load, so a connection
+      // problem doesn't read as "no pastors registered".
+      value: pastorsError ? '—' : pastors.length,
+      tone: 'ink',
+      // Fills the half-row it would otherwise leave as the odd card out on
+      // mobile; back to one column of five on desktop.
+      className: 'col-span-2 md:col-span-1',
     },
   ]
 
@@ -209,8 +230,8 @@ export function HomeScreen() {
         </div>
       )}
 
-      {/* Stats row — 2-up on mobile, 4-up on desktop; all real data. */}
-      <div className="mb-5 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
+      {/* Stats row — 2-up on mobile, 5-up on desktop; all real data. */}
+      <div className="mb-5 grid grid-cols-2 gap-2.5 md:grid-cols-5 md:gap-3">
         {isLoading ? (
           <>
             <SkeletonStatCard />
@@ -219,12 +240,12 @@ export function HomeScreen() {
             <SkeletonStatCard />
           </>
         ) : isError ? (
-          <Card className="col-span-4 p-3.5">
+          <Card className="col-span-2 p-3.5 md:col-span-5">
             <p className="text-[12.5px] text-slate">Could not load stats — check your connection.</p>
           </Card>
         ) : (
           stats.map((stat) => (
-            <Card key={stat.label} className="p-3.5">
+            <Card key={stat.label} className={`p-3.5 ${stat.className ?? ''}`}>
               <div
                 className={`font-display text-[24px] font-bold ${
                   stat.tone === 'alert'
@@ -325,6 +346,52 @@ export function HomeScreen() {
                 )
               })}
             </div>
+          )}
+
+          {/* Pastors Fellowship birthdays — its own block rather than mixed
+              into "This week" above, because it is a separate register with
+              its own greetings. Hidden entirely when the fellowship has no
+              birthdays on file, so it costs nothing on a members-only setup. */}
+          {!pastorsError && pastorBirthdays.length > 0 && (
+            <>
+              <div className="mb-3 mt-6 flex items-baseline justify-between">
+                <h2 className="font-display text-[15.5px] font-bold text-heading">Pastor birthdays</h2>
+                <ViewAllButton onClick={() => navigate('/pastors/birthdays')} />
+              </div>
+              <Card>
+                {pastorBirthdays.map((entry) => (
+                  <button
+                    key={entry.pastor.memberId}
+                    onClick={() => navigate('/pastors/birthdays')}
+                    className="flex w-full items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 text-left last:border-0"
+                  >
+                    <div className="w-11 shrink-0 text-center">
+                      <div className="font-mono text-[10px] font-bold uppercase text-brass-deep">
+                        {entry.nextDate.toLocaleDateString('en-GB', { month: 'short' })}
+                      </div>
+                      <div className="font-display text-[19px] font-bold text-heading">
+                        {entry.nextDate.getDate()}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12px] font-semibold leading-tight text-charcoal">
+                        {entry.pastor.fullName}
+                      </div>
+                      <div className="mt-0.5 truncate text-[10px] text-slate">
+                        {entry.pastor.churchName || entry.pastor.memberId}
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-bold text-tint-amber-fg">
+                        {entry.isToday ? 'Birthday today 🎂' : 'Birthday'}
+                        {entry.age !== null && (
+                          <span className="ml-1 font-semibold text-slate">· turns {entry.age}</span>
+                        )}
+                      </div>
+                    </div>
+                    <Icon name="chevron" className="icon !h-[14px] !w-[14px] shrink-0 text-faint" />
+                  </button>
+                ))}
+              </Card>
+            </>
           )}
         </div>
 
