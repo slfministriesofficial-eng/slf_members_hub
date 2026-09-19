@@ -3,7 +3,7 @@ import { CHURCH_INFO } from '../../constants/church'
 /**
  * Announcement starter templates for the composer (used for BOTH the push
  * notification and the WhatsApp share). Messages read as a natural
- * description with [Date] / [Time] placeholders the admin fills in — no
+ * description with *[Date]* / *[Time]* placeholders the admin fills in — no
  * stacked Date/Time/Venue label lines — and close with the bold church
  * signature. The `*asterisks*` are WhatsApp bold markers: WhatsApp renders
  * them bold, and the push path strips them to clean text automatically.
@@ -24,7 +24,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Church Family,',
       '',
-      `We warmly invite you and your family to join us for this Sunday's worship service on [Date] at [Time], at ${VENUE_LINE}.`,
+      `We warmly invite you and your family to join us for this Sunday's worship service on *[Date]* at *[Time]*, at *${VENUE_LINE}*.`,
       '',
       "Come together in worship, prayer, and fellowship as we grow in God's presence.",
       '',
@@ -40,7 +40,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Church Family,',
       '',
-      `Join us for our Prayer Meeting on [Date] at [Time], at ${VENUE_LINE}, as we gather to seek God's guidance and blessings.`,
+      `Join us for our Prayer Meeting on *[Date]* at *[Time]*, at *${VENUE_LINE}*, as we gather to seek God's guidance and blessings.`,
       '',
       '"Prayer changes everything."',
       '',
@@ -56,7 +56,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Youth,',
       '',
-      `You are invited to our Youth Fellowship on [Date] at [Time], at ${VENUE_LINE}.`,
+      `You are invited to our Youth Fellowship on *[Date]* at *[Time]*, at *${VENUE_LINE}*.`,
       '',
       'Come with your friends for worship, Bible study, fellowship and fun.',
       '',
@@ -72,7 +72,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Choir Members,',
       '',
-      `This is a reminder about our choir practice on [Date] at [Time], at ${VENUE_LINE}.`,
+      `This is a reminder about our choir practice on *[Date]* at *[Time]*, at *${VENUE_LINE}*.`,
       '',
       'Please arrive a few minutes early and come prepared for worship practice.',
       '',
@@ -88,7 +88,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Church Family,',
       '',
-      `Join us for this week's Bible Study on [Date] at [Time], at ${VENUE_LINE}.`,
+      `Join us for this week's Bible Study on *[Date]* at *[Time]*, at *${VENUE_LINE}*.`,
       '',
       "Come and grow deeper in God's Word together.",
       '',
@@ -104,7 +104,7 @@ export const TEMPLATES: Template[] = [
     message: [
       'Dear Church Family,',
       '',
-      `You are warmly invited to our special church event on [Date] at [Time], at ${VENUE_LINE}.`,
+      `You are warmly invited to our special church event on *[Date]* at *[Time]*, at *${VENUE_LINE}*.`,
       '',
       'Bring your family and friends as we celebrate together.',
       '',

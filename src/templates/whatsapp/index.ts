@@ -54,7 +54,7 @@ export function buildWelcomeMessage(member: Member): string {
       '',
       'May God bless you and your family abundantly.',
       '',
-      'With love in Christ,',
+      '_With love in Christ,_',
       '*Sarah Living Faith Ministries*',
       'Sarah Living Faith Ministries',
     ].join('\n'),
@@ -123,7 +123,7 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        `🙏 Happy Birthday ${name}!`,
+        `🙏 *Happy Birthday ${name}!*`,
         '',
         'On your special day, we lift you up in prayer, asking God to fill your new year with His presence, provision, and perfect peace.',
         '',
@@ -131,28 +131,28 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
         '',
         'God bless you abundantly.',
         '',
-        'With prayers,',
+        '_With prayers,_',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
   if (key === 'greeting') {
     return sanitizeWhatsappMessage(
       [
-        `🎂 Happy Birthday, ${name}!`,
+        `🎂 *Happy Birthday, ${name}!*`,
         '',
         "Wishing you a wonderful day filled with joy, laughter, and God's abundant blessings.",
         '',
-        'With love,',
+        '_With love,_',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
   return sanitizeWhatsappMessage(
     [
-      `🎉 Happy Birthday ${name}!`,
+      `🎉 *Happy Birthday ${name}!*`,
       '',
       'Wishing you a joyful birthday. May our Lord Jesus Christ bless you with good health, peace, wisdom, and abundant grace throughout the coming year.',
       '',
@@ -160,9 +160,9 @@ export function buildBirthdayMessage(key: BirthdayTemplateKey, member: Member): 
       '',
       'May God richly bless you and your family.',
       '',
-      'With love and prayers,',
+      '_With love and prayers,_',
       '*Sarah Living Faith Ministries*',
-      'Tadigadapa',
+      '_Tadigadapa_',
     ].join('\n'),
   )
 }
@@ -179,34 +179,34 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        '🙏 Happy Wedding Anniversary!',
+        '🙏 *Happy Wedding Anniversary!*',
         '',
         `Dear ${couple},`,
         '',
         'We praise God for your years of marriage, and pray He continues to bind you together in love, faith, and unwavering commitment.',
         '',
-        'With prayers,',
+        '_With prayers,_',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
   if (key === 'family') {
     return sanitizeWhatsappMessage(
       [
-        `💐 Happy Anniversary, ${couple}!`,
+        `💐 *Happy Anniversary, ${couple}!*`,
         '',
         "May your home be ever filled with God's love, laughter, and peace. Wishing your family continued grace and unity in the years ahead.",
         '',
-        'With love and prayers,',
+        '_With love and prayers,_',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
   return sanitizeWhatsappMessage(
     [
-      '💐 Happy Wedding Anniversary!',
+      '💐 *Happy Wedding Anniversary!*',
       '',
       `Dear ${couple},`,
       '',
@@ -214,9 +214,9 @@ export function buildAnniversaryMessage(key: AnniversaryTemplateKey, member: Mem
       '',
       'Wishing you many more joyful years together.',
       '',
-      'With prayers,',
+      '_With prayers,_',
       '*Sarah Living Faith Ministries*',
-      'Tadigadapa',
+      '_Tadigadapa_',
     ].join('\n'),
   )
 }
@@ -226,13 +226,13 @@ export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: 
   if (key === 'family') {
     return sanitizeWhatsappMessage(
       [
-        `❤️ Dear ${name},`,
+        `❤️ *Dear ${name},*`,
         '',
         "Welcome to the SLF Ministries family! We're so glad God brought you to us, and we look forward to growing together in faith and fellowship.",
         '',
-        'With love,',
+        '_With love,_',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
@@ -245,19 +245,19 @@ export function buildNewMemberWelcomeMessage(key: NewMemberTemplateKey, member: 
         '',
         'God bless you,',
         '*Sarah Living Faith Ministries*',
-        'Tadigadapa',
+        '_Tadigadapa_',
       ].join('\n'),
     )
   }
   return sanitizeWhatsappMessage(
     [
-      `🙏 Welcome to SLF Ministries, ${name}!`,
+      `🙏 *Welcome to SLF Ministries, ${name}!*`,
       '',
       'We are overjoyed to have you as part of our church family. May God bless this new chapter of your journey with us.',
       '',
-      'With love in Christ,',
+      '_With love in Christ,_',
       '*Sarah Living Faith Ministries*',
-      'Tadigadapa',
+      '_Tadigadapa_',
     ].join('\n'),
   )
 }
@@ -276,7 +276,7 @@ export function buildCustomMessage(key: CustomMessageTemplateKey, member: Member
         '',
         'How have you been doing? We are praying for you and would love to hear from you.',
         '',
-        'With love in Christ,',
+        '_With love in Christ,_',
         '*Sarah Living Faith Ministries*',
       ].join('\n'),
     )
@@ -307,7 +307,7 @@ export function buildRemovalMessage(member: Member, reason: string): string {
       '',
       'If you believe this was a mistake or have any questions, please feel free to reach out to us.',
       '',
-      'With love in Christ,',
+      '_With love in Christ,_',
       '*Sarah Living Faith Ministries*',
       'Sarah Living Faith Ministries',
     ].join('\n'),

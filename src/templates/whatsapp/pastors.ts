@@ -43,15 +43,15 @@ export function buildPastorBirthdayMessage(key: PastorBirthdayTemplateKey, pasto
   if (key === 'prayer') {
     return sanitizeWhatsappMessage(
       [
-        `🙏 Happy Birthday, ${name}!`,
+        `🙏 *Happy Birthday, ${name}!*`,
         '',
         'On your special day we lift you up in prayer, asking God to strengthen you in your ministry and to fill this new year with His presence, provision, and perfect peace.',
         '',
         'May the Lord continue to use you mightily for His kingdom.',
         '',
-        'With prayers,',
+        '_With prayers,_',
         '*SLF Ministries Pastors Fellowship*',
-        'Vijayawada',
+        '_Vijayawada_',
       ].join('\n'),
     )
   }
@@ -59,20 +59,20 @@ export function buildPastorBirthdayMessage(key: PastorBirthdayTemplateKey, pasto
   if (key === 'greeting') {
     return sanitizeWhatsappMessage(
       [
-        `🎂 Happy Birthday, ${name}!`,
+        `🎂 *Happy Birthday, ${name}!*`,
         '',
         "Wishing you a joyful day and God's abundant blessings on you, your family, and your ministry.",
         '',
-        'With love,',
+        '_With love,_',
         '*SLF Ministries Pastors Fellowship*',
-        'Vijayawada',
+        '_Vijayawada_',
       ].join('\n'),
     )
   }
 
   return sanitizeWhatsappMessage(
     [
-      `🎉 Happy Birthday, ${name}!`,
+      `🎉 *Happy Birthday, ${name}!*`,
       '',
       'May our Lord Jesus Christ bless you with good health, wisdom, peace, and abundant grace throughout the coming year.',
       '',
@@ -80,9 +80,9 @@ export function buildPastorBirthdayMessage(key: PastorBirthdayTemplateKey, pasto
       '',
       'May God richly bless you, your family, and the work of your hands.',
       '',
-      'With love and prayers,',
+      '_With love and prayers,_',
       '*SLF Ministries Pastors Fellowship*',
-      'Vijayawada',
+      '_Vijayawada_',
     ].join('\n'),
   )
 }

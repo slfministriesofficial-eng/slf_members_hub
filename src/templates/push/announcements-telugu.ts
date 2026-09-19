@@ -4,7 +4,7 @@ import type { Template } from './announcements'
  * Telugu versions of the announcement starter templates — same keys as the
  * English set in ./announcements.ts, so the composer's language toggle can
  * swap the applied template in place. Structure mirrors the English ones:
- * natural description with [తేదీ] / [సమయం] placeholders the admin fills in,
+ * natural description with *[తేదీ]* / *[సమయం]* placeholders the admin fills in,
  * closing with the bold church signature. The `*asterisks*` are WhatsApp bold
  * markers (rendered bold there, stripped automatically for push).
  */
@@ -22,7 +22,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన సంఘ కుటుంబ సభ్యులారా,',
       '',
-      `ఈ ఆదివారం [తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే ఆరాధనకు మిమ్మల్ని, మీ కుటుంబాన్ని ప్రేమతో ఆహ్వానిస్తున్నాము.`,
+      `ఈ ఆదివారం *[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే ఆరాధనకు మిమ్మల్ని, మీ కుటుంబాన్ని ప్రేమతో ఆహ్వానిస్తున్నాము.`,
       '',
       'ఆరాధన, ప్రార్థన మరియు సహవాసంలో కలిసి దేవుని సన్నిధిలో ఎదుగుదాం.',
       '',
@@ -38,7 +38,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన సంఘ కుటుంబ సభ్యులారా,',
       '',
-      `దేవుని నడిపింపు మరియు ఆశీర్వాదాల కోసం కలిసి ప్రార్థించేందుకు [తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే ప్రార్థన కూటమికి రండి.`,
+      `దేవుని నడిపింపు మరియు ఆశీర్వాదాల కోసం కలిసి ప్రార్థించేందుకు *[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే ప్రార్థన కూటమికి రండి.`,
       '',
       '"ప్రార్థన సమస్తాన్ని మారుస్తుంది."',
       '',
@@ -54,7 +54,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన యువతీ యువకులారా,',
       '',
-      `[తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే యువజన సహవాసానికి మీకు ఆహ్వానం.`,
+      `*[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే యువజన సహవాసానికి మీకు ఆహ్వానం.`,
       '',
       'ఆరాధన, వాక్య ధ్యానం, సహవాసం మరియు ఆనందం కోసం మీ స్నేహితులతో కలిసి రండి.',
       '',
@@ -70,7 +70,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన గాయక బృంద సభ్యులారా,',
       '',
-      `[తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే మన గాయక బృంద సాధన గురించి గుర్తు చేస్తున్నాము.`,
+      `*[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే మన గాయక బృంద సాధన గురించి గుర్తు చేస్తున్నాము.`,
       '',
       'దయచేసి కొద్ది నిమిషాల ముందుగా వచ్చి, ఆరాధన సాధనకు సిద్ధంగా ఉండండి.',
       '',
@@ -86,7 +86,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన సంఘ కుటుంబ సభ్యులారా,',
       '',
-      `[తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే వాక్య ధ్యానంలో పాల్గొనండి.`,
+      `*[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే వాక్య ధ్యానంలో పాల్గొనండి.`,
       '',
       'దేవుని వాక్యంలో కలిసి లోతుగా ఎదుగుదాం.',
       '',
@@ -102,7 +102,7 @@ export const TELUGU_TEMPLATES: Template[] = [
     message: [
       'ప్రియమైన సంఘ కుటుంబ సభ్యులారా,',
       '',
-      `[తేదీ] న [సమయం] గంటలకు ${VENUE_TELUGU}లో జరిగే మన ప్రత్యేక కార్యక్రమానికి మీకు హృదయపూర్వక ఆహ్వానం.`,
+      `*[తేదీ]* న *[సమయం]* గంటలకు *${VENUE_TELUGU}*లో జరిగే మన ప్రత్యేక కార్యక్రమానికి మీకు హృదయపూర్వక ఆహ్వానం.`,
       '',
       'మీ కుటుంబ సభ్యులతో, స్నేహితులతో కలిసి వచ్చి ఆనందించండి.',
       '',
