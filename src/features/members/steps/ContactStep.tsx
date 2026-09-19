@@ -1,8 +1,9 @@
 import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import type { StepProps } from '../types'
+import { keepPhoneChars } from '../../../utils/validation'
 
-export function ContactStep({ data, setField }: StepProps) {
+export function ContactStep({ data, setField, errors }: StepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
@@ -10,6 +11,9 @@ export function ContactStep({ data, setField }: StepProps) {
           label="Mobile"
           required
           type="tel"
+          inputMode="tel"
+          sanitize={keepPhoneChars}
+          error={errors?.mobile}
           value={data.mobile}
           onChange={(v) => setField('mobile', v)}
           placeholder="90000 12345"
@@ -17,6 +21,9 @@ export function ContactStep({ data, setField }: StepProps) {
         <FormField
           label="WhatsApp Number"
           type="tel"
+          inputMode="tel"
+          sanitize={keepPhoneChars}
+          error={errors?.whatsapp}
           value={data.whatsapp}
           onChange={(v) => setField('whatsapp', v)}
           placeholder="Same as mobile, if different"
@@ -26,6 +33,8 @@ export function ContactStep({ data, setField }: StepProps) {
       <FormField
         label="Email Id"
         type="email"
+        inputMode="email"
+        error={errors?.email}
         value={data.email}
         onChange={(v) => setField('email', v)}
         placeholder="name@example.com"

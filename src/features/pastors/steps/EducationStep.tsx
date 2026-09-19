@@ -1,10 +1,11 @@
 import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import type { PastorStepProps } from '../types'
+import { keepDigits } from '../../../utils/validation'
 
 /** Section 5 — theological education and training. Entirely optional on the
  *  paper form, so this step is skippable in the wizard. */
-export function EducationStep({ data, setField }: PastorStepProps) {
+export function EducationStep({ data, setField, errors }: PastorStepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
@@ -31,6 +32,10 @@ export function EducationStep({ data, setField }: PastorStepProps) {
         />
         <FormField
           label="Year of Graduation"
+          inputMode="numeric"
+          sanitize={keepDigits}
+          maxLength={4}
+          error={errors?.graduationYear}
           value={data.graduationYear}
           onChange={(v) => setField('graduationYear', v)}
           placeholder="2014"

@@ -1,8 +1,9 @@
 import { FormField } from '../../../components/form/FormField'
 import { ToggleField } from '../../../components/form/ToggleField'
 import type { StepProps } from '../types'
+import { keepDigits } from '../../../utils/validation'
 
-export function FellowshipStep({ data, setField }: StepProps) {
+export function FellowshipStep({ data, setField, errors }: StepProps) {
   return (
     <>
       <ToggleField
@@ -49,7 +50,10 @@ export function FellowshipStep({ data, setField }: StepProps) {
             />
             <FormField
               label="Believer (in years)"
-              type="number"
+              inputMode="numeric"
+              sanitize={keepDigits}
+              maxLength={3}
+              error={errors?.believerYears}
               value={data.believerYears}
               onChange={(v) => setField('believerYears', v)}
               placeholder="e.g. 8"

@@ -125,6 +125,9 @@ export function memberToFormData(member: Member): MemberFormData {
 export type StepProps = {
   data: MemberFormData
   setField: <K extends keyof MemberFormData>(key: K, value: MemberFormData[K]) => void
+  /** Format problems for this step, keyed by field name — set when the admin
+   *  tries to advance with something malformed (see features/members/validation). */
+  errors?: Record<string, string>
 }
 
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']

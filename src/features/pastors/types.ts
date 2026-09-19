@@ -150,6 +150,9 @@ export function pastorToFormData(pastor: Pastor): PastorFormData {
 export type PastorStepProps = {
   data: PastorFormData
   setField: <K extends keyof PastorFormData>(key: K, value: PastorFormData[K]) => void
+  /** Format problems for this step, keyed by field name — set when the admin
+   *  tries to advance with something malformed (see features/pastors/validation). */
+  errors?: Record<string, string>
 }
 
 /** Section 9 statuses mapped onto the existing StatusPill palette — no new

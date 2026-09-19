@@ -1,9 +1,10 @@
 import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import type { PastorStepProps } from '../types'
+import { keepDigits, keepPhoneChars } from '../../../utils/validation'
 
 /** Sections 2 and 3 — contact details and the residential address. */
-export function ContactAddressStep({ data, setField }: PastorStepProps) {
+export function ContactAddressStep({ data, setField, errors }: PastorStepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
@@ -11,6 +12,9 @@ export function ContactAddressStep({ data, setField }: PastorStepProps) {
           label="Mobile Number"
           required
           type="tel"
+          inputMode="tel"
+          sanitize={keepPhoneChars}
+          error={errors?.mobile}
           value={data.mobile}
           onChange={(v) => setField('mobile', v)}
           placeholder="98765 43210"
@@ -18,6 +22,9 @@ export function ContactAddressStep({ data, setField }: PastorStepProps) {
         <FormField
           label="WhatsApp Number"
           type="tel"
+          inputMode="tel"
+          sanitize={keepPhoneChars}
+          error={errors?.whatsapp}
           value={data.whatsapp}
           onChange={(v) => setField('whatsapp', v)}
           placeholder="Same as mobile if blank"
@@ -28,6 +35,8 @@ export function ContactAddressStep({ data, setField }: PastorStepProps) {
       <FormField
         label="Email ID"
         type="email"
+        inputMode="email"
+        error={errors?.email}
         value={data.email}
         onChange={(v) => setField('email', v)}
         placeholder="pastor@example.com"
@@ -65,6 +74,10 @@ export function ContactAddressStep({ data, setField }: PastorStepProps) {
         />
         <FormField
           label="PIN Code"
+          inputMode="numeric"
+          sanitize={keepDigits}
+          maxLength={6}
+          error={errors?.pinCode}
           value={data.pinCode}
           onChange={(v) => setField('pinCode', v)}
           placeholder="521137"

@@ -1,8 +1,9 @@
 import { FormField } from '../../../components/form/FormField'
+import { keepPhoneChars } from '../../../utils/validation'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import type { StepProps } from '../types'
 
-export function OccupationEmergencyStep({ data, setField }: StepProps) {
+export function OccupationEmergencyStep({ data, setField, errors }: StepProps) {
   return (
     <>
       <FormField
@@ -26,6 +27,7 @@ export function OccupationEmergencyStep({ data, setField }: StepProps) {
           <FormField
             label="Name"
             required
+            error={errors?.emergencyName}
             value={data.emergencyName}
             onChange={(v) => setField('emergencyName', v)}
           />
@@ -40,6 +42,9 @@ export function OccupationEmergencyStep({ data, setField }: StepProps) {
           label="Mobile"
           required
           type="tel"
+          inputMode="tel"
+          sanitize={keepPhoneChars}
+          error={errors?.emergencyMobile}
           value={data.emergencyMobile}
           onChange={(v) => setField('emergencyMobile', v)}
           placeholder="90000 12345"

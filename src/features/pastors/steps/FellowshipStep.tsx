@@ -2,10 +2,11 @@ import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import { Icon } from '../../../components/ui/Icon'
 import type { PastorStepProps } from '../types'
+import { keepPhoneChars } from '../../../utils/validation'
 
 /** Sections 6 and 7 — why they want to join, and their two church-leader
  *  references. */
-export function FellowshipStep({ data, setField }: PastorStepProps) {
+export function FellowshipStep({ data, setField, errors }: PastorStepProps) {
   return (
     <>
       <FormTextarea
@@ -41,6 +42,7 @@ export function FellowshipStep({ data, setField }: PastorStepProps) {
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             label="Name"
+            error={errors?.ref1Name}
             value={data.ref1Name}
             onChange={(v) => setField('ref1Name', v)}
             placeholder="Pastor John Babu"
@@ -48,6 +50,9 @@ export function FellowshipStep({ data, setField }: PastorStepProps) {
           <FormField
             label="Contact Number"
             type="tel"
+            inputMode="tel"
+            sanitize={keepPhoneChars}
+            error={errors?.ref1Phone}
             value={data.ref1Phone}
             onChange={(v) => setField('ref1Phone', v)}
             placeholder="98765 43210"
@@ -62,6 +67,7 @@ export function FellowshipStep({ data, setField }: PastorStepProps) {
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             label="Name"
+            error={errors?.ref2Name}
             value={data.ref2Name}
             onChange={(v) => setField('ref2Name', v)}
             placeholder="Pastor David Raju"
@@ -69,6 +75,9 @@ export function FellowshipStep({ data, setField }: PastorStepProps) {
           <FormField
             label="Contact Number"
             type="tel"
+            inputMode="tel"
+            sanitize={keepPhoneChars}
+            error={errors?.ref2Phone}
             value={data.ref2Phone}
             onChange={(v) => setField('ref2Phone', v)}
             placeholder="98765 43210"

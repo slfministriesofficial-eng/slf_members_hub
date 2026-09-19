@@ -5,19 +5,21 @@ import { BLOOD_GROUPS } from '../../members/types'
 import type { PastorStepProps } from '../types'
 
 /** Section 1 of the Pastors Fellowship form. */
-export function PersonalStep({ data, setField }: PastorStepProps) {
+export function PersonalStep({ data, setField, errors }: PastorStepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <FormField
           label="Full Name"
           required
+          error={errors?.fullName}
           value={data.fullName}
           onChange={(v) => setField('fullName', v)}
           placeholder="Pastor Samuel Prasad"
         />
         <FormField
           label="Preferred Name"
+          error={errors?.preferredName}
           value={data.preferredName}
           onChange={(v) => setField('preferredName', v)}
           placeholder="Ps. Samuel"
@@ -62,6 +64,7 @@ export function PersonalStep({ data, setField }: PastorStepProps) {
       {data.maritalStatus === 'Married' && (
         <FormField
           label="Spouse Name"
+          error={errors?.spouseName}
           value={data.spouseName}
           onChange={(v) => setField('spouseName', v)}
           placeholder="Grace Prasad"

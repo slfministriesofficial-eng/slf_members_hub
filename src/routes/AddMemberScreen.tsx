@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/ui/Icon'
+import { Toast } from '../components/ui/Toast'
+import { memberStepErrors } from '../features/members/validation'
+import { firstError } from '../utils/validation'
 import { memberToFormData, type MemberFormData } from '../features/members/types'
 import { useMembers } from '../features/members/MembersContext'
 import { useDraftMember } from '../features/members/DraftMemberContext'
@@ -42,7 +45,25 @@ export function AddMemberScreen() {
   const { data, setField, stepIndex, setStepIndex, completedKeys, markCompleted, resetDraft, loadDraft } =
     useDraftMember()
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Format problems for the step on screen, plus the toast that announces them.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [toast, setToast] = useState<string | null>(null)
   const isSaving = isAdding || isUpdating
+
+  // Editing a field clears its own error immediately, so the red state tracks
+  // what is still wrong rather than what was wrong when Next was pressed.
+  const setFieldChecked = useCallback<typeof setField>(
+    (key, value) => {
+      setField(key, value)
+      setFieldErrors((prev) => {
+        if (!prev[key as string]) return prev
+        const next = { ...prev }
+        delete next[key as string]
+        return next
+      })
+    },
+    [setField],
+  )
 
   // Pre-fill the wizard from the existing member when editing — guarded so it only
   // runs once per id, since members/getMember change reference on every render.
@@ -134,6 +155,27 @@ export function AddMemberScreen() {
 
   async function goNext() {
     if (!canProceed) return
+
+    // On the last step check EVERY step, not just this one — the sidebar lets
+    // the admin jump around, so a bad phone typed on step 2 could otherwise be
+    // saved from step 7 without ever being re-validated.
+    const keysToCheck = isLast ? steps.map((s) => s.key) : [current.key]
+    const errors = keysToCheck.reduce<Record<string, string>>(
+      (acc, key) => Object.assign(acc, memberStepErrors(key, data)),
+      {},
+    )
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setToast(firstError(errors))
+      const badStep = keysToCheck.find((key) => Object.keys(memberStepErrors(key, data)).length > 0)
+      if (badStep && badStep !== current.key) {
+        const idx = steps.findIndex((s) => s.key === badStep)
+        if (idx !== -1) setStepIndex(idx)
+      }
+      return
+    }
+    setFieldErrors({})
+
     if (isLast) {
       setSaveError(null)
       try {
@@ -190,19 +232,19 @@ export function AddMemberScreen() {
   function renderStep() {
     switch (current.key) {
       case 'personal':
-        return <PersonalStep data={data} setField={setField} />
+        return <PersonalStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'contact':
-        return <ContactStep data={data} setField={setField} />
+        return <ContactStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'family':
-        return <FamilyStep data={data} setField={setField} />
+        return <FamilyStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'fellowship':
-        return <FellowshipStep data={data} setField={setField} />
+        return <FellowshipStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'ministry':
-        return <MinistryStep data={data} setField={setField} />
+        return <MinistryStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'occupation':
-        return <OccupationEmergencyStep data={data} setField={setField} />
+        return <OccupationEmergencyStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       case 'review':
-        return <ReviewStep data={data} setField={setField} />
+        return <ReviewStep data={data} setField={setFieldChecked} errors={fieldErrors} />
       default:
         return null
     }
@@ -303,6 +345,8 @@ export function AddMemberScreen() {
             {saveError}
           </p>
         )}
+
+        {toast && <Toast message={toast} tone="error" offset="plain" onDismiss={() => setToast(null)} />}
 
         <div className="mt-5 flex gap-3 md:justify-between">
           <button

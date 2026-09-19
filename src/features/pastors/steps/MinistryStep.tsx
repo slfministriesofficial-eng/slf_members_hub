@@ -1,9 +1,10 @@
 import { FormField } from '../../../components/form/FormField'
 import { FormTextarea } from '../../../components/form/FormTextarea'
 import type { PastorStepProps } from '../types'
+import { keepDigits } from '../../../utils/validation'
 
 /** Section 4 — the pastor's own church and ministry. */
-export function MinistryStep({ data, setField }: PastorStepProps) {
+export function MinistryStep({ data, setField, errors }: PastorStepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
@@ -39,6 +40,10 @@ export function MinistryStep({ data, setField }: PastorStepProps) {
         />
         <FormField
           label="Years of Ministry Experience"
+          inputMode="numeric"
+          sanitize={keepDigits}
+          maxLength={2}
+          error={errors?.yearsOfExperience}
           value={data.yearsOfExperience}
           onChange={(v) => setField('yearsOfExperience', v)}
           placeholder="12"

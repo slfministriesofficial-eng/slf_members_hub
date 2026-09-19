@@ -3,19 +3,21 @@ import { FormSelect } from '../../../components/form/FormSelect'
 import { ToggleField } from '../../../components/form/ToggleField'
 import { BLOOD_GROUPS, type StepProps } from '../types'
 
-export function PersonalStep({ data, setField }: StepProps) {
+export function PersonalStep({ data, setField, errors }: StepProps) {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <FormField
           label="Full Name"
           required
+          error={errors?.fullName}
           value={data.fullName}
           onChange={(v) => setField('fullName', v)}
           placeholder="Samuel Prasad"
         />
         <FormField
           label="Preferred Name"
+          error={errors?.preferredName}
           value={data.preferredName}
           onChange={(v) => setField('preferredName', v)}
           placeholder="Sam"
